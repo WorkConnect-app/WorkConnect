@@ -9,5 +9,5 @@ WorkConnect allows both sides to manage things like tasks, internal chat, attend
 
 ## Authors
 - Raphael Coeffic
-- Shay Kronfeld Bashari
+- Shay Kronfeld
 - Misha Askarov
