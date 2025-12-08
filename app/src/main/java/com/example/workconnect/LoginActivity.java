@@ -2,13 +2,13 @@ package com.example.workconnect;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+
 import android.content.Intent;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.gms.tasks.OnCompleteListener;
@@ -17,13 +17,17 @@ import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 
-public class LoginActivity extends AppCompatActivity {
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.gms.tasks.OnFailureListener;
 
+public class LoginActivity extends AppCompatActivity {
 
     private EditText etEmail, etPassword;
     private Button btnLogin, btnRegister;
     private FirebaseAuth mAuth;
-    private TextView tvWelcome;
+    private FirebaseFirestore db;   // ✅ חדש
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -31,7 +35,7 @@ public class LoginActivity extends AppCompatActivity {
         setContentView(R.layout.login_activity);
 
         mAuth = FirebaseAuth.getInstance();
-
+        db = FirebaseFirestore.getInstance();   // ✅ חדש
 
         etEmail = findViewById(R.id.Email);
         etPassword = findViewById(R.id.password);
@@ -46,25 +50,16 @@ public class LoginActivity extends AppCompatActivity {
             }
         });
 
-        // button to go to the RegisterActivity
+        // כפתור REGISTER – מעבר למסך בחירת סוג רישום
         btnRegister.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                // For now, let's make this button redirect to Register
-                startActivity(new Intent(LoginActivity.this, RegisterActivity.class));
+                Intent intent = new Intent(LoginActivity.this, RegisterTypeActivity.class);
+                startActivity(intent);
             }
         });
     }
 
-    @Override
-    protected void onStart() {
-        super.onStart();
-        // Check if user is already signed in (non-null) and redirect to Home
-        FirebaseUser currentUser = mAuth.getCurrentUser();
-        if (currentUser != null) {
-            redirectToHome();
-        }
-    }
 
     private void loginUser() {
         String email = etEmail.getText().toString().trim();
@@ -75,15 +70,17 @@ public class LoginActivity extends AppCompatActivity {
             return;
         }
 
-
         mAuth.signInWithEmailAndPassword(email, password)
                 .addOnCompleteListener(this, new OnCompleteListener<AuthResult>() {
                     @Override
                     public void onComplete(@NonNull Task<AuthResult> task) {
                         if (task.isSuccessful()) {
-                            // Login success: Redirect to Home
+                            // Login success: נמשוך את ה-role מה-DB
                             Toast.makeText(LoginActivity.this, "Login successful!", Toast.LENGTH_SHORT).show();
-                            redirectToHome();
+                            FirebaseUser user = mAuth.getCurrentUser();
+                            if (user != null) {
+                                fetchUserRoleAndRedirect(user);
+                            }
                         } else {
                             // Login failed
                             Toast.makeText(LoginActivity.this,
@@ -94,6 +91,63 @@ public class LoginActivity extends AppCompatActivity {
                 });
     }
 
+    // ✅ פונקציה חדשה – מושכת את המסמך של המשתמש מה-DB לפי uid ובודקת role
+    private void fetchUserRoleAndRedirect(FirebaseUser user) {
+        String uid = user.getUid();
+
+        db.collection("users").document(uid)
+                .get()
+                .addOnSuccessListener(new OnSuccessListener<DocumentSnapshot>() {
+                    @Override
+                    public void onSuccess(DocumentSnapshot documentSnapshot) {
+
+                        if (documentSnapshot.exists()) {
+                            String role = documentSnapshot.getString("role");
+
+                            if ("manager".equals(role)) {
+                                redirectToManagerHome();
+                            } else if ("employee".equals(role)) {
+                                redirectToEmployeeHome();
+                            } else {
+                                // אם אין role / משהו לא צפוי – בינתיים נשלח למסך כללי
+                                redirectToHome();
+                            }
+
+                        } else {
+                            // אין מסמך משתמש – בינתיים נשלח למסך כללי
+                            Toast.makeText(LoginActivity.this,
+                                    "User data not found, redirecting to home.",
+                                    Toast.LENGTH_SHORT).show();
+                            redirectToHome();
+                        }
+                    }
+                })
+                .addOnFailureListener(new OnFailureListener() {
+                    @Override
+                    public void onFailure(@NonNull Exception e) {
+                        Toast.makeText(LoginActivity.this,
+                                "Error loading user data: " + e.getMessage(),
+                                Toast.LENGTH_SHORT).show();
+                        redirectToHome();
+                    }
+                });
+    }
+
+    // כרגע משאיר את HomeActivity – אפשר להחליף בהמשך למסך מיוחד למנהל
+    private void redirectToManagerHome() {
+        Intent intent = new Intent(LoginActivity.this, HomeActivity.class); // TODO: ManagerHomeActivity
+        startActivity(intent);
+        finish();
+    }
+
+    // כרגע גם לעובד – אפשר בעתיד להפריד ל-EmployeeHomeActivity
+    private void redirectToEmployeeHome() {
+        Intent intent = new Intent(LoginActivity.this, HomeActivity.class); // TODO: EmployeeHomeActivity
+        startActivity(intent);
+        finish();
+    }
+
+    // ברירת מחדל אם אין role / שגיאה
     private void redirectToHome() {
         Intent intent = new Intent(LoginActivity.this, HomeActivity.class);
         startActivity(intent);
