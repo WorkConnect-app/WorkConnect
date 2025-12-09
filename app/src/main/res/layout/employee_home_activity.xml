@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp">
+
+    <!-- Greeting -->
+    <TextView
+        android:id="@+id/tv_hello_employee"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Hello, Employee"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Company name -->
+    <TextView
+        android:id="@+id/tv_company_name_employee"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Company: My Company"
+        android:textSize="16sp"
+        app:layout_constraintTop_toBottomOf="@id/tv_hello_employee"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="4dp" />
+
+    <!-- Section title -->
+    <TextView
+        android:id="@+id/tv_employee_actions_label"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Employee actions"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        app:layout_constraintTop_toBottomOf="@id/tv_company_name_employee"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="16dp" />
+
+    <!-- ROW 1: My shifts | My salary slips -->
+
+    <Button
+        android:id="@+id/btn_my_shifts"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="My shifts"
+        android:backgroundTint="@color/primaryBlue"
+        app:layout_constraintTop_toBottomOf="@id/tv_employee_actions_label"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/btn_my_salary_slips"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="8dp" />
+
+    <Button
+        android:id="@+id/btn_my_salary_slips"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="My salary slips"
+        android:backgroundTint="@color/primaryBlue"
+        app:layout_constraintTop_toBottomOf="@id/tv_employee_actions_label"
+        app:layout_constraintStart_toEndOf="@id/btn_my_shifts"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="16dp"
+        android:layout_marginStart="8dp" />
+
+    <!-- ROW 2: Vacation requests | My tasks -->
+
+    <Button
+        android:id="@+id/btn_vacation_requests"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="my Vacations"
+        android:backgroundTint="@color/primaryBlue"
+        app:layout_constraintTop_toBottomOf="@id/btn_my_shifts"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/btn_my_tasks"
+        android:layout_marginTop="12dp"
+        android:layout_marginEnd="8dp" />
+
+    <Button
+        android:id="@+id/btn_my_tasks"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="My tasks"
+        android:backgroundTint="@color/primaryBlue"
+        app:layout_constraintTop_toBottomOf="@id/btn_my_salary_slips"
+        app:layout_constraintStart_toEndOf="@id/btn_vacation_requests"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="12dp"
+        android:layout_marginStart="8dp" />
+
+    <!-- ROW 3: Company employees | Logout -->
+
+    <Button
+        android:id="@+id/btn_company_employees"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="all employees"
+        android:backgroundTint="@color/primaryBlue"
+        app:layout_constraintTop_toBottomOf="@id/btn_vacation_requests"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/btn_employee_logout"
+        android:layout_marginTop="12dp"
+        android:layout_marginEnd="8dp" />
+
+    <Button
+        android:id="@+id/btn_employee_logout"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Logout"
+        android:backgroundTint="@color/primaryBlue"
+        app:layout_constraintTop_toBottomOf="@id/btn_my_tasks"
+        app:layout_constraintStart_toEndOf="@id/btn_company_employees"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="12dp"
+        android:layout_marginStart="8dp" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

@@ -7,7 +7,7 @@
     android:layout_height="match_parent"
     android:padding="24dp"
     android:layoutDirection="ltr"
-    tools:context=".LoginActivity">
+    tools:context=".ui.auth.LoginActivity">
 
     <!-- LOGO -->
     <ImageView
