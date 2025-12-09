@@ -1,4 +1,4 @@
-package Models;
+package com.example.workconnect.models;
 
 import java.util.Date;
 import java.util.List;

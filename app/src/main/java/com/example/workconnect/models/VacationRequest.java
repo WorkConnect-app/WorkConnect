@@ -1,21 +1,21 @@
-package Models;
+package com.example.workconnect.models;
+import com.example.workconnect.models.enums.VacationStatus;
 
 import java.util.Date;
 
 public class VacationRequest {
 
-    private String id;               // Unique vacation request ID
-    private String employeeId;       // UID of the employee who submitted the request
-
-    private Date startDate;          // Vacation start date
-    private Date endDate;            // Vacation end date
-    private String type;             // Type of request: "vacation", "sick", "other"
-
-    private String status;           // Request status: "pending", "approved", "rejected"
-    private String managerId;        // UID of the manager who approved/rejected the request
-    private Date createdAt;          // When the request was created
-    private Date decisionAt;         // When a manager made the decision
-    private String managerComment;   // Optional comment from the manager
+    private String id;
+    private String employeeId;
+    private String managerId;
+    private Date startDate;
+    private Date endDate;
+    private String reason;
+    private VacationStatus status;
+    private int daysRequested;
+    private Date createdAt;        // when the request was created
+    private Date decisionAt;       // when the manager approved/rejected
+    private String managerComment; // optional comment from manager
 
     public VacationRequest() {
         // Required for Firebase deserialization
@@ -23,25 +23,25 @@ public class VacationRequest {
 
     public VacationRequest(String id,
                            String employeeId,
+                           String managerId,
                            Date startDate,
                            Date endDate,
-                           String type,
-                           String status,
-                           String managerId,
-                           Date createdAt,
-                           Date decisionAt,
-                           String managerComment) {
+                           String reason,
+                           VacationStatus status,
+                           int daysRequested,
+                           Date createdAt) {
 
         this.id = id;
         this.employeeId = employeeId;
+        this.managerId = managerId;
         this.startDate = startDate;
         this.endDate = endDate;
-        this.type = type;
+        this.reason = reason;
         this.status = status;
-        this.managerId = managerId;
+        this.daysRequested = daysRequested;
         this.createdAt = createdAt;
-        this.decisionAt = decisionAt;
-        this.managerComment = managerComment;
+        this.decisionAt = null;
+        this.managerComment = null;
     }
 
     // ===== Getters & Setters =====
@@ -62,6 +62,14 @@ public class VacationRequest {
         this.employeeId = employeeId;
     }
 
+    public String getManagerId() {
+        return managerId;
+    }
+
+    public void setManagerId(String managerId) {
+        this.managerId = managerId;
+    }
+
     public Date getStartDate() {
         return startDate;
     }
@@ -78,28 +86,28 @@ public class VacationRequest {
         this.endDate = endDate;
     }
 
-    public String getType() {
-        return type;
+    public String getReason() {
+        return reason;
     }
 
-    public void setType(String type) {
-        this.type = type;
+    public void setReason(String reason) {
+        this.reason = reason;
     }
 
-    public String getStatus() {
+    public VacationStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(VacationStatus status) {
         this.status = status;
     }
 
-    public String getManagerId() {
-        return managerId;
+    public int getDaysRequested() {
+        return daysRequested;
     }
 
-    public void setManagerId(String managerId) {
-        this.managerId = managerId;
+    public void setDaysRequested(int daysRequested) {
+        this.daysRequested = daysRequested;
     }
 
     public Date getCreatedAt() {

@@ -13,12 +13,15 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.WorkConnect">
-        <activity android:name=".RegisterTypeActivity" />
-        <activity android:name=".RegisterCompanyActivity" />
-        <activity android:name=".RegisterEmployeeActivity" />
 
+        <!-- Auth & register screens -->
+        <activity android:name=".ui.auth.RegisterTypeActivity" />
+        <activity android:name=".ui.auth.RegisterCompanyActivity" />
+        <activity android:name=".ui.auth.RegisterEmployeeActivity" />
+
+        <!-- Login is the launcher activity -->
         <activity
-            android:name=".LoginActivity"
+            android:name=".ui.auth.LoginActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -27,12 +30,25 @@
         </activity>
 
         <activity
-            android:name=".RegisterActivity"
+            android:name=".ui.manager.ManagerHomeActivity"
             android:exported="false" />
 
         <activity
-            android:name=".HomeActivity"
+            android:name=".ui.employee.EmployeeHomeActivity"
             android:exported="false" />
+
+        <activity
+            android:name=".ui.manager.PendingEmployeesActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ui.employee.EmployeeVacationRequestsActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ui.employee.NewVacationRequestActivity"
+            android:exported="false" />
+
 
     </application>
 </manifest>
