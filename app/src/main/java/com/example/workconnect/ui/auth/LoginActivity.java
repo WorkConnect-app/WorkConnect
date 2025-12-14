@@ -15,6 +15,8 @@ import com.example.workconnect.ui.manager.ManagerHomeActivity;
 import com.example.workconnect.ui.employee.EmployeeHomeActivity;
 import com.example.workconnect.viewModels.auth.LoginViewModel;
 
+import java.util.Locale;
+
 public class LoginActivity extends AppCompatActivity {
 
     private EditText etEmail, etPassword;
@@ -74,7 +76,10 @@ public class LoginActivity extends AppCompatActivity {
                 return;
             }
 
-            switch (role) {
+            // נרמול ל-lowercase כדי ש"EMPLOYEE" / "employee" יתנהגו אותו דבר
+            String normalizedRole = role.toLowerCase(Locale.ROOT);
+
+            switch (normalizedRole) {
                 case "manager":
                     redirectToManagerHome();
                     break;
