@@ -9,7 +9,6 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
-
 import com.example.workconnect.R;
 import com.example.workconnect.models.User;
 
@@ -27,18 +26,15 @@ public class PendingEmployeesAdapter
         void onRejectClicked(User employee);
     }
 
-    private final List<User> items = new ArrayList<>();
+    private List<User> employees = new ArrayList<>();
     private final OnEmployeeActionListener listener;
 
     public PendingEmployeesAdapter(OnEmployeeActionListener listener) {
         this.listener = listener;
     }
 
-    public void setItems(List<User> newItems) {
-        items.clear();
-        if (newItems != null) {
-            items.addAll(newItems);
-        }
+    public void setEmployees(List<User> newEmployees) {
+        this.employees = newEmployees != null ? newEmployees : new ArrayList<>();
         notifyDataSetChanged();
     }
 
@@ -52,19 +48,24 @@ public class PendingEmployeesAdapter
 
     @Override
     public void onBindViewHolder(@NonNull PendingEmployeeViewHolder holder, int position) {
-        User employee = items.get(position);
+        User employee = employees.get(position);
         holder.bind(employee, listener);
     }
 
     @Override
     public int getItemCount() {
-        return items.size();
+        return employees != null ? employees.size() : 0;
     }
 
+    /**
+     * ViewHolder for a single pending employee row.
+     */
     static class PendingEmployeeViewHolder extends RecyclerView.ViewHolder {
 
-        TextView tvName, tvEmail;
-        Button btnApprove, btnReject;
+        private final TextView tvName;
+        private final TextView tvEmail;
+        private final Button btnApprove;
+        private final Button btnReject;
 
         public PendingEmployeeViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -75,7 +76,7 @@ public class PendingEmployeesAdapter
         }
 
         void bind(User employee, OnEmployeeActionListener listener) {
-            tvName.setText(employee.getFullName());
+            tvName.setText(employee.getFirstName() + " " + employee.getLastName());
             tvEmail.setText(employee.getEmail());
 
             btnApprove.setOnClickListener(v -> {

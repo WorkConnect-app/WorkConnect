@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Employee info -->
+        <TextView
+            android:id="@+id/tv_employee_info"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Approve employee"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:paddingBottom="8dp" />
+
+        <!-- Role -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Role"
+            android:paddingTop="8dp" />
+
+        <Spinner
+            android:id="@+id/spinner_role"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <!-- Direct manager ID -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Direct manager UID"
+            android:paddingTop="8dp" />
+
+        <EditText
+            android:id="@+id/et_direct_manager_id"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Leave empty if this is a top-level manager" />
+
+        <!-- Vacation days per month -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Vacation days per month"
+            android:paddingTop="8dp" />
+
+        <EditText
+            android:id="@+id/et_vacation_days_per_month"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="numberDecimal"
+            android:hint="e.g. 1.5" />
+
+        <!-- Department -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Department"
+            android:paddingTop="8dp" />
+
+        <EditText
+            android:id="@+id/et_department"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="e.g. Sales" />
+
+        <!-- Team -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Team"
+            android:paddingTop="8dp" />
+
+        <EditText
+            android:id="@+id/et_team"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="e.g. North Region" />
+
+        <!-- Job title -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Job title"
+            android:paddingTop="8dp" />
+
+        <EditText
+            android:id="@+id/et_job_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="e.g. Shift Supervisor" />
+
+        <!-- Buttons row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="end"
+            android:paddingTop="16dp">
+
+            <Button
+                android:id="@+id/btn_cancel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Cancel" />
+
+            <Button
+                android:id="@+id/btn_approve"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Approve"
+                android:layout_marginStart="8dp" />
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>

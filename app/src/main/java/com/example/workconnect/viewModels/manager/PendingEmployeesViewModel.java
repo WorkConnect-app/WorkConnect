@@ -1,5 +1,6 @@
 package com.example.workconnect.viewModels.manager;
 
+import androidx.annotation.Nullable;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
@@ -37,7 +38,9 @@ public class PendingEmployeesViewModel extends ViewModel {
         return isLoading;
     }
 
-    // Start listening only once (even if Activity is recreated)
+    /**
+     * Start listening only once (even if Activity/Fragment is recreated)
+     */
     public void startListening(String companyId) {
         if (initialized) return;
         initialized = true;
@@ -62,15 +65,38 @@ public class PendingEmployeesViewModel extends ViewModel {
         );
     }
 
-    public void approveEmployee(String uid) {
-        repository.updateEmployeeStatus(uid, "approved", (success, msg) -> {
-            if (!success) {
-                errorMessage.postValue(msg);
-            }
-            // If success, the Firestore listener will update the list automatically
-        });
+    /**
+     * Approve employee with full details – role, manager, vacation accrual etc.
+     */
+    public void approveEmployee(
+            String uid,
+            String role,                       // "EMPLOYEE" or "MANAGER"
+            @Nullable String directManagerId,  // null for top-level manager
+            Double vacationDaysPerMonth,
+            String department,
+            String team,
+            String jobTitle
+    ) {
+        repository.approveEmployeeWithDetails(
+                uid,
+                role,
+                directManagerId,
+                vacationDaysPerMonth,
+                department,
+                team,
+                jobTitle,
+                (success, msg) -> {
+                    if (!success) {
+                        errorMessage.postValue(msg);
+                    }
+                    // If success, the Firestore listener will update the list automatically
+                }
+        );
     }
 
+    /**
+     * Reject employee (status = "rejected")
+     */
     public void rejectEmployee(String uid) {
         repository.updateEmployeeStatus(uid, "rejected", (success, msg) -> {
             if (!success) {

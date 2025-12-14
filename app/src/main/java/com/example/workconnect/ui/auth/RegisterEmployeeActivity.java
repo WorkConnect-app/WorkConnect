@@ -18,12 +18,12 @@ public class RegisterEmployeeActivity extends AppCompatActivity {
     private RegisterEmployeeViewModel viewModel;
     private Button btnBack;
 
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.register_employee_activity);
 
+        // Views
         etFullName = findViewById(R.id.et_full_name);
         etEmail = findViewById(R.id.et_email);
         etPassword = findViewById(R.id.et_password);
@@ -34,6 +34,7 @@ public class RegisterEmployeeActivity extends AppCompatActivity {
         btnBack = findViewById(R.id.btn_back_login);
         btnBack.setOnClickListener(v -> finish());
 
+        // ViewModel
         viewModel = new ViewModelProvider(this).get(RegisterEmployeeViewModel.class);
 
         btnRegisterEmployee.setOnClickListener(v -> {
@@ -42,30 +43,41 @@ public class RegisterEmployeeActivity extends AppCompatActivity {
             String password = etPassword.getText().toString().trim();
             String companyCode = etCompanyCode.getText().toString().trim();
 
-            viewModel.registerEmployee(fullName, email, password, companyCode);
+            // Split full name into first name and last name
+            String firstName = "";
+            String lastName = "";
+
+            if (!fullName.isEmpty()) {
+                String[] parts = fullName.split(" ", 2);
+                firstName = parts[0];
+                if (parts.length > 1) {
+                    lastName = parts[1];
+                }
+            }
+
+            viewModel.registerEmployee(firstName, lastName, email, password, companyCode);
         });
 
         observeViewModel();
     }
 
-
     private void observeViewModel() {
-        // טעינה – אפשר להשבית כפתור בזמן שליחה
+        // Loading state – can disable button while registering
         viewModel.getIsLoading().observe(this, isLoading -> {
             if (isLoading != null) {
                 btnRegisterEmployee.setEnabled(!isLoading);
-                // אם תרצי – להוסיף ProgressBar
+                // You may add a ProgressBar here if you want
             }
         });
 
-        // הודעות שגיאה – כולל "קוד חברה לא קיים"
+        // Error messages – including "company code not found"
         viewModel.getErrorMessage().observe(this, msg -> {
             if (msg != null && !msg.isEmpty()) {
                 Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
             }
         });
 
-        // הרשמה הצליחה – אבל במצב "ממתין לאישור"
+        // Registration succeeded – in "pending approval" state
         viewModel.getRegistrationPending().observe(this, pending -> {
             if (pending != null && pending) {
                 Toast.makeText(
@@ -73,7 +85,6 @@ public class RegisterEmployeeActivity extends AppCompatActivity {
                         "Your registration is pending manager approval",
                         Toast.LENGTH_LONG
                 ).show();
-                // כרגע פשוט נסגור את המסך (אפשר בעתיד להעביר למסך אחר)
                 finish();
             }
         });

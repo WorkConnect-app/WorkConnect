@@ -28,13 +28,15 @@ public class RegisterEmployeeViewModel extends ViewModel {
         return registrationPending;
     }
 
-    public void registerEmployee(String fullName,
+    public void registerEmployee(String firstName,
+                                 String lastName,
                                  String email,
                                  String password,
                                  String companyCode) {
 
-        // ולידציות בסיסיות
-        if (TextUtils.isEmpty(fullName) ||
+        // Basic validation
+        if (TextUtils.isEmpty(firstName) ||
+                TextUtils.isEmpty(lastName) ||
                 TextUtils.isEmpty(email) ||
                 TextUtils.isEmpty(password) ||
                 TextUtils.isEmpty(companyCode)) {
@@ -50,13 +52,12 @@ public class RegisterEmployeeViewModel extends ViewModel {
 
         isLoading.setValue(true);
 
-        repository.registerEmployee(fullName, email, password, companyCode,
+        repository.registerEmployee(firstName, lastName, email, password, companyCode,
                 new EmployeeRepository.RegisterEmployeeCallback() {
                     @Override
                     public void onSuccess() {
                         isLoading.postValue(false);
-                        // הרשמה הצליחה – במצב שלך זה "ממתין לאישור"
-                        registrationPending.postValue(true);
+                        registrationPending.postValue(true); // pending approval
                     }
 
                     @Override
