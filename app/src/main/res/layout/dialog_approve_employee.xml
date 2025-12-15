@@ -9,6 +9,24 @@
         android:orientation="vertical"
         android:padding="16dp">
 
+        <!-- Top row: Back button (right) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="end"
+            android:layout_marginBottom="8dp">
+
+            <Button
+                android:id="@+id/btn_back"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Back"
+                android:textAllCaps="false"
+                android:backgroundTint="@android:color/transparent"
+                android:textColor="@color/primaryBlue"/>
+        </LinearLayout>
+
         <!-- Employee info -->
         <TextView
             android:id="@+id/tv_employee_info"
@@ -109,12 +127,14 @@
                 android:id="@+id/btn_cancel"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:backgroundTint="@color/primaryBlue"
                 android:text="Cancel" />
 
             <Button
                 android:id="@+id/btn_approve"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:backgroundTint="@color/primaryBlue"
                 android:text="Approve"
                 android:layout_marginStart="8dp" />
         </LinearLayout>

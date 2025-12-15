@@ -6,42 +6,41 @@
     android:layout_height="match_parent"
     android:padding="16dp">
 
+    <!-- Title -->
     <TextView
         android:id="@+id/tv_title"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:text="Pending employees"
-        android:textSize="22sp"
+        android:text="Vacation requests (pending)"
         android:textStyle="bold"
-        android:textColor="@android:color/black"
-        android:layout_marginTop="16dp"
-        android:layout_marginStart="16dp"
+        android:textSize="18sp"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        />
+        app:layout_constraintEnd_toStartOf="@id/btn_back"
+        app:layout_constraintBottom_toBottomOf="@id/btn_back"
+        android:layout_marginEnd="8dp"/>
 
+    <!-- Back button -->
     <Button
         android:id="@+id/btn_back"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="BACK"
+        android:text="Back"
+        android:textAllCaps="false"
         android:backgroundTint="@android:color/transparent"
         android:textColor="@color/primaryBlue"
-        android:layout_marginEnd="3dp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="@id/tv_title"
-        app:layout_constraintBottom_toBottomOf="@id/tv_title"
-        />
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
 
-
+    <!-- RecyclerView -->
     <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/rv_pending_employees"
+        android:id="@+id/rv_requests"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:layout_marginTop="16dp"
-        app:layout_constraintStart_toStartOf="@id/tv_title"
-        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="12dp"
         app:layout_constraintTop_toBottomOf="@id/tv_title"
-        app:layout_constraintBottom_toBottomOf="parent" />
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

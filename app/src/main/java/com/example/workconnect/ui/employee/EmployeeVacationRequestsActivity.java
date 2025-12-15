@@ -12,16 +12,19 @@ import com.example.workconnect.R;
 public class EmployeeVacationRequestsActivity extends AppCompatActivity {
 
     private Button btnNewRequest;
-    private RecyclerView rvVacationRequests;   // אפשר להשאיר ריק כרגע
+    private Button btnBack;
+    private RecyclerView rvVacationRequests;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.employee_vacations_activity);  // שימי לב לשם
+        setContentView(R.layout.my_vacations_activity);
 
         btnNewRequest = findViewById(R.id.btn_new_request);
         rvVacationRequests = findViewById(R.id.rv_vacation_requests);
+        btnBack = findViewById(R.id.btn_back);
 
+        // New vacation request
         btnNewRequest.setOnClickListener(v -> {
             Intent intent = new Intent(
                     EmployeeVacationRequestsActivity.this,
@@ -30,6 +33,9 @@ public class EmployeeVacationRequestsActivity extends AppCompatActivity {
             startActivity(intent);
         });
 
-        // נוכל להוסיף כאן בהמשך את טעינת הבקשות מהרשימה
+        // Back
+        if (btnBack != null) {
+            btnBack.setOnClickListener(v -> finish());
+        }
     }
 }

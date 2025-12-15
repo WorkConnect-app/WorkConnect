@@ -20,14 +20,15 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="email@example.com"
+        android:textColor="@android:color/darker_gray"
         android:textSize="14sp"
-        android:layout_marginTop="2dp"/>
+        android:layout_marginTop="2dp"
+        android:layout_marginBottom="10dp"/>
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:layout_marginTop="8dp">
+        android:orientation="horizontal">
 
         <Button
             android:id="@+id/btn_approve"
@@ -42,9 +43,9 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="Reject"
+            android:layout_marginStart="8dp"
             android:backgroundTint="@color/primaryBlue"
-            android:layout_marginStart="8dp"/>
+            android:text="Reject"/>
     </LinearLayout>
 
 </LinearLayout>

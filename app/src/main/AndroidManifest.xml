@@ -49,6 +49,9 @@
             android:name=".ui.employee.NewVacationRequestActivity"
             android:exported="false" />
 
+        <activity android:name=".ui.manager.PendingVacationRequestsActivity"
+            android:exported="false" />
+
 
     </application>
 </manifest>
