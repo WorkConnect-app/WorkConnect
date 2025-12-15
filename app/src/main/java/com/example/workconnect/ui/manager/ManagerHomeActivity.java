@@ -11,8 +11,7 @@ import android.widget.Toast;
 import com.example.workconnect.R;
 import com.example.workconnect.ui.auth.LoginActivity;
 //import com.example.workconnect.ui.employee.EmployeeListActivity; // to do
-import com.example.workconnect.ui.employee.EmployeeVacationRequestsActivity;
-import com.example.workconnect.ui.employee.NewVacationRequestActivity;
+import com.example.workconnect.ui.employee.VacationRequestsActivity;
 //import com.example.workconnect.ui.shifts.MyShiftsActivity;       // to do
 // import com.example.workconnect.ui.tasks.MyTasksActivity;         // to do
 import com.google.firebase.auth.FirebaseAuth;
@@ -89,7 +88,7 @@ public class ManagerHomeActivity extends AppCompatActivity {
         });
 
         // ---- My area ----
-        btnMyVacations.setOnClickListener(v -> openWithCompany(PendingVacationRequestsActivity.class));
+        btnMyVacations.setOnClickListener(v -> openWithCompany(VacationRequestsActivity.class));
         // btnMyShifts.setOnClickListener(v -> openWithCompany(MyShiftsActivity.class));
        // btnMyTasks.setOnClickListener(v -> openWithCompany(MyTasksActivity.class));
 
@@ -123,7 +122,7 @@ public class ManagerHomeActivity extends AppCompatActivity {
         });
 
         btnVacationRequests.setOnClickListener(v -> {
-            openWithCompany(com.example.workconnect.ui.employee.EmployeeVacationRequestsActivity.class);
+            openWithCompany(PendingVacationRequestsActivity.class);
         });
 
         // TODO:

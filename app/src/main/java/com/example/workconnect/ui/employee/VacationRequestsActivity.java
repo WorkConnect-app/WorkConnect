@@ -9,7 +9,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.workconnect.R;
 
-public class EmployeeVacationRequestsActivity extends AppCompatActivity {
+public class VacationRequestsActivity extends AppCompatActivity {
 
     private Button btnNewRequest;
     private Button btnBack;
@@ -27,7 +27,7 @@ public class EmployeeVacationRequestsActivity extends AppCompatActivity {
         // New vacation request
         btnNewRequest.setOnClickListener(v -> {
             Intent intent = new Intent(
-                    EmployeeVacationRequestsActivity.this,
+                    VacationRequestsActivity.this,
                     NewVacationRequestActivity.class
             );
             startActivity(intent);
