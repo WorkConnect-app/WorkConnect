@@ -42,11 +42,14 @@
             android:exported="false" />
 
         <activity
-            android:name=".ui.employee.EmployeeVacationRequestsActivity"
+            android:name=".ui.employee.VacationRequestsActivity"
             android:exported="false" />
 
         <activity
             android:name=".ui.employee.NewVacationRequestActivity"
+            android:exported="false" />
+
+        <activity android:name=".ui.manager.PendingVacationRequestsActivity"
             android:exported="false" />
 
 

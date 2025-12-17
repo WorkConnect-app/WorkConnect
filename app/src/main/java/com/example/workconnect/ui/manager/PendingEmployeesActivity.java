@@ -37,37 +37,34 @@ public class PendingEmployeesActivity extends AppCompatActivity
         super.onCreate(savedInstanceState);
         setContentView(R.layout.pending_employees_activity);
 
-        // ViewModel
-        viewModel = new ViewModelProvider(this)
-                .get(PendingEmployeesViewModel.class);
+        viewModel = new ViewModelProvider(this).get(PendingEmployeesViewModel.class);
 
-        // RecyclerView
-        RecyclerView rv = findViewById(R.id.rv_pending_employees); // עדכני אם ה-id אחר אצלך
+        RecyclerView rv = findViewById(R.id.rv_pending_employees);
+        if (rv == null) {
+            Toast.makeText(this, "RecyclerView not found in layout", Toast.LENGTH_LONG).show();
+            finish();
+            return;
+        }
 
         rv.setLayoutManager(new LinearLayoutManager(this));
         adapter = new PendingEmployeesAdapter(this);
         rv.setAdapter(adapter);
 
+        Button btnBack = findViewById(R.id.btn_back);
+        btnBack.setOnClickListener(v -> finish());
+
         observeViewModel();
 
-        // קבלת companyId – כאן את מחליטה מאיפה
-        // למשל מאינטנט:
         String companyId = getIntent().getStringExtra("companyId");
         if (companyId == null || companyId.isEmpty()) {
-            Toast.makeText(this,
-                    "Missing companyId for pending employees screen",
-                    Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Missing companyId for pending employees screen", Toast.LENGTH_LONG).show();
+            finish();
             return;
         }
 
-        Button btnBack = findViewById(R.id.btn_back);
-        btnBack.setOnClickListener(v -> {
-            finish(); // closes this screen and returns to the previous one
-        });
-
-
         viewModel.startListening(companyId);
     }
+
 
     private void observeViewModel() {
         viewModel.getPendingEmployees().observe(this, this::onEmployeesUpdated);

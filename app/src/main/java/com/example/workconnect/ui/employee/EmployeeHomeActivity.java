@@ -122,7 +122,7 @@ public class EmployeeHomeActivity extends AppCompatActivity {
     private void setupClicks() {
 
         btnVacationRequests.setOnClickListener(v -> {
-            Intent intent = new Intent(this, EmployeeVacationRequestsActivity.class);
+            Intent intent = new Intent(this, VacationRequestsActivity.class);
             startActivity(intent);
         });
 
