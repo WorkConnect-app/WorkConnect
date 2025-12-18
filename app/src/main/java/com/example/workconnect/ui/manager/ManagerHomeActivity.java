@@ -10,10 +10,7 @@ import android.widget.Toast;
 
 import com.example.workconnect.R;
 import com.example.workconnect.ui.auth.LoginActivity;
-//import com.example.workconnect.ui.employee.EmployeeListActivity; // to do
 import com.example.workconnect.ui.employee.VacationRequestsActivity;
-//import com.example.workconnect.ui.shifts.MyShiftsActivity;       // to do
-// import com.example.workconnect.ui.tasks.MyTasksActivity;         // to do
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.FirebaseFirestore;
 
@@ -24,13 +21,11 @@ public class ManagerHomeActivity extends AppCompatActivity {
     // Top
     private Button btnLogout;
 
-    // My area
-    private Button btnMyShifts, btnMyVacations, btnMyTasks;
-    private Button btnPersonalArea, btnChat, btnVideoCalls;
-    private Button btnEmployeeList;
+    // ===== My area =====
+    private Button btnAttendance, btnMyShifts, btnMyVacations, btnMyTasks, btnChat, btnVideoCalls, btnMyProfile;
 
-    // Management
-    private Button btnApproveUsers, btnVacationRequests, btnManageShifts, btnSalarySlips, btnCompanySettings;
+    // ===== Management =====
+    private Button btnApproveUsers, btnVacationRequests, btnManageAttendance, btnManageShifts, btnSalarySlips, btnCompanySettings;
 
     private FirebaseAuth mAuth;
     private FirebaseFirestore db;
@@ -47,8 +42,7 @@ public class ManagerHomeActivity extends AppCompatActivity {
 
         bindViews();
         setClickListeners();
-
-        loadManagerInfo(); // loads companyId + name + company details
+        loadManagerInfo(); // loads companyId + manager name + company details
     }
 
     private void bindViews() {
@@ -58,20 +52,19 @@ public class ManagerHomeActivity extends AppCompatActivity {
         // Top
         btnLogout = findViewById(R.id.btn_manager_logout);
 
-        // My area
+        // ===== My area =====
+        btnAttendance = findViewById(R.id.btn_attendance);
         btnMyShifts = findViewById(R.id.btn_my_shifts);
         btnMyVacations = findViewById(R.id.btn_my_vacations);
         btnMyTasks = findViewById(R.id.btn_my_tasks);
-
-        btnPersonalArea = findViewById(R.id.btn_personal_area);
         btnChat = findViewById(R.id.btn_chat);
         btnVideoCalls = findViewById(R.id.btn_video_calls);
+        btnMyProfile = findViewById(R.id.btn_my_profile);
 
-        btnEmployeeList = findViewById(R.id.btn_employee_list);
-
-        // Management
+        // ===== Management =====
         btnApproveUsers = findViewById(R.id.btn_approve_users);
         btnVacationRequests = findViewById(R.id.btn_vacation_requests);
+        btnManageAttendance = findViewById(R.id.btn_manage_attendance);
         btnManageShifts = findViewById(R.id.btn_manage_shifts);
         btnSalarySlips = findViewById(R.id.btn_salary_slips);
         btnCompanySettings = findViewById(R.id.btn_company_settings);
@@ -85,32 +78,49 @@ public class ManagerHomeActivity extends AppCompatActivity {
             Intent intent = new Intent(ManagerHomeActivity.this, LoginActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             startActivity(intent);
+            finish();
         });
 
-        // ---- My area ----
-        btnMyVacations.setOnClickListener(v -> openWithCompany(VacationRequestsActivity.class));
-        // btnMyShifts.setOnClickListener(v -> openWithCompany(MyShiftsActivity.class));
-       // btnMyTasks.setOnClickListener(v -> openWithCompany(MyTasksActivity.class));
+        // ===== My area =====
 
-// TODO:
-//
-//        btnPersonalArea.setOnClickListener(v -> {
-//            openWithCompany(com.example.workconnect.ui.profile.PersonalAreaActivity.class);
-//        });
+        btnAttendance.setOnClickListener(v -> {
+            // TODO: אם יש לך מסך נוכחות לעובד (גם מנהל הוא עובד)
+            // startActivity(new Intent(this, MyAttendanceActivity.class));
+            Toast.makeText(this, "TODO: Attendance screen", Toast.LENGTH_SHORT).show();
+        });
 
-//        btnChat.setOnClickListener(v -> {
-//            openWithCompany(com.example.workconnect.ui.chat.ChatActivity.class);
-//        });
+        btnMyShifts.setOnClickListener(v -> {
+            // TODO: startActivity(new Intent(this, MyShiftsActivity.class));
+            Toast.makeText(this, "TODO: My shifts screen", Toast.LENGTH_SHORT).show();
+        });
 
-//        btnVideoCalls.setOnClickListener(v -> {
-//            openWithCompany(com.example.workconnect.ui.video.VideoCallsActivity.class);
-//        });
-//
-//        btnEmployeeList.setOnClickListener(v -> {
-//            openWithCompany(EmployeeListActivity.class);
-//        });
+        btnMyVacations.setOnClickListener(v -> {
+            // אם VacationRequestsActivity מיועד רק לעובד – תשני למסך של "My vacations" אצלך
+            startActivity(new Intent(this, VacationRequestsActivity.class));
+        });
 
-        // ---- Management ----
+        btnMyTasks.setOnClickListener(v -> {
+            // TODO: startActivity(new Intent(this, MyTasksActivity.class));
+            Toast.makeText(this, "TODO: My tasks screen", Toast.LENGTH_SHORT).show();
+        });
+
+        btnChat.setOnClickListener(v -> {
+            // TODO: startActivity(new Intent(this, ChatsActivity.class));
+            Toast.makeText(this, "TODO: Chats screen", Toast.LENGTH_SHORT).show();
+        });
+
+        btnVideoCalls.setOnClickListener(v -> {
+            // TODO: startActivity(new Intent(this, VideoCallsActivity.class));
+            Toast.makeText(this, "TODO: Video calls screen", Toast.LENGTH_SHORT).show();
+        });
+
+        btnMyProfile.setOnClickListener(v -> {
+            // TODO: startActivity(new Intent(this, MyProfileActivity.class));
+            Toast.makeText(this, "TODO: My profile screen", Toast.LENGTH_SHORT).show();
+        });
+
+        // ===== Management =====
+
         btnApproveUsers.setOnClickListener(v -> {
             if (companyId == null) {
                 Toast.makeText(this, "Company not loaded yet", Toast.LENGTH_SHORT).show();
@@ -125,18 +135,25 @@ public class ManagerHomeActivity extends AppCompatActivity {
             openWithCompany(PendingVacationRequestsActivity.class);
         });
 
-        // TODO:
-//        btnManageShifts.setOnClickListener(v -> {
-//            openWithCompany(com.example.workconnect.ui.shifts.ManageShiftsActivity.class);
-//        });
-//
-//        btnSalarySlips.setOnClickListener(v -> {
-//            openWithCompany(com.example.workconnect.ui.salary.ManageSalarySlipsActivity.class);
-//        });
-//
-//        btnCompanySettings.setOnClickListener(v -> {
-//            openWithCompany(com.example.workconnect.ui.company.CompanySettingsActivity.class);
-//        });
+        btnManageAttendance.setOnClickListener(v -> {
+            // TODO: startActivity(new Intent(this, ManageAttendanceActivity.class).putExtra("companyId", companyId));
+            Toast.makeText(this, "TODO: Manage attendance screen", Toast.LENGTH_SHORT).show();
+        });
+
+        btnManageShifts.setOnClickListener(v -> {
+            // TODO: startActivity(new Intent(this, ManageShiftsActivity.class).putExtra("companyId", companyId));
+            Toast.makeText(this, "TODO: Manage shifts screen", Toast.LENGTH_SHORT).show();
+        });
+
+        btnSalarySlips.setOnClickListener(v -> {
+            // TODO: startActivity(new Intent(this, ManageSalarySlipsActivity.class).putExtra("companyId", companyId));
+            Toast.makeText(this, "TODO: Upload salary slips screen", Toast.LENGTH_SHORT).show();
+        });
+
+        btnCompanySettings.setOnClickListener(v -> {
+            // TODO: startActivity(new Intent(this, CompanySettingsActivity.class).putExtra("companyId", companyId));
+            Toast.makeText(this, "TODO: Company settings screen", Toast.LENGTH_SHORT).show();
+        });
     }
 
     /**
@@ -154,10 +171,10 @@ public class ManagerHomeActivity extends AppCompatActivity {
 
     private void loadManagerInfo() {
         if (mAuth.getCurrentUser() == null) {
-            // Not logged in - go to login
             Intent intent = new Intent(this, LoginActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             startActivity(intent);
+            finish();
             return;
         }
 
@@ -171,18 +188,24 @@ public class ManagerHomeActivity extends AppCompatActivity {
                         String fullName = doc.getString("fullName");
                         companyId = doc.getString("companyId");
 
-                        tvHelloManager.setText("Hello, " + (fullName != null ? fullName : "Manager"));
+                        String displayName = (fullName != null && !fullName.isEmpty()) ? fullName : "Manager";
+                        tvHelloManager.setText("Hello, " + displayName);
 
-                        if (companyId != null) {
+                        if (companyId != null && !companyId.isEmpty()) {
                             loadCompanyDetails(companyId);
                         } else {
                             tvCompanyName.setText("Company: -");
                         }
+                    } else {
+                        tvHelloManager.setText("Hello, Manager");
+                        tvCompanyName.setText("Company: -");
                     }
                 })
-                .addOnFailureListener(e ->
-                        Toast.makeText(this, "Failed to load user", Toast.LENGTH_SHORT).show()
-                );
+                .addOnFailureListener(e -> {
+                    tvHelloManager.setText("Hello, Manager");
+                    tvCompanyName.setText("Company: -");
+                    Toast.makeText(this, "Failed to load user", Toast.LENGTH_SHORT).show();
+                });
     }
 
     private void loadCompanyDetails(String companyId) {
@@ -192,7 +215,7 @@ public class ManagerHomeActivity extends AppCompatActivity {
                 .addOnSuccessListener(doc -> {
                     if (doc != null && doc.exists()) {
                         String companyName = doc.getString("name");
-                        if (companyName == null) companyName = "Company";
+                        if (companyName == null || companyName.isEmpty()) companyName = "Company";
 
                         String companyCode = companyId.length() >= 6 ? companyId.substring(0, 6) : companyId;
                         tvCompanyName.setText(companyName + " (" + companyCode + ")");

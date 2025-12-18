@@ -120,7 +120,7 @@
         android:id="@+id/btn_chat"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:text="Chat"
+        android:text="Chats"
         android:textAllCaps="false"
         android:backgroundTint="@color/primaryBlue"
         android:textColor="@color/white"
@@ -146,31 +146,17 @@
 
     <!-- ROW 4: My salary slips | All employees -->
     <Button
-        android:id="@+id/btn_my_salary_slips"
+        android:id="@+id/btn_my_profile"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:text="My salary slips"
+        android:layout_marginTop="12dp"
+        android:text="My profile"
         android:textAllCaps="false"
         android:backgroundTint="@color/primaryBlue"
         android:textColor="@color/white"
-        android:layout_marginTop="8dp"
-        android:layout_marginEnd="6dp"
-        app:layout_constraintTop_toBottomOf="@id/btn_chat"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toStartOf="@id/btn_company_employees" />
-
-    <Button
-        android:id="@+id/btn_company_employees"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:text="All employees"
-        android:textAllCaps="false"
-        android:backgroundTint="@color/primaryBlue"
-        android:textColor="@color/white"
-        android:layout_marginTop="8dp"
-        android:layout_marginStart="6dp"
         app:layout_constraintTop_toBottomOf="@id/btn_video_calls"
-        app:layout_constraintStart_toEndOf="@id/btn_my_salary_slips"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
+
 
 </androidx.constraintlayout.widget.ConstraintLayout>

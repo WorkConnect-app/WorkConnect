@@ -15,11 +15,14 @@ import com.google.firebase.firestore.FirebaseFirestore;
 public class EmployeeHomeActivity extends AppCompatActivity {
 
     private TextView tvHelloEmployee, tvCompanyName;
-    private Button btnMyShifts,
-            btnMySalarySlips,
+
+    private Button btnAttendance,
+            btnMyShifts,
             btnVacationRequests,
             btnMyTasks,
-            btnCompanyEmployees,
+            btnChat,
+            btnVideoCalls,
+            btnMyProfile,
             btnLogout;
 
     private FirebaseAuth mAuth;
@@ -41,20 +44,24 @@ public class EmployeeHomeActivity extends AppCompatActivity {
     }
 
     private void initViews() {
-        tvHelloEmployee     = findViewById(R.id.tv_hello_employee);
-        tvCompanyName       = findViewById(R.id.tv_company_name_employee);
+        tvHelloEmployee = findViewById(R.id.tv_hello_employee);
+        tvCompanyName = findViewById(R.id.tv_company_name_employee);
 
-        btnMyShifts         = findViewById(R.id.btn_my_shifts);
-        btnMySalarySlips    = findViewById(R.id.btn_my_salary_slips);
+        btnAttendance = findViewById(R.id.btn_attendance);
+        btnMyShifts = findViewById(R.id.btn_my_shifts);
         btnVacationRequests = findViewById(R.id.btn_vacation_requests);
-        btnMyTasks          = findViewById(R.id.btn_my_tasks);
-        btnCompanyEmployees = findViewById(R.id.btn_company_employees);
-        btnLogout           = findViewById(R.id.btn_employee_logout);
+        btnMyTasks = findViewById(R.id.btn_my_tasks);
+        btnChat = findViewById(R.id.btn_chat);
+        btnVideoCalls = findViewById(R.id.btn_video_calls);
+        btnMyProfile = findViewById(R.id.btn_my_profile);
+
+        btnLogout = findViewById(R.id.btn_employee_logout);
     }
 
     private void loadEmployeeInfo() {
         if (mAuth.getCurrentUser() == null) {
             tvHelloEmployee.setText("Hello, Employee");
+            tvCompanyName.setText("Company: -");
             return;
         }
 
@@ -66,13 +73,12 @@ public class EmployeeHomeActivity extends AppCompatActivity {
                 .addOnSuccessListener(doc -> {
                     if (doc != null && doc.exists()) {
 
-                        // ננסה כמה שדות אפשריים כדי לתפוס כל מצב
-                        String fullName  = doc.getString("fullName");
-                        String name      = doc.getString("name");
+                        // נסיון לכמה שמות שדה אפשריים
+                        String fullName = doc.getString("fullName");
+                        String name = doc.getString("name");
                         String firstName = doc.getString("firstName");
 
                         String displayName;
-
                         if (fullName != null && !fullName.isEmpty()) {
                             displayName = fullName;
                         } else if (name != null && !name.isEmpty()) {
@@ -85,18 +91,22 @@ public class EmployeeHomeActivity extends AppCompatActivity {
 
                         tvHelloEmployee.setText("Hello, " + displayName);
 
-                        // companyId בשביל שם החברה
                         companyId = doc.getString("companyId");
-                        if (companyId != null) {
+                        if (companyId != null && !companyId.isEmpty()) {
                             loadCompanyDetails(companyId);
+                        } else {
+                            tvCompanyName.setText("Company: -");
                         }
+
                     } else {
                         tvHelloEmployee.setText("Hello, Employee");
+                        tvCompanyName.setText("Company: -");
                     }
                 })
-                .addOnFailureListener(e ->
-                        tvHelloEmployee.setText("Hello, Employee")
-                );
+                .addOnFailureListener(e -> {
+                    tvHelloEmployee.setText("Hello, Employee");
+                    tvCompanyName.setText("Company: -");
+                });
     }
 
     private void loadCompanyDetails(String companyId) {
@@ -121,25 +131,34 @@ public class EmployeeHomeActivity extends AppCompatActivity {
 
     private void setupClicks() {
 
+        btnAttendance.setOnClickListener(v -> {
+            // TODO: החליפי לשם האקטיביטי האמיתי אצלך
+            // startActivity(new Intent(this, MyAttendanceActivity.class));
+        });
+
+        btnMyShifts.setOnClickListener(v -> {
+            // TODO: startActivity(new Intent(this, MyShiftsActivity.class));
+        });
+
         btnVacationRequests.setOnClickListener(v -> {
             Intent intent = new Intent(this, VacationRequestsActivity.class);
             startActivity(intent);
         });
 
-        btnMyShifts.setOnClickListener(v -> {
-            // TODO: open EmployeeShiftsActivity when you create it
-        });
-
-        btnMySalarySlips.setOnClickListener(v -> {
-            // TODO: open EmployeeSalarySlipsActivity when you create it
-        });
-
         btnMyTasks.setOnClickListener(v -> {
-            // TODO: open EmployeeTasksActivity when you create it
+            // TODO: startActivity(new Intent(this, MyTasksActivity.class));
         });
 
-        btnCompanyEmployees.setOnClickListener(v -> {
-            // TODO: open CompanyEmployeesActivity
+        btnChat.setOnClickListener(v -> {
+            // TODO: startActivity(new Intent(this, ChatsActivity.class));
+        });
+
+        btnVideoCalls.setOnClickListener(v -> {
+            // TODO: startActivity(new Intent(this, VideoCallsActivity.class));
+        });
+
+        btnMyProfile.setOnClickListener(v -> {
+            // TODO: startActivity(new Intent(this, MyProfileActivity.class));
         });
 
         btnLogout.setOnClickListener(v -> {
