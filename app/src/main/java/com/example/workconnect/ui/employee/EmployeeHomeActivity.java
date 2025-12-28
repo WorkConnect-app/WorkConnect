@@ -9,6 +9,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.workconnect.R;
 import com.example.workconnect.ui.auth.LoginActivity;
+import com.example.workconnect.ui.manager.ManagerHomeActivity;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.FirebaseFirestore;
 
@@ -34,6 +35,12 @@ public class EmployeeHomeActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.employee_home_activity);
+
+        if (FirebaseAuth.getInstance().getCurrentUser() == null) {
+            startActivity(new Intent(this, LoginActivity.class));
+            finish();
+            return;
+        }
 
         mAuth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
@@ -145,9 +152,12 @@ public class EmployeeHomeActivity extends AppCompatActivity {
             startActivity(intent);
         });
 
-        btnMyTasks.setOnClickListener(v -> {
-            // TODO: startActivity(new Intent(this, MyTasksActivity.class));
+        btnMyProfile.setOnClickListener(v -> {
+            Intent intent = new Intent(EmployeeHomeActivity.this, MyProfileActivity.class);
+            startActivity(intent);
         });
+
+
 
         btnChat.setOnClickListener(v -> {
             // TODO: startActivity(new Intent(this, ChatsActivity.class));
@@ -155,10 +165,6 @@ public class EmployeeHomeActivity extends AppCompatActivity {
 
         btnVideoCalls.setOnClickListener(v -> {
             // TODO: startActivity(new Intent(this, VideoCallsActivity.class));
-        });
-
-        btnMyProfile.setOnClickListener(v -> {
-            // TODO: startActivity(new Intent(this, MyProfileActivity.class));
         });
 
         btnLogout.setOnClickListener(v -> {

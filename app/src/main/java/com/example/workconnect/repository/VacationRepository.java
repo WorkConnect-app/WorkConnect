@@ -25,7 +25,6 @@ public class VacationRepository {
         db = FirebaseFirestore.getInstance();
     }
 
-    // Returns the UID of the currently authenticated user (or null if not logged in)
     public String getCurrentUserId() {
         if (mAuth.getCurrentUser() == null) {
             return null;
@@ -33,7 +32,6 @@ public class VacationRepository {
         return mAuth.getCurrentUser().getUid();
     }
 
-    // Returns a Task that fetches the user's Firestore document (or null if no user is logged in)
     public Task<DocumentSnapshot> getCurrentUserTask() {
         String uid = getCurrentUserId();
         if (uid == null) {
@@ -45,29 +43,29 @@ public class VacationRepository {
                 .get();
     }
 
-    // Generates a new unique ID for a vacation request
+    public Task<DocumentSnapshot> getCompanyTask(String companyId) {
+        if (companyId == null || companyId.trim().isEmpty()) return null;
+        return db.collection("companies").document(companyId).get();
+    }
+
     public String generateVacationRequestId() {
         DocumentReference ref = db.collection("vacation_requests").document();
         return ref.getId();
     }
 
-    // Saves a vacation request to Firestore and returns a Task representing the operation
     public Task<Void> createVacationRequest(VacationRequest request) {
-        // Ensure that VacationRequest has a getId() method.
-        // If not, generateVacationRequestId() should be used instead.
         return db.collection("vacation_requests")
                 .document(request.getId())
                 .set(request);
     }
 
-    // Fetches all pending vacation requests for a specific company (real-time updates)
-    public LiveData<List<VacationRequest>> getPendingRequests(String companyId) {
+    public LiveData<List<VacationRequest>> getPendingRequestsForManager(String managerId) {
         MutableLiveData<List<VacationRequest>> live = new MutableLiveData<>(new ArrayList<>());
 
         db.collection("vacation_requests")
-                .whereEqualTo("companyId", companyId)
-                .whereEqualTo("status", "pending")
-                .orderBy("startDate", Query.Direction.ASCENDING)
+                .whereEqualTo("managerId", managerId)
+                .whereEqualTo("status", "PENDING")
+                //.orderBy("startDate", Query.Direction.ASCENDING)
                 .addSnapshotListener((snap, e) -> {
                     if (e != null || snap == null) {
                         live.postValue(new ArrayList<>());
@@ -78,7 +76,6 @@ public class VacationRepository {
                     for (DocumentSnapshot d : snap.getDocuments()) {
                         VacationRequest r = d.toObject(VacationRequest.class);
                         if (r != null) {
-                            // IMPORTANT: set request id from document id (for approve/reject)
                             r.setId(d.getId());
                             list.add(r);
                         }
@@ -89,12 +86,48 @@ public class VacationRepository {
         return live;
     }
 
-    // Updates request status ("approved" / "rejected")
+    public LiveData<List<VacationRequest>> getRequestsForEmployee(String employeeId) {
+        MutableLiveData<List<VacationRequest>> live = new MutableLiveData<>(new ArrayList<>());
+
+        db.collection("vacation_requests")
+                .whereEqualTo("employeeId", employeeId)
+                //.orderBy("startDate", Query.Direction.DESCENDING)
+                .addSnapshotListener((snap, e) -> {
+                    if (e != null || snap == null) {
+                        live.postValue(new ArrayList<>());
+                        return;
+                    }
+
+                    List<VacationRequest> list = new ArrayList<>();
+                    for (DocumentSnapshot d : snap.getDocuments()) {
+                        VacationRequest r = d.toObject(VacationRequest.class);
+                        if (r != null) {
+                            r.setId(d.getId());
+                            list.add(r);
+                        }
+                    }
+                    live.postValue(list);
+                });
+
+        return live;
+    }
+
     public Task<Void> updateRequestStatus(String requestId, String newStatus) {
         return db.collection("vacation_requests")
                 .document(requestId)
                 .update("status", newStatus);
     }
 
+    // Daily accrual update: stores the new balance and the last accrued date (yyyy-MM-dd)
+    public Task<Void> updateCurrentUserVacationAccrualDaily(double newBalance, String lastAccrualDate) {
+        String uid = getCurrentUserId();
+        if (uid == null) return null;
 
+        return db.collection("users")
+                .document(uid)
+                .update(
+                        "vacationBalance", newBalance,
+                        "lastAccrualDate", lastAccrualDate
+                );
+    }
 }

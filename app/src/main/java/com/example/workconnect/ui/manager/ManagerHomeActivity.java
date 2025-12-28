@@ -10,9 +10,11 @@ import android.widget.Toast;
 
 import com.example.workconnect.R;
 import com.example.workconnect.ui.auth.LoginActivity;
+import com.example.workconnect.ui.employee.MyProfileActivity;
 import com.example.workconnect.ui.employee.VacationRequestsActivity;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.example.workconnect.ui.manager.CompleteManagerProfileActivity;
 
 public class ManagerHomeActivity extends AppCompatActivity {
 
@@ -36,6 +38,12 @@ public class ManagerHomeActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.manager_home_activity);
+
+        if (FirebaseAuth.getInstance().getCurrentUser() == null) {
+            startActivity(new Intent(this, LoginActivity.class));
+            finish();
+            return;
+        }
 
         mAuth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
@@ -115,9 +123,10 @@ public class ManagerHomeActivity extends AppCompatActivity {
         });
 
         btnMyProfile.setOnClickListener(v -> {
-            // TODO: startActivity(new Intent(this, MyProfileActivity.class));
-            Toast.makeText(this, "TODO: My profile screen", Toast.LENGTH_SHORT).show();
+            Intent intent = new Intent(ManagerHomeActivity.this, MyProfileActivity.class);
+            startActivity(intent);
         });
+
 
         // ===== Management =====
 
@@ -185,8 +194,21 @@ public class ManagerHomeActivity extends AppCompatActivity {
                 .get()
                 .addOnSuccessListener(doc -> {
                     if (doc != null && doc.exists()) {
+
                         String fullName = doc.getString("fullName");
                         companyId = doc.getString("companyId");
+
+                        // Mandatory profile completion for managers (first entry)
+                        Boolean completed = doc.getBoolean("profileCompleted");
+                        if (completed == null || !completed) {
+                            Intent i = new Intent(ManagerHomeActivity.this, CompleteManagerProfileActivity.class);
+                            if (companyId != null) {
+                                i.putExtra("companyId", companyId);
+                            }
+                            startActivity(i);
+                            finish();
+                            return;
+                        }
 
                         String displayName = (fullName != null && !fullName.isEmpty()) ? fullName : "Manager";
                         tvHelloManager.setText("Hello, " + displayName);
@@ -196,6 +218,7 @@ public class ManagerHomeActivity extends AppCompatActivity {
                         } else {
                             tvCompanyName.setText("Company: -");
                         }
+
                     } else {
                         tvHelloManager.setText("Hello, Manager");
                         tvCompanyName.setText("Company: -");
@@ -207,6 +230,7 @@ public class ManagerHomeActivity extends AppCompatActivity {
                     Toast.makeText(this, "Failed to load user", Toast.LENGTH_SHORT).show();
                 });
     }
+
 
     private void loadCompanyDetails(String companyId) {
         db.collection("companies")

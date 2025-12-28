@@ -7,7 +7,6 @@ import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
-import com.google.firebase.firestore.QuerySnapshot;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -56,9 +55,6 @@ public class EmployeeRepository {
      * 1. Find company by code.
      * 2. Create Firebase Auth user.
      * 3. Create Firestore document in "users" with status = "pending".
-     *
-     * This matches your RegisterEmployeeViewModel usage
-     * (firstName, lastName, email, password, companyCode).
      */
     public void registerEmployee(
             String firstName,
@@ -109,8 +105,8 @@ public class EmployeeRepository {
                                 userData.put("companyId", companyId);
 
                                 // Initial status and role
-                                userData.put("status", "pending");    // waiting for manager approval
-                                userData.put("role", "EMPLOYEE");     // default role
+                                userData.put("status", "PENDING");    // waiting for manager approval
+                                userData.put("role", "employee");     // default role
 
                                 // Hierarchy fields – will be set later by manager
                                 userData.put("directManagerId", null);
@@ -132,6 +128,7 @@ public class EmployeeRepository {
                                         .set(userData)
                                         .addOnCompleteListener(setTask -> {
                                             if (setTask.isSuccessful()) {
+                                                mAuth.signOut();
                                                 callback.onSuccess();
                                             } else {
                                                 callback.onError("Failed to save user data");
@@ -154,7 +151,7 @@ public class EmployeeRepository {
     ) {
         return db.collection("users")
                 .whereEqualTo("companyId", companyId)
-                .whereEqualTo("status", "pending")
+                .whereEqualTo("status", "PENDING")
                 .addSnapshotListener((value, error) -> {
                     if (error != null) {
                         callback.onError(error.getMessage());
@@ -200,23 +197,68 @@ public class EmployeeRepository {
     }
 
     /* -----------------------------------------------------------------------
-     *  Approve employee with role, hierarchy, vacation accrual, etc.
+     *  NEW: Approve by manager EMAIL (UI) -> store manager UID (DB)
      * --------------------------------------------------------------------- */
 
     /**
-     * Approve an employee and set:
-     * - role (EMPLOYEE / MANAGER)
-     * - direct manager (directManagerId)
-     * - managerChain (hierarchy)
-     * - vacationDaysPerMonth
-     * - department / team / jobTitle
-     * - joinDate (now)
+     * Manager enters direct manager EMAIL in the UI,
+     * but we store directManagerId as UID in Firestore.
+     *
+     * If directManagerEmail is empty -> top-level manager (directManagerId = null)
      */
+    public void approveEmployeeWithDetailsByManagerEmail(
+            String employeeUid,
+            String role,
+            @Nullable String directManagerEmail, // email from UI
+            Double vacationDaysPerMonth,
+            String department,
+            String team,
+            String jobTitle,
+            SimpleCallback callback
+    ) {
+        String email = directManagerEmail == null ? "" : directManagerEmail.trim().toLowerCase();
+
+        // If empty -> same behavior as top-level manager
+        if (email.isEmpty()) {
+            approveEmployeeWithDetails(employeeUid, role, null,
+                    vacationDaysPerMonth, department, team, jobTitle, callback);
+            return;
+        }
+
+        // Find manager user by email (in the SAME users collection)
+        db.collection("users")
+                .whereEqualTo("email", email)
+                .whereEqualTo("role", "manager")
+                .limit(1)
+                .get()
+                .addOnSuccessListener(qs -> {
+                    if (qs == null || qs.isEmpty()) {
+                        callback.onComplete(false, "No manager found with this email");
+                        return;
+                    }
+
+                    // In your app, user docs are saved under document(uid),
+                    // so doc.getId() is the manager UID.
+                    String managerUid = qs.getDocuments().get(0).getId();
+
+                    // Reuse your existing approval logic (UID-based)
+                    approveEmployeeWithDetails(employeeUid, role, managerUid,
+                            vacationDaysPerMonth, department, team, jobTitle, callback);
+                })
+                .addOnFailureListener(e ->
+                        callback.onComplete(false, "Failed to lookup manager by email: " + e.getMessage())
+                );
+    }
+
+    /* -----------------------------------------------------------------------
+     *  Approve employee with role, hierarchy, vacation accrual, etc. (UID-based)
+     * --------------------------------------------------------------------- */
+
     public void approveEmployeeWithDetails(
             String employeeUid,
-            String role,                        // "EMPLOYEE" or "MANAGER"
-            @Nullable String directManagerId,   // null if top-level manager
-            Double vacationDaysPerMonth,        // how many vacation days per month
+            String role,                        // "employee" or "manager"
+            @Nullable String directManagerId,   // UID (null if top-level manager)
+            Double vacationDaysPerMonth,
             String department,
             String team,
             String jobTitle,
@@ -291,7 +333,7 @@ public class EmployeeRepository {
             SimpleCallback callback
     ) {
         HashMap<String, Object> updates = new HashMap<>();
-        updates.put("status", "approved");
+        updates.put("status", "APPROVED");
         updates.put("role", role);
         updates.put("directManagerId", directManagerId);
         updates.put("managerChain", managerChain);
@@ -303,6 +345,10 @@ public class EmployeeRepository {
         // Set join date when employee is approved
         updates.put("joinDate", new Date());
 
+        // Initialize vacation accrual fields (daily accrual)
+        updates.put("vacationBalance", 0.0);
+        updates.put("lastAccrualDate", java.time.LocalDate.now().toString()); // yyyy-MM-dd
+
         employeeRef.update(updates)
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful()) {
@@ -312,4 +358,41 @@ public class EmployeeRepository {
                     }
                 });
     }
+    public void completeManagerProfile(
+            String managerUid,
+            Double vacationDaysPerMonth,
+            String department,
+            String team,
+            String jobTitle,
+            SimpleCallback callback
+    ) {
+        HashMap<String, Object> updates = new HashMap<>();
+        updates.put("status", "APPROVED");
+        updates.put("vacationDaysPerMonth", vacationDaysPerMonth);
+
+        updates.put("department", department);
+        updates.put("team", team);
+        updates.put("jobTitle", jobTitle);
+
+        updates.put("directManagerId", null);
+        updates.put("managerChain", new ArrayList<String>());
+
+        updates.put("joinDate", new Date());
+        updates.put("vacationBalance", 0.0);
+        updates.put("lastAccrualDate", java.time.LocalDate.now().toString());
+
+        updates.put("profileCompleted", true);
+
+        db.collection("users")
+                .document(managerUid)
+                .update(updates)
+                .addOnCompleteListener(t -> {
+                    if (t.isSuccessful()) {
+                        callback.onComplete(true, "Profile updated");
+                    } else {
+                        callback.onComplete(false, "Failed to update profile");
+                    }
+                });
+    }
+
 }

@@ -37,6 +37,7 @@ public class LoginActivity extends AppCompatActivity {
         // ViewModel
         viewModel = new ViewModelProvider(this).get(LoginViewModel.class);
 
+
         // Login button
         btnLogin.setOnClickListener(v -> {
             String email = etEmail.getText().toString().trim();

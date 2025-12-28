@@ -52,6 +52,12 @@
         <activity android:name=".ui.manager.PendingVacationRequestsActivity"
             android:exported="false" />
 
+        <activity android:name=".ui.employee.MyProfileActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ui.manager.CompleteManagerProfileActivity"
+            android:exported="false" />
 
     </application>
 </manifest>

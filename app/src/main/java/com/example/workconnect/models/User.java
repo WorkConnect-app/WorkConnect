@@ -1,4 +1,5 @@
 package com.example.workconnect.models;
+import com.example.workconnect.models.enums.RegisterStatus;
 
 import java.util.Date;
 import java.util.List;
@@ -11,7 +12,7 @@ public class User {
     private String email;
 
     private String companyId;    // if you use this in your system
-    private String status;       // "pending", "approved", "rejected"
+    private RegisterStatus status;       // "pending", "approved", "rejected"
 
     // Role and hierarchy
     private String role;             // "EMPLOYEE" or "MANAGER"
@@ -37,7 +38,7 @@ public class User {
                 String lastName,
                 String email,
                 String companyId,
-                String status,
+                RegisterStatus status,
                 String role,
                 String directManagerId,
                 List<String> managerChain,
@@ -104,11 +105,11 @@ public class User {
         this.companyId = companyId;
     }
 
-    public String getStatus() {
+    public RegisterStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(RegisterStatus status) {
         this.status = status;
     }
 

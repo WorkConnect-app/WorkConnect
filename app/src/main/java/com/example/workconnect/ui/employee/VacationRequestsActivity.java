@@ -5,37 +5,39 @@ import android.os.Bundle;
 import android.widget.Button;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.lifecycle.ViewModelProvider;
+import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.workconnect.R;
+import com.example.workconnect.adapters.VacationRequestsAdapter;
+import com.example.workconnect.viewModels.employee.EmployeeVacationRequestsViewModel;
 
 public class VacationRequestsActivity extends AppCompatActivity {
-
-    private Button btnNewRequest;
-    private Button btnBack;
-    private RecyclerView rvVacationRequests;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.my_vacations_activity);
 
-        btnNewRequest = findViewById(R.id.btn_new_request);
-        rvVacationRequests = findViewById(R.id.rv_vacation_requests);
-        btnBack = findViewById(R.id.btn_back);
+        Button btnNewRequest = findViewById(R.id.btn_new_request);
+        Button btnBack = findViewById(R.id.btn_back);
+        RecyclerView rvVacationRequests = findViewById(R.id.rv_vacation_requests);
 
-        // New vacation request
-        btnNewRequest.setOnClickListener(v -> {
-            Intent intent = new Intent(
-                    VacationRequestsActivity.this,
-                    NewVacationRequestActivity.class
-            );
-            startActivity(intent);
-        });
+        rvVacationRequests.setLayoutManager(new LinearLayoutManager(this));
+        VacationRequestsAdapter adapter = new VacationRequestsAdapter();
+        rvVacationRequests.setAdapter(adapter);
 
-        // Back
-        if (btnBack != null) {
-            btnBack.setOnClickListener(v -> finish());
-        }
+        EmployeeVacationRequestsViewModel vm =
+                new ViewModelProvider(this).get(EmployeeVacationRequestsViewModel.class);
+
+        vm.load();
+
+        vm.getMyRequests().observe(this, adapter::submit);
+
+        btnNewRequest.setOnClickListener(v ->
+                startActivity(new Intent(this, NewVacationRequestActivity.class)));
+
+        if (btnBack != null) btnBack.setOnClickListener(v -> finish());
     }
 }

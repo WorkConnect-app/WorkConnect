@@ -3,6 +3,7 @@ package com.example.workconnect.ui.auth;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.lifecycle.ViewModelProvider;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.widget.Button;
 import android.widget.EditText;
@@ -43,17 +44,20 @@ public class RegisterEmployeeActivity extends AppCompatActivity {
             String password = etPassword.getText().toString().trim();
             String companyCode = etCompanyCode.getText().toString().trim();
 
-            // Split full name into first name and last name
-            String firstName = "";
-            String lastName = "";
-
-            if (!fullName.isEmpty()) {
-                String[] parts = fullName.split(" ", 2);
-                firstName = parts[0];
-                if (parts.length > 1) {
-                    lastName = parts[1];
-                }
+            // Require first and last name (at least two words)
+            if (!fullName.contains(" ") || fullName.trim().split("\\s+").length < 2) {
+                Toast.makeText(
+                        this,
+                        "Please enter first and last name",
+                        Toast.LENGTH_LONG
+                ).show();
+                return;
             }
+
+            // Split full name into first name and last name
+            String[] parts = fullName.trim().split("\\s+", 2);
+            String firstName = parts[0];
+            String lastName = parts[1];
 
             viewModel.registerEmployee(firstName, lastName, email, password, companyCode);
         });
@@ -62,11 +66,11 @@ public class RegisterEmployeeActivity extends AppCompatActivity {
     }
 
     private void observeViewModel() {
-        // Loading state – can disable button while registering
+
+        // Loading state – disable button while registering
         viewModel.getIsLoading().observe(this, isLoading -> {
             if (isLoading != null) {
                 btnRegisterEmployee.setEnabled(!isLoading);
-                // You may add a ProgressBar here if you want
             }
         });
 
@@ -77,14 +81,19 @@ public class RegisterEmployeeActivity extends AppCompatActivity {
             }
         });
 
-        // Registration succeeded – in "pending approval" state
+        // Registration succeeded – pending approval
         viewModel.getRegistrationPending().observe(this, pending -> {
-            if (pending != null && pending) {
+            if (Boolean.TRUE.equals(pending)) {
                 Toast.makeText(
                         this,
                         "Your registration is pending manager approval",
                         Toast.LENGTH_LONG
                 ).show();
+
+//                // Go to LoginActivity instead of returning to a previous screen that may expect a logged-in user
+//                Intent intent = new Intent(RegisterEmployeeActivity.this, LoginActivity.class);
+//                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+//                startActivity(intent);
                 finish();
             }
         });
