@@ -28,15 +28,16 @@ public class PendingVacationRequestsViewModel extends ViewModel {
     }
 
     public void approve(String requestId) {
-        repo.updateRequestStatus(requestId, "APPROVED")
+        repo.approveRequestAndDeductBalance(requestId)
                 .addOnSuccessListener(v -> message.postValue("Approved"))
                 .addOnFailureListener(e -> message.postValue("Failed: " + e.getMessage()));
     }
 
     public void reject(String requestId) {
-        repo.updateRequestStatus(requestId, "REJECTED")
+        repo.rejectRequest(requestId)
                 .addOnSuccessListener(v -> message.postValue("Rejected"))
                 .addOnFailureListener(e -> message.postValue("Failed: " + e.getMessage()));
     }
+
 
 }

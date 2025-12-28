@@ -55,7 +55,6 @@ public class PendingVacationRequestsActivity extends AppCompatActivity {
         btnBack.setOnClickListener(v -> finish());
 
         vm.load(managerId);
-        Toast.makeText(this, "managerId=" + managerId, Toast.LENGTH_LONG).show();
 
         vm.getPendingRequests().observe(this, adapter::submit);
 

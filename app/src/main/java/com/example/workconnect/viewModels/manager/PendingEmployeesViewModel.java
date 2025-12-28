@@ -6,6 +6,7 @@ import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
 
 import com.example.workconnect.models.User;
+import com.example.workconnect.models.enums.Roles;
 import com.example.workconnect.repository.EmployeeRepository;
 import com.google.firebase.firestore.ListenerRegistration;
 
@@ -71,7 +72,7 @@ public class PendingEmployeesViewModel extends ViewModel {
     // PendingEmployeesViewModel.java
     public void approveEmployee(
             String uid,
-            String role,                          // "EMPLOYEE" or "MANAGER"
+            Roles role,                          // "EMPLOYEE" or "MANAGER"
             @Nullable String directManagerEmail,  // email (null/empty for top-level manager)
             Double vacationDaysPerMonth,
             String department,

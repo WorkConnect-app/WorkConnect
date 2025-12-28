@@ -8,6 +8,7 @@ import com.example.workconnect.repository.VacationRepository;
 import com.example.workconnect.useCase.VacationAccrualCalculator;
 import com.google.firebase.Timestamp;
 import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.ListenerRegistration;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -28,6 +29,12 @@ public class MyProfileViewModel extends ViewModel {
     private final MutableLiveData<Boolean> loading = new MutableLiveData<>(false);
     private final MutableLiveData<String> error = new MutableLiveData<>("");
 
+    // Firestore listener to receive real-time updates for the current user document
+    private ListenerRegistration userListener;
+
+    // Guard flag to prevent infinite update loops when we update accrual fields in Firestore
+    private boolean accrualUpdateInProgress = false;
+
     public LiveData<String> getFullName() { return fullName; }
     public LiveData<String> getCompanyName() { return companyName; }
     public LiveData<String> getStartDate() { return startDate; }
@@ -36,27 +43,38 @@ public class MyProfileViewModel extends ViewModel {
     public LiveData<Boolean> getLoading() { return loading; }
     public LiveData<String> getError() { return error; }
 
+    /**
+     * Starts listening to the current user's profile document in Firestore.
+     * This makes the UI update automatically whenever the user's data changes
+     * (e.g., vacationBalance updated after manager approval).
+     */
     public void loadProfile() {
-        if (vacationRepository.getCurrentUserTask() == null) {
+        String uid = vacationRepository.getCurrentUserId();
+        if (uid == null) {
             error.setValue("No logged-in user");
             return;
         }
 
+        // Avoid registering multiple listeners if the Activity recreates itself
+        if (userListener != null) return;
+
         loading.setValue(true);
 
-        vacationRepository.getCurrentUserTask()
-                .addOnSuccessListener(doc -> {
-                    if (doc == null || !doc.exists()) {
-                        loading.setValue(false);
-                        error.setValue("User data not found");
-                        return;
-                    }
-                    handleUserDoc(doc);
-                })
-                .addOnFailureListener(e -> {
-                    loading.setValue(false);
-                    error.setValue(e.getMessage() == null ? "Load error" : e.getMessage());
-                });
+        userListener = vacationRepository.listenToUser(uid, (doc, e) -> {
+            if (e != null) {
+                loading.setValue(false);
+                error.setValue(e.getMessage() == null ? "Load error" : e.getMessage());
+                return;
+            }
+
+            if (doc == null || !doc.exists()) {
+                loading.setValue(false);
+                error.setValue("User data not found");
+                return;
+            }
+
+            handleUserDoc(doc);
+        });
     }
 
     private void handleUserDoc(DocumentSnapshot doc) {
@@ -110,6 +128,13 @@ public class MyProfileViewModel extends ViewModel {
             return;
         }
 
+        // Prevent infinite loop: updating Firestore triggers the snapshot listener again
+        if (accrualUpdateInProgress) {
+            loading.setValue(false);
+            vacationBalance.setValue(format2(balance));
+            return;
+        }
+
         double earned = accrualCalculator.calculateDailyVacationAccrual(
                 monthlyDays,
                 joinLocalDate,
@@ -119,14 +144,18 @@ public class MyProfileViewModel extends ViewModel {
 
         double newBalance = balance + earned;
 
+        accrualUpdateInProgress = true;
+
         // Update DB with new balance and last accrued date (today)
         vacationRepository.updateCurrentUserVacationAccrualDaily(newBalance, today.toString())
                 .addOnSuccessListener(v -> {
+                    accrualUpdateInProgress = false;
                     loading.setValue(false);
                     vacationBalance.setValue(format2(newBalance));
                 })
                 .addOnFailureListener(e -> {
                     // Even if update fails, show computed balance in UI
+                    accrualUpdateInProgress = false;
                     loading.setValue(false);
                     vacationBalance.setValue(format2(newBalance));
                 });
@@ -163,5 +192,14 @@ public class MyProfileViewModel extends ViewModel {
     private String format2(double value) {
         double rounded = new BigDecimal(value).setScale(2, RoundingMode.HALF_UP).doubleValue();
         return String.format("%.2f", rounded);
+    }
+
+    @Override
+    protected void onCleared() {
+        super.onCleared();
+        if (userListener != null) {
+            userListener.remove();
+            userListener = null;
+        }
     }
 }

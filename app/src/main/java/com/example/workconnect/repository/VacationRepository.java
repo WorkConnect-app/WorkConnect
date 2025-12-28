@@ -1,4 +1,6 @@
 package com.example.workconnect.repository;
+import com.google.firebase.firestore.FirebaseFirestoreException;
+import java.util.Date;
 
 import com.example.workconnect.models.VacationRequest;
 import com.google.android.gms.tasks.Task;
@@ -11,6 +13,9 @@ import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
 import com.google.firebase.firestore.Query;
+
+import com.google.firebase.firestore.EventListener;
+import com.google.firebase.firestore.ListenerRegistration;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -112,11 +117,11 @@ public class VacationRepository {
         return live;
     }
 
-    public Task<Void> updateRequestStatus(String requestId, String newStatus) {
-        return db.collection("vacation_requests")
-                .document(requestId)
-                .update("status", newStatus);
-    }
+//    public Task<Void> updateRequestStatus(String requestId, String newStatus) {
+//        return db.collection("vacation_requests")
+//                .document(requestId)
+//                .update("status", newStatus);
+//    }
 
     // Daily accrual update: stores the new balance and the last accrued date (yyyy-MM-dd)
     public Task<Void> updateCurrentUserVacationAccrualDaily(double newBalance, String lastAccrualDate) {
@@ -130,4 +135,87 @@ public class VacationRepository {
                         "lastAccrualDate", lastAccrualDate
                 );
     }
+
+    public Task<Void> approveRequestAndDeductBalance(String requestId) {
+        DocumentReference reqRef = db.collection("vacation_requests").document(requestId);
+
+        return db.runTransaction(transaction -> {
+            DocumentSnapshot reqSnap = transaction.get(reqRef);
+            if (reqSnap == null || !reqSnap.exists()) {
+                throw new FirebaseFirestoreException("Request not found",
+                        FirebaseFirestoreException.Code.NOT_FOUND);
+            }
+
+            // Prevent double-processing
+            String currentStatus = reqSnap.getString("status");
+            if ("APPROVED".equals(currentStatus) || "REJECTED".equals(currentStatus)) {
+                return null;
+            }
+
+            String employeeId = reqSnap.getString("employeeId");
+            Long daysL = reqSnap.getLong("daysRequested");
+
+            if (employeeId == null || employeeId.trim().isEmpty() || daysL == null) {
+                throw new FirebaseFirestoreException("Invalid request fields",
+                        FirebaseFirestoreException.Code.INVALID_ARGUMENT);
+            }
+
+            int daysRequested = daysL.intValue();
+
+            DocumentReference userRef = db.collection("users").document(employeeId);
+            DocumentSnapshot userSnap = transaction.get(userRef);
+            if (userSnap == null || !userSnap.exists()) {
+                throw new FirebaseFirestoreException("Employee not found",
+                        FirebaseFirestoreException.Code.NOT_FOUND);
+            }
+
+            Double balD = userSnap.getDouble("vacationBalance");
+            double balance = balD == null ? 0.0 : balD;
+
+            double newBalance = balance - daysRequested;
+
+            // 1) Approve request + store decision time
+            transaction.update(reqRef,
+                    "status", "APPROVED",
+                    "decisionAt", new Date()
+            );
+
+            // 2) Deduct balance
+            transaction.update(userRef,
+                    "vacationBalance", newBalance
+            );
+
+            return null;
+        });
+    }
+
+    public Task<Void> rejectRequest(String requestId) {
+        DocumentReference reqRef = db.collection("vacation_requests").document(requestId);
+
+        return db.runTransaction(transaction -> {
+            DocumentSnapshot reqSnap = transaction.get(reqRef);
+            if (reqSnap == null || !reqSnap.exists()) {
+                throw new FirebaseFirestoreException("Request not found",
+                        FirebaseFirestoreException.Code.NOT_FOUND);
+            }
+
+            // Prevent double-processing
+            String currentStatus = reqSnap.getString("status");
+            if ("APPROVED".equals(currentStatus) || "REJECTED".equals(currentStatus)) {
+                return null;
+            }
+
+            transaction.update(reqRef,
+                    "status", "REJECTED",
+                    "decisionAt", new Date()
+            );
+
+            return null;
+        });
+    }
+
+    public ListenerRegistration listenToUser(String uid, EventListener<DocumentSnapshot> listener) {
+        return db.collection("users").document(uid).addSnapshotListener(listener);
+    }
+
 }

@@ -16,19 +16,17 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * RecyclerView Adapter responsible for displaying a list of employees
- * whose accounts are still pending approval by a manager.
- *
- * Each row shows basic employee info and exposes two actions:
- * Approve / Reject.
+ * Adapter for displaying pending employee accounts
+ * waiting for manager approval.
  */
+
 public class PendingEmployeesAdapter
         extends RecyclerView.Adapter<PendingEmployeesAdapter.PendingEmployeeViewHolder> {
 
     /**
-     * Callback interface used to notify the hosting screen (Activity/Fragment)
-     * when the manager clicks Approve or Reject for a specific employee.
+     * Listener for approve / reject actions on a pending employee.
      */
+
     public interface OnEmployeeActionListener {
         void onApproveClicked(User employee);
         void onRejectClicked(User employee);
@@ -45,22 +43,22 @@ public class PendingEmployeesAdapter
     }
 
     /**
-     * Replaces the adapter data and refreshes the list.
-     * Note: notifyDataSetChanged() is simple and correct for small lists.
-     * For large lists, DiffUtil is recommended for better performance.
+     * Updates the list of pending employees.
+     * Each call to setEmployees represents the current state of the data.
      */
     public void setEmployees(List<User> newEmployees) {
         employees.clear();
         if (newEmployees != null) {
             employees.addAll(newEmployees);
         }
-        notifyDataSetChanged();
+        notifyDataSetChanged(); // The data has changed - redraw the list.
     }
 
+
+    // Creates a new row from the XML and returns a ViewHolder for reuse in the list.
     @NonNull
     @Override
     public PendingEmployeeViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        // Inflate a single row layout for a pending employee item.
         View view = LayoutInflater.from(parent.getContext())
                 .inflate(R.layout.item_pending_employee, parent, false);
         return new PendingEmployeeViewHolder(view);
@@ -79,8 +77,7 @@ public class PendingEmployeesAdapter
     }
 
     /**
-     * ViewHolder holds references to the row views for better performance
-     * (avoids repeated findViewById calls while scrolling).
+     * ViewHolder for a single pending employee row.
      */
     static class PendingEmployeeViewHolder extends RecyclerView.ViewHolder {
 
@@ -98,7 +95,7 @@ public class PendingEmployeesAdapter
         }
 
         /**
-         * Populates the row with employee information and wires the action buttons.
+         * Binds employee data and handles button clicks.
          */
         void bind(@NonNull User employee, OnEmployeeActionListener listener) {
             // Display full name and email.
