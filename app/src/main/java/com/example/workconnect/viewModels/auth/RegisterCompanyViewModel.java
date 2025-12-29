@@ -19,7 +19,7 @@ public class RegisterCompanyViewModel extends ViewModel {
     // Indicates whether the registration process is currently running
     private final MutableLiveData<Boolean> isLoading = new MutableLiveData<>(false);
 
-    // Contains error messages to display in the UI (e.g., invalid input, Firebase failures)
+    // Contains error messages to display in the UI
     private final MutableLiveData<String> errorMessage = new MutableLiveData<>();
 
     // Holds the newly created company's ID (upon success)
@@ -44,18 +44,10 @@ public class RegisterCompanyViewModel extends ViewModel {
         return successCompanyId;
     }
 
-    public LiveData<String> getSuccessCompanyCode() {
-        return successCompanyCode;
-    }
 
     /**
      * Validates the registration input and triggers the repository call.
      * Updates LiveData states according to success/failure.
-     *
-     * @param companyName  Name of the company to create
-     * @param managerName  Full name of the manager
-     * @param email        Manager's email (used for Firebase Auth)
-     * @param password     Password for the manager's Auth account
      */
     public void registerCompany(String companyName,
                                 String managerName,
@@ -73,8 +65,13 @@ public class RegisterCompanyViewModel extends ViewModel {
             return;
         }
 
+        // Manager full name required (at least two words)
+        if (TextUtils.isEmpty(managerName) || managerName.trim().split("\\s+").length < 2) {
+            errorMessage.setValue("Please enter first and last name");
+            return;
+        }
+
         if (password.length() < 6) {
-            // Firebase requires passwords of at least 6 characters
             errorMessage.setValue("Password must be at least 6 characters");
             return;
         }
@@ -82,7 +79,7 @@ public class RegisterCompanyViewModel extends ViewModel {
         // Notify UI that processing has started
         isLoading.setValue(true);
 
-        // === Delegate Firebase logic to Repository ===
+        // === forward Firebase logic to Repository ===
         repository.registerCompanyAndManager(
                 companyName,
                 managerName,
