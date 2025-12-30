@@ -47,13 +47,17 @@ public class PendingVacationRequestsAdapter extends RecyclerView.Adapter<Pending
     public void onBindViewHolder(@NonNull VH h, int position) {
         VacationRequest r = items.get(position);
 
-        h.tvEmployee.setText(r.getEmployeeId() != null ? r.getEmployeeId() : "Employee");
         h.tvDates.setText((r.getStartDate() != null ? r.getStartDate() : "") +
                 " → " + (r.getEndDate() != null ? r.getEndDate() : ""));
         h.tvReason.setText(r.getReason() != null ? r.getReason() : "");
+        h.tvEmployee.setText(
+                r.getEmployeeName() != null && !r.getEmployeeName().isEmpty()
+                        ? r.getEmployeeName()
+                        : r.getEmployeeEmail()
+        );
 
-        h.btnApprove.setOnClickListener(v -> listener.onApprove(r));
         h.btnReject.setOnClickListener(v -> listener.onReject(r));
+        h.btnApprove.setOnClickListener(v -> listener.onApprove(r));
     }
 
     @Override

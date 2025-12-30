@@ -23,20 +23,21 @@ public class PendingVacationRequestsViewModel extends ViewModel {
         return message;
     }
 
-    public void load(String companyId) {
-        pendingRequests = repo.getPendingRequests(companyId);
+    public void load(String managerId) {
+        pendingRequests = repo.getPendingRequestsForManager(managerId);
     }
 
     public void approve(String requestId) {
-        repo.updateRequestStatus(requestId, "approved")
+        repo.approveRequestAndDeductBalance(requestId)
                 .addOnSuccessListener(v -> message.postValue("Approved"))
                 .addOnFailureListener(e -> message.postValue("Failed: " + e.getMessage()));
     }
 
     public void reject(String requestId) {
-        repo.updateRequestStatus(requestId, "rejected")
+        repo.rejectRequest(requestId)
                 .addOnSuccessListener(v -> message.postValue("Rejected"))
                 .addOnFailureListener(e -> message.postValue("Failed: " + e.getMessage()));
     }
+
 
 }

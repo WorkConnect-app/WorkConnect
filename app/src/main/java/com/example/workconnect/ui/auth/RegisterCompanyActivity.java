@@ -61,7 +61,6 @@ public class RegisterCompanyActivity extends AppCompatActivity {
         viewModel.getIsLoading().observe(this, isLoading -> {
             if (isLoading != null) {
                 btnCreateCompany.setEnabled(!isLoading);
-                // אם תרצי בהמשך – להוסיף ProgressBar
             }
         });
 

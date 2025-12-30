@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content">
+    android:layout_height="match_parent"
+    android:fillViewport="true">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -9,134 +11,205 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- Top row: Back button (right) -->
-        <LinearLayout
+        <!-- Title row: Title (left) + Back (right) -->
+        <androidx.constraintlayout.widget.ConstraintLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="end"
-            android:layout_marginBottom="8dp">
+            android:layout_height="wrap_content">
 
-            <Button
+            <TextView
+                android:id="@+id/tv_title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:text="Approve employee"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toStartOf="@id/btn_back"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent" />
+
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_back"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Back"
                 android:textAllCaps="false"
+                app:icon="@android:drawable/ic_media_previous"
+                app:iconPadding="6dp"
+                app:iconTint="@color/primaryBlue"
                 android:backgroundTint="@android:color/transparent"
-                android:textColor="@color/primaryBlue"/>
-        </LinearLayout>
+                android:textColor="@color/primaryBlue"
+                app:strokeWidth="1dp"
+                app:cornerRadius="14dp"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent" />
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
 
         <!-- Employee info -->
         <TextView
             android:id="@+id/tv_employee_info"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Approve employee"
-            android:textStyle="bold"
-            android:textSize="16sp"
-            android:paddingBottom="8dp" />
+            android:text="Employee: -"
+            android:textSize="14sp"
+            android:layout_marginTop="10dp"
+            android:layout_marginBottom="8dp" />
 
-        <!-- Role -->
+        <!-- Role label -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Role"
-            android:paddingTop="8dp" />
+            android:textSize="14sp"
+            android:layout_marginTop="6dp" />
 
-        <Spinner
-            android:id="@+id/spinner_role"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
-
-        <!-- Direct manager ID -->
-        <TextView
+        <!-- Role spinner container (makes it align visually like inputs) -->
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Direct manager UID"
-            android:paddingTop="8dp" />
+            android:layout_marginTop="6dp"
+            app:cardCornerRadius="14dp"
+            app:cardElevation="0dp"
+            app:strokeWidth="1dp"
+            app:strokeColor="#DDDDDD">
 
-        <EditText
-            android:id="@+id/et_direct_manager_id"
+            <Spinner
+                android:id="@+id/spinner_role"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Direct manager email -->
+        <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Leave empty if this is a top-level manager" />
+            android:layout_marginTop="12dp"
+            android:hint="Direct manager email (optional)"
+            app:boxBackgroundMode="outline"
+            app:boxCornerRadiusTopStart="14dp"
+            app:boxCornerRadiusTopEnd="14dp"
+            app:boxCornerRadiusBottomStart="14dp"
+            app:boxCornerRadiusBottomEnd="14dp">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_direct_manager_id"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textEmailAddress" />
+        </com.google.android.material.textfield.TextInputLayout>
 
         <!-- Vacation days per month -->
-        <TextView
+        <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Vacation days per month"
-            android:paddingTop="8dp" />
+            android:layout_marginTop="12dp"
+            android:hint="Vacation days per month"
+            app:boxBackgroundMode="outline"
+            app:boxCornerRadiusTopStart="14dp"
+            app:boxCornerRadiusTopEnd="14dp"
+            app:boxCornerRadiusBottomStart="14dp"
+            app:boxCornerRadiusBottomEnd="14dp">
 
-        <EditText
-            android:id="@+id/et_vacation_days_per_month"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="numberDecimal"
-            android:hint="e.g. 1.5" />
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_vacation_days_per_month"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="numberDecimal" />
+        </com.google.android.material.textfield.TextInputLayout>
 
         <!-- Department -->
-        <TextView
+        <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Department"
-            android:paddingTop="8dp" />
+            android:layout_marginTop="12dp"
+            android:hint="Department"
+            app:boxBackgroundMode="outline"
+            app:boxCornerRadiusTopStart="14dp"
+            app:boxCornerRadiusTopEnd="14dp"
+            app:boxCornerRadiusBottomStart="14dp"
+            app:boxCornerRadiusBottomEnd="14dp">
 
-        <EditText
-            android:id="@+id/et_department"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="e.g. Sales" />
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_department"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textCapWords" />
+        </com.google.android.material.textfield.TextInputLayout>
 
         <!-- Team -->
-        <TextView
+        <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Team"
-            android:paddingTop="8dp" />
+            android:layout_marginTop="12dp"
+            android:hint="Team"
+            app:boxBackgroundMode="outline"
+            app:boxCornerRadiusTopStart="14dp"
+            app:boxCornerRadiusTopEnd="14dp"
+            app:boxCornerRadiusBottomStart="14dp"
+            app:boxCornerRadiusBottomEnd="14dp">
 
-        <EditText
-            android:id="@+id/et_team"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="e.g. North Region" />
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_team"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textCapWords" />
+        </com.google.android.material.textfield.TextInputLayout>
 
         <!-- Job title -->
-        <TextView
+        <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Job title"
-            android:paddingTop="8dp" />
+            android:layout_marginTop="12dp"
+            android:hint="Job title"
+            app:boxBackgroundMode="outline"
+            app:boxCornerRadiusTopStart="14dp"
+            app:boxCornerRadiusTopEnd="14dp"
+            app:boxCornerRadiusBottomStart="14dp"
+            app:boxCornerRadiusBottomEnd="14dp">
 
-        <EditText
-            android:id="@+id/et_job_title"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="e.g. Shift Supervisor" />
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_job_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textCapWords" />
+        </com.google.android.material.textfield.TextInputLayout>
 
         <!-- Buttons row -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gravity="end"
-            android:paddingTop="16dp">
+            android:layout_marginTop="18dp"
+            android:gravity="end">
 
-            <Button
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_cancel"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:backgroundTint="@color/primaryBlue"
-                android:text="Cancel" />
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_weight="1"
+                android:text="Cancel"
+                android:textAllCaps="false"
+                app:cornerRadius="14dp"
+                app:strokeWidth="1dp"
+                app:strokeColor="@color/primaryBlue"
+                android:backgroundTint="@android:color/transparent"
+                android:textColor="@color/primaryBlue" />
 
-            <Button
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_approve"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:backgroundTint="@color/primaryBlue"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_weight="1"
+                android:layout_marginStart="12dp"
                 android:text="Approve"
-                android:layout_marginStart="8dp" />
+                android:textAllCaps="false"
+                app:cornerRadius="14dp"
+                android:backgroundTint="@color/primaryBlue"
+                android:textColor="@android:color/white" />
         </LinearLayout>
 
     </LinearLayout>

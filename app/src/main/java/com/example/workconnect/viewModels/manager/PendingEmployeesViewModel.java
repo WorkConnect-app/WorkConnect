@@ -6,6 +6,7 @@ import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
 
 import com.example.workconnect.models.User;
+import com.example.workconnect.models.enums.Roles;
 import com.example.workconnect.repository.EmployeeRepository;
 import com.google.firebase.firestore.ListenerRegistration;
 
@@ -68,19 +69,20 @@ public class PendingEmployeesViewModel extends ViewModel {
     /**
      * Approve employee with full details – role, manager, vacation accrual etc.
      */
+    // PendingEmployeesViewModel.java
     public void approveEmployee(
             String uid,
-            String role,                       // "EMPLOYEE" or "MANAGER"
-            @Nullable String directManagerId,  // null for top-level manager
+            Roles role,                          // "EMPLOYEE" or "MANAGER"
+            @Nullable String directManagerEmail,  // email (null/empty for top-level manager)
             Double vacationDaysPerMonth,
             String department,
             String team,
             String jobTitle
     ) {
-        repository.approveEmployeeWithDetails(
+        repository.approveEmployeeWithDetailsByManagerEmail(
                 uid,
                 role,
-                directManagerId,
+                directManagerEmail,
                 vacationDaysPerMonth,
                 department,
                 team,
@@ -89,10 +91,10 @@ public class PendingEmployeesViewModel extends ViewModel {
                     if (!success) {
                         errorMessage.postValue(msg);
                     }
-                    // If success, the Firestore listener will update the list automatically
                 }
         );
     }
+
 
     /**
      * Reject employee (status = "rejected")

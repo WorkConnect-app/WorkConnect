@@ -32,8 +32,9 @@ public class LoginViewModel extends ViewModel {
             @Override
             public void onSuccess(String role) {
                 isLoading.postValue(false);
-                loginRole.postValue(role);   // יכול להיות null → נבדוק ב-Activity
+                loginRole.postValue(role);
             }
+
 
             @Override
             public void onError(String message) {

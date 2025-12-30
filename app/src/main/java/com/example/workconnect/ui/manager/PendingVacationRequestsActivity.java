@@ -12,6 +12,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.example.workconnect.R;
 import com.example.workconnect.adapters.PendingVacationRequestsAdapter;
 import com.example.workconnect.viewModels.manager.PendingVacationRequestsViewModel;
+import com.google.firebase.auth.FirebaseAuth;
 
 public class PendingVacationRequestsActivity extends AppCompatActivity {
 
@@ -20,9 +21,12 @@ public class PendingVacationRequestsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.pending_vacation_requests_activity);
 
-        String companyId = getIntent().getStringExtra("companyId");
-        if (companyId == null) {
-            Toast.makeText(this, "Missing companyId", Toast.LENGTH_SHORT).show();
+        String managerId = FirebaseAuth.getInstance().getCurrentUser() != null
+                ? FirebaseAuth.getInstance().getCurrentUser().getUid()
+                : null;
+
+        if (managerId == null) {
+            Toast.makeText(this, "Not logged in", Toast.LENGTH_SHORT).show();
             finish();
             return;
         }
@@ -47,12 +51,10 @@ public class PendingVacationRequestsActivity extends AppCompatActivity {
 
         rv.setAdapter(adapter);
 
-
         Button btnBack = findViewById(R.id.btn_back);
         btnBack.setOnClickListener(v -> finish());
 
-
-        vm.load(companyId);
+        vm.load(managerId);
 
         vm.getPendingRequests().observe(this, adapter::submit);
 

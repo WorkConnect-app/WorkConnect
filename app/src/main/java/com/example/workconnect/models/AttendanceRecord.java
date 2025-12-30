@@ -2,20 +2,39 @@ package com.example.workconnect.models;
 
 import java.util.Date;
 
+/**
+ * Model class representing a single attendance record for an employee.
+ * Each record stores clock-in / clock-out times and the total hours worked for a day.
+ */
 public class AttendanceRecord {
 
-    private String id;             // Unique record ID
-    private String userId;         // UID of the user (employee)
+    // Unique identifier of the attendance record (Firestore document ID)
+    private String id;
 
-    private Date date;             // The workday date
-    private Date clockInTime;      // Timestamp of clock-in
-    private Date clockOutTime;     // Timestamp of clock-out
-    private double totalHours;     // Total hours worked for that day
+    // ID of the employee this record belongs to
+    private String userId;
 
+    // The date of the workday
+    private Date date;
+
+    // Time when the employee clocked in
+    private Date clockInTime;
+
+    // Time when the employee clocked out
+    private Date clockOutTime;
+
+    // Total number of hours worked during the day
+    private double totalHours;
+
+    /**
+     * Empty constructor required for Firebase / Firestore deserialization.
+     */
     public AttendanceRecord() {
-        // Required for Firebase deserialization
     }
 
+    /**
+     * Creates a fully initialized attendance record.
+     */
     public AttendanceRecord(String id,
                             String userId,
                             Date date,

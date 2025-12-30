@@ -34,25 +34,25 @@ public class NewVacationRequestViewModel extends ViewModel {
 
     public void onSendClicked(Date startDate, Date endDate, String reason) {
 
-        // Validate selected dates
+        if (startDate == null || endDate == null) {
+            toastMessage.setValue("Please choose start and end dates.");
+            return;
+        }
+
         if (endDate.before(startDate)) {
             toastMessage.setValue("End date cannot be before start date.");
             return;
         }
 
-        // Calculate number of requested vacation days
         long diffMillis = endDate.getTime() - startDate.getTime();
-        int daysRequested =
-                (int) TimeUnit.DAYS.convert(diffMillis, TimeUnit.MILLISECONDS) + 1;
+        int daysRequested = (int) TimeUnit.DAYS.convert(diffMillis, TimeUnit.MILLISECONDS) + 1;
 
-        // Check if user is logged in
         String uid = repository.getCurrentUserId();
         if (uid == null) {
             toastMessage.setValue("User not logged in.");
             return;
         }
 
-        // Fetch user data from Firestore
         Task<DocumentSnapshot> userTask = repository.getCurrentUserTask();
         if (userTask == null) {
             toastMessage.setValue("Error loading user data.");
@@ -66,43 +66,73 @@ public class NewVacationRequestViewModel extends ViewModel {
             }
 
             DocumentSnapshot doc = task.getResult();
-            Long remainingDaysLong = doc.getLong("remainingVacationDays");
-            String managerId = doc.getString("managerId");
 
-            int remainingDays = remainingDaysLong != null
-                    ? remainingDaysLong.intValue()
-                    : 0;
+            String role = doc.getString("role");                 // "employee" / "manager"
+            String directManagerId = doc.getString("directManagerId"); // can be null
+            Double vacationBalanceD = doc.getDouble("vacationBalance");
+            double vacationBalance = vacationBalanceD != null ? vacationBalanceD : 0.0;
 
-            // Check if the employee has enough remaining vacation days
-            if (daysRequested > remainingDays) {
-                toastMessage.setValue("Not enough remaining vacation days.");
+            // --- NEW: Pull employee name + email so manager can see them ---
+            String fullName = doc.getString("fullName");
+            String email = doc.getString("email");
+
+            if (fullName == null || fullName.trim().isEmpty()) {
+                String fn = doc.getString("firstName");
+                String ln = doc.getString("lastName");
+                fullName = (fn != null ? fn : "") + " " + (ln != null ? ln : "");
+                fullName = fullName.trim();
+            }
+            // -------------------------------------------------------------
+
+            if (daysRequested > vacationBalance) {
+                toastMessage.setValue("Not enough vacation balance.");
                 return;
             }
 
-            // Create a new vacation request
+            boolean isTopLevelManager =
+                    role != null
+                            && role.equalsIgnoreCase("manager")
+                            && (directManagerId == null || directManagerId.trim().isEmpty());
+
+            VacationStatus status = isTopLevelManager ? VacationStatus.APPROVED : VacationStatus.PENDING;
+
             String requestId = repository.generateVacationRequestId();
 
             VacationRequest request = new VacationRequest(
                     requestId,
                     uid,
-                    managerId,
+                    fullName,
+                    email,
+                    directManagerId,  // approver managerId (null if top-level manager)
                     startDate,
                     endDate,
                     reason,
-                    VacationStatus.PENDING,
+                    status,
                     daysRequested,
                     new Date()
             );
 
-            // Save the request to Firestore
+            // --- NEW: Store the name/email inside the vacation request document ---
+            // Make sure VacationRequest model has these fields + setters/getters:
+            // private String employeeName; private String employeeEmail;
+            request.setEmployeeName(fullName);
+            request.setEmployeeEmail(email);
+            // ---------------------------------------------------------------------
+
             repository.createVacationRequest(request)
                     .addOnCompleteListener(saveTask -> {
                         if (saveTask.isSuccessful()) {
-                            toastMessage.setValue(
-                                    "Vacation request sent and waiting for manager approval.");
+                            if (isTopLevelManager) {
+                                toastMessage.setValue("Vacation approved automatically (top-level manager).");
+                            } else {
+                                toastMessage.setValue("Vacation request sent and waiting for manager approval.");
+                            }
                             closeScreen.setValue(true);
                         } else {
                             toastMessage.setValue("Failed to send request. Please try again.");
+                            if (saveTask.getException() != null) {
+                                saveTask.getException().printStackTrace();
+                            }
                         }
                     });
         });
