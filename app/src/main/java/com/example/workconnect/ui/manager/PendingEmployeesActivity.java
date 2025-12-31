@@ -139,8 +139,9 @@ public class PendingEmployeesActivity extends AppCompatActivity
      * ------------------------------------------------------------------ */
 
     private void showApproveDialog(User employee) {
-        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
+        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this); // Creates a “builder” for dialogue.
 
+        // Loads the dialog XML file and connects it to the dialog.
         LayoutInflater inflater = getLayoutInflater();
         View dialogView = inflater.inflate(R.layout.dialog_approve_employee, null);
         builder.setView(dialogView);
@@ -148,8 +149,6 @@ public class PendingEmployeesActivity extends AppCompatActivity
         TextView tvEmployeeInfo = dialogView.findViewById(R.id.tv_employee_info);
         Spinner spinnerRole = dialogView.findViewById(R.id.spinner_role);
 
-        // Legacy id name: "et_direct_manager_id"
-        // Actual input: manager EMAIL address (optional).
         EditText etDirectManagerEmail = dialogView.findViewById(R.id.et_direct_manager_id);
 
         EditText etVacationDaysPerMonth = dialogView.findViewById(R.id.et_vacation_days_per_month);
@@ -169,14 +168,18 @@ public class PendingEmployeesActivity extends AppCompatActivity
         String email = employee.getEmail() == null ? "" : employee.getEmail();
         tvEmployeeInfo.setText((firstName + " " + lastName).trim() + " (" + email + ")");
 
+        // ArrayAdapter = list of options + how to draw each option
         ArrayAdapter<String> roleAdapter = new ArrayAdapter<>(
                 this,
                 android.R.layout.simple_spinner_item,
                 new String[]{Roles.EMPLOYEE.name(), Roles.MANAGER.name()}
         );
+
+        // Connects the Adapter to the Spinner.
         roleAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerRole.setAdapter(roleAdapter);
 
+        // Creating the actual dialogue. This proof exists in memory, but is not yet displayed.
         approveDialog = builder.create();
 
         btnCancel.setOnClickListener(v -> approveDialog.dismiss());
@@ -190,14 +193,14 @@ public class PendingEmployeesActivity extends AppCompatActivity
             String selectedRoleStr = (String) spinnerRole.getSelectedItem();
             Roles selectedRole;
             try {
-                selectedRole = Roles.valueOf(selectedRoleStr);
+                selectedRole = Roles.valueOf(selectedRoleStr); // Conversion to enum Roles.
             } catch (Exception ex) {
                 btnApprove.setEnabled(true);
                 Toast.makeText(this, "Invalid role selected", Toast.LENGTH_SHORT).show();
                 return;
             }
 
-            // Read manager email (optional)
+            // Read manager email
             String directManagerEmail = etDirectManagerEmail.getText().toString().trim();
             if (directManagerEmail.isEmpty()) {
                 directManagerEmail = null;
@@ -216,7 +219,7 @@ public class PendingEmployeesActivity extends AppCompatActivity
 
             try {
                 vacationDaysPerMonth = Double.parseDouble(vacationText);
-            } catch (NumberFormatException e) {
+            } catch (NumberFormatException e) { // If not a number
                 btnApprove.setEnabled(true);
                 Toast.makeText(this, "Invalid vacation days per month", Toast.LENGTH_SHORT).show();
                 return;
@@ -243,10 +246,9 @@ public class PendingEmployeesActivity extends AppCompatActivity
                     jobTitle
             );
 
-            // Keep the dialog open while loading.
-            // The ViewModel's isLoading observer will disable buttons and prevent further actions.
         });
 
+        // function that is called every time the dialog is closed, no matter how:
         approveDialog.setOnDismissListener(d -> {
             // Clear references to avoid leaking dialog views
             approveDialog = null;

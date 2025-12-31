@@ -84,7 +84,7 @@ public class PendingEmployeesAdapter
     }
 
     /**
-     * ViewHolder for a single pending employee row.
+     * Each ViewHolder represents one employee in the list.
      */
     static class PendingEmployeeViewHolder extends RecyclerView.ViewHolder {
 
