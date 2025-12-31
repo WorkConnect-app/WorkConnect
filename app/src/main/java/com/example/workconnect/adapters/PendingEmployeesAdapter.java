@@ -16,49 +16,57 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Adapter for displaying pending employee accounts
- * waiting for manager approval.
+ * Adapter for displaying pending employee accounts waiting for manager approval.
+ * Only responsible for binding UI and forwarding clicks to the hosting screen.
  */
-
 public class PendingEmployeesAdapter
         extends RecyclerView.Adapter<PendingEmployeesAdapter.PendingEmployeeViewHolder> {
 
     /**
      * Listener for approve / reject actions on a pending employee.
+     * Implemented by the hosting Activity/Fragment.
      */
-
     public interface OnEmployeeActionListener {
         void onApproveClicked(User employee);
         void onRejectClicked(User employee);
     }
 
-    // Always keep a non-null list to avoid null checks and potential crashes.
+    // Keep a non-null list to avoid null checks and potential crashes.
     private final List<User> employees = new ArrayList<>();
 
-    // Listener is provided by the hosting UI layer to handle actions.
+    // Listener provided by UI layer to handle user actions.
     private final OnEmployeeActionListener listener;
+
+    // Used to disable approve/reject buttons while an operation is running.
+    private boolean buttonsEnabled = true;
 
     public PendingEmployeesAdapter(@NonNull OnEmployeeActionListener listener) {
         this.listener = listener;
     }
 
     /**
+     * Enables/disables action buttons to prevent double clicks while processing.
+     */
+    public void setButtonsEnabled(boolean enabled) {
+        this.buttonsEnabled = enabled;
+        notifyDataSetChanged(); // simple approach; good enough for this screen
+    }
+
+    /**
      * Updates the list of pending employees.
-     * Each call to setEmployees represents the current state of the data.
      */
     public void setEmployees(List<User> newEmployees) {
         employees.clear();
         if (newEmployees != null) {
             employees.addAll(newEmployees);
         }
-        notifyDataSetChanged(); // The data has changed - redraw the list.
+        notifyDataSetChanged();
     }
 
-
-    // Creates a new row from the XML and returns a ViewHolder for reuse in the list.
     @NonNull
     @Override
     public PendingEmployeeViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        // Inflate a row layout for a pending employee item
         View view = LayoutInflater.from(parent.getContext())
                 .inflate(R.layout.item_pending_employee, parent, false);
         return new PendingEmployeeViewHolder(view);
@@ -66,9 +74,8 @@ public class PendingEmployeesAdapter
 
     @Override
     public void onBindViewHolder(@NonNull PendingEmployeeViewHolder holder, int position) {
-        // Bind the employee data to the row views.
         User employee = employees.get(position);
-        holder.bind(employee, listener);
+        holder.bind(employee, listener, buttonsEnabled);
     }
 
     @Override
@@ -95,17 +102,22 @@ public class PendingEmployeesAdapter
         }
 
         /**
-         * Binds employee data and handles button clicks.
+         * Binds employee data and forwards button clicks to the listener.
          */
-        void bind(@NonNull User employee, OnEmployeeActionListener listener) {
-            // Display full name and email.
+        void bind(@NonNull User employee, OnEmployeeActionListener listener, boolean buttonsEnabled) {
+            // Display full name
             String firstName = employee.getFirstName() != null ? employee.getFirstName() : "";
             String lastName = employee.getLastName() != null ? employee.getLastName() : "";
             tvName.setText((firstName + " " + lastName).trim());
 
+            // Display email
             tvEmail.setText(employee.getEmail() != null ? employee.getEmail() : "");
 
-            // Forward button clicks to the hosting screen via the listener.
+            // Disable buttons if a Firestore action is currently running
+            btnApprove.setEnabled(buttonsEnabled);
+            btnReject.setEnabled(buttonsEnabled);
+
+            // Forward clicks
             btnApprove.setOnClickListener(v -> listener.onApproveClicked(employee));
             btnReject.setOnClickListener(v -> listener.onRejectClicked(employee));
         }
