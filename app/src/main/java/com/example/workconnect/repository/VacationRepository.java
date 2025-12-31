@@ -1,5 +1,7 @@
 package com.example.workconnect.repository;
 
+import android.util.Log;
+
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
@@ -88,7 +90,6 @@ public class VacationRepository {
         db.collection("vacation_requests")
                 .whereEqualTo("managerId", managerId)
                 .whereEqualTo("status", VacationStatus.PENDING.name())
-                .orderBy("createdAt", Query.Direction.DESCENDING)
                 .addSnapshotListener((snap, e) -> {
                     if (e != null || snap == null) {
                         live.postValue(new ArrayList<>());
@@ -117,12 +118,13 @@ public class VacationRepository {
 
         db.collection("vacation_requests")
                 .whereEqualTo("employeeId", employeeId)
-                .orderBy("createdAt", Query.Direction.DESCENDING)
                 .addSnapshotListener((snap, e) -> {
-                    if (e != null || snap == null) {
+                    if (e != null) {
+                        Log.e("VacationRepo", "employee query failed", e);
                         live.postValue(new ArrayList<>());
                         return;
                     }
+                    Log.d("VacationRepo", "employee query docs=" + snap.size());
 
                     List<VacationRequest> list = new ArrayList<>();
                     for (DocumentSnapshot d : snap.getDocuments()) {

@@ -16,7 +16,7 @@ import java.util.List;
  * ViewModel for employee vacation requests screen.
  * Provides the list of requests and real-time vacation balance.
  */
-public class EmployeeVacationRequestsViewModel extends ViewModel {
+public class VacationRequestsViewModel extends ViewModel {
 
     private final VacationRepository repo = new VacationRepository();
 

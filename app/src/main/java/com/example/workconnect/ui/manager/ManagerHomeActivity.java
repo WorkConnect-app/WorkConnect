@@ -92,7 +92,7 @@ public class ManagerHomeActivity extends AppCompatActivity {
         // ===== My area =====
 
         btnAttendance.setOnClickListener(v -> {
-            // TODO: אם יש לך מסך נוכחות לעובד (גם מנהל הוא עובד)
+            // TODO:
             // startActivity(new Intent(this, MyAttendanceActivity.class));
             Toast.makeText(this, "TODO: Attendance screen", Toast.LENGTH_SHORT).show();
         });
@@ -103,7 +103,6 @@ public class ManagerHomeActivity extends AppCompatActivity {
         });
 
         btnMyVacations.setOnClickListener(v -> {
-            // אם VacationRequestsActivity מיועד רק לעובד – תשני למסך של "My vacations" אצלך
             startActivity(new Intent(this, VacationRequestsActivity.class));
         });
 

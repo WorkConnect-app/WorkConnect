@@ -80,7 +80,7 @@ public class EmployeeHomeActivity extends AppCompatActivity {
                 .addOnSuccessListener(doc -> {
                     if (doc != null && doc.exists()) {
 
-                        // נסיון לכמה שמות שדה אפשריים
+                        //For now
                         String fullName = doc.getString("fullName");
                         String name = doc.getString("name");
                         String firstName = doc.getString("firstName");

@@ -3,11 +3,11 @@
   <component name="deploymentTargetSelector">
     <selectionStates>
       <SelectionState runConfigName="app">
-        <option name="selectionMode" value="DIALOG" />
-        <DropdownSelection timestamp="2025-12-24T16:34:22.323839200Z">
+        <option name="selectionMode" value="DROPDOWN" />
+        <DropdownSelection timestamp="2025-12-31T10:29:13.960319300Z">
           <Target type="DEFAULT_BOOT">
             <handle>
-              <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\kronf\.android\avd\Pixel_5_2.avd" />
+              <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\kronf\.android\avd\Pixel_6_3.avd" />
             </handle>
           </Target>
         </DropdownSelection>
@@ -15,12 +15,12 @@
           <targets>
             <Target type="DEFAULT_BOOT">
               <handle>
-                <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\kronf\.android\avd\Pixel_6.avd" />
+                <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\kronf\.android\avd\Pixel_6_2.avd" />
               </handle>
             </Target>
             <Target type="DEFAULT_BOOT">
               <handle>
-                <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\kronf\.android\avd\Pixel_5_2.avd" />
+                <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\kronf\.android\avd\Pixel_6_3.avd" />
               </handle>
             </Target>
           </targets>
