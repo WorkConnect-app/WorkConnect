@@ -24,7 +24,9 @@
             android:name=".ui.auth.LoginActivity"
             android:exported="true">
             <intent-filter>
+                <!--This is the entry point of the application.-->
                 <action android:name="android.intent.action.MAIN" />
+                <!--Put it on the icon on the home screen-->
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
