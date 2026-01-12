@@ -1,12 +1,13 @@
 package com.example.workconnect.ui.manager;
 
+import android.app.AlertDialog;
 import android.os.Bundle;
-import android.util.Patterns;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ProgressBar;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -19,84 +20,88 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.workconnect.R;
 import com.example.workconnect.adapters.PendingEmployeesAdapter;
+import com.example.workconnect.models.Team;
 import com.example.workconnect.models.User;
 import com.example.workconnect.models.enums.Roles;
 import com.example.workconnect.viewModels.manager.PendingEmployeesViewModel;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 
-/**
- * PendingEmployeesActivity
- *
- * Manager screen that shows all employees with PENDING status for a company,
- * and allows approving/rejecting employees.
- *
- * UI Responsibilities:
- * - Display pending employees list (RecyclerView)
- * - Open an approve dialog to collect additional profile details
- * - Trigger ViewModel actions (approve / reject)
- * - Observe ViewModel state (loading / errors / list updates)
- */
-public class PendingEmployeesActivity extends AppCompatActivity
-        implements PendingEmployeesAdapter.OnEmployeeActionListener {
+public class PendingEmployeesActivity extends AppCompatActivity {
 
     private PendingEmployeesViewModel viewModel;
-    private PendingEmployeesAdapter adapter;
 
-    // Keep references to the currently displayed approve dialog and its buttons
-    private android.app.AlertDialog approveDialog;
-    private Button dialogApproveButton;
-    private Button dialogCancelButton;
+    private PendingEmployeesAdapter adapter;
+    private ProgressBar progressBar;
+    private TextView tvEmpty;
+    private Button btnBack;
+
+    private String companyId;
+
+    private final List<Team> cachedTeams = new ArrayList<>();
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.pending_employees_activity);
 
-        // Creates the screen's ViewModel.
-        // If this is a first time opening → a new ViewModel is created
-        // If this is a rotation → the same ViewModel is returned (not new)
         viewModel = new ViewModelProvider(this).get(PendingEmployeesViewModel.class);
 
-        RecyclerView rv = findViewById(R.id.rv_pending_employees);
-        if (rv == null) {
-            Toast.makeText(this, "RecyclerView not found in layout", Toast.LENGTH_LONG).show();
-            finish();
-            return;
-        }
-
-        // Tells to RecyclerView how to arrange items on the screen
-        // LinearLayoutManager says vertical list, item below item (like a contact/chat list)
-        rv.setLayoutManager(new LinearLayoutManager(this));
-
-        // Creates a new Adapter.
-        // Adapter: Knows what “one worker” looks like, Connects User to XML row, Passes clicks (Approve / Reject) to Activity
-        adapter = new PendingEmployeesAdapter(this);
-
-        // Connects the Adapter to RecyclerView.
-        rv.setAdapter(adapter);
-
-        Button btnBack = findViewById(R.id.btn_back);
-        if (btnBack != null) btnBack.setOnClickListener(v -> finish());
-
-        // Connects the Activity to the ViewModel's LiveData.
-        observeViewModel();
-
-        String companyId = getIntent().getStringExtra("companyId");
+        companyId = getIntent().getStringExtra("companyId");
         if (companyId == null || companyId.trim().isEmpty()) {
             Toast.makeText(this, "Missing companyId for pending employees screen", Toast.LENGTH_LONG).show();
             finish();
             return;
         }
 
-        // ViewModel prevents duplicate listeners using an internal "initialized" flag
+        RecyclerView recyclerView = findViewById(R.id.rv_pending_employees);
+        if (recyclerView == null) {
+            Toast.makeText(this, "RecyclerView not found in layout", Toast.LENGTH_LONG).show();
+            finish();
+            return;
+        }
+
+        btnBack = findViewById(R.id.btn_back);
+        progressBar = findViewById(R.id.progress_loading);
+        tvEmpty = findViewById(R.id.tv_empty);
+
+        adapter = new PendingEmployeesAdapter(new PendingEmployeesAdapter.OnEmployeeActionListener() {
+            @Override
+            public void onApproveClicked(User employee) {
+                showApproveDialog(employee);
+            }
+
+            @Override
+            public void onRejectClicked(User employee) {
+                viewModel.rejectEmployee(employee.getUid());
+            }
+        });
+
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        recyclerView.setAdapter(adapter);
+
+        if (btnBack != null) btnBack.setOnClickListener(v -> finish());
+
+        observeViewModel();
+
         viewModel.startListening(companyId);
     }
 
-    // Defines What data from the ViewModel the Activity “listens” to and how the UI should respond when something changes.
     private void observeViewModel() {
-        viewModel.getPendingEmployees().observe(this, this::onEmployeesUpdated); // As long as this activity is alive, call me when there is a change.
+        viewModel.getPendingEmployees().observe(this, employees -> {
+            adapter.setEmployees(employees);
+            if (tvEmpty != null) {
+                boolean empty = (employees == null || employees.isEmpty());
+                tvEmpty.setVisibility(empty ? View.VISIBLE : View.GONE);
+            }
+        });
+
+        viewModel.getIsLoading().observe(this, isLoading -> {
+            if (progressBar != null) {
+                progressBar.setVisibility(Boolean.TRUE.equals(isLoading) ? View.VISIBLE : View.GONE);
+            }
+        });
 
         viewModel.getErrorMessage().observe(this, msg -> {
             if (msg != null && !msg.trim().isEmpty()) {
@@ -104,158 +109,145 @@ public class PendingEmployeesActivity extends AppCompatActivity
             }
         });
 
-        // Prevent double-clicks in the approve dialog while a request is running
-        viewModel.getIsLoading().observe(this, isLoading -> {
-            boolean loading = Boolean.TRUE.equals(isLoading);
-
-            if (approveDialog != null && approveDialog.isShowing()) {
-                if (dialogApproveButton != null) dialogApproveButton.setEnabled(!loading);
-                if (dialogCancelButton != null) dialogCancelButton.setEnabled(!loading);
-
-            }
+        viewModel.getTeamsForCompany(companyId).observe(this, teams -> {
+            cachedTeams.clear();
+            if (teams != null) cachedTeams.addAll(teams);
         });
     }
 
-    private void onEmployeesUpdated(List<User> employees) {
-        adapter.setEmployees(employees != null ? employees : Collections.emptyList());
-    }
-
-    /* --------------------------------------------------------------------
-     * Adapter callbacks
-     * ------------------------------------------------------------------ */
-
-    @Override
-    public void onApproveClicked(User employee) {
-        showApproveDialog(employee);
-    }
-
-    @Override
-    public void onRejectClicked(User employee) {
-        viewModel.rejectEmployee(employee.getUid());
-    }
-
-    /* --------------------------------------------------------------------
-     * Approve dialog
-     * ------------------------------------------------------------------ */
-
     private void showApproveDialog(User employee) {
-        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this); // Creates a “builder” for dialogue.
-
-        // Loads the dialog XML file and connects it to the dialog.
         LayoutInflater inflater = getLayoutInflater();
         View dialogView = inflater.inflate(R.layout.dialog_approve_employee, null);
-        builder.setView(dialogView);
 
         TextView tvEmployeeInfo = dialogView.findViewById(R.id.tv_employee_info);
+
         Spinner spinnerRole = dialogView.findViewById(R.id.spinner_role);
+        Spinner spinnerTeam = dialogView.findViewById(R.id.spinner_team);
+        Spinner spinnerEmploymentType = dialogView.findViewById(R.id.spinner_employment_type);
 
-        EditText etDirectManagerEmail = dialogView.findViewById(R.id.et_direct_manager_id);
-
+        EditText etDirectManagerId = dialogView.findViewById(R.id.et_direct_manager_id);
         EditText etVacationDaysPerMonth = dialogView.findViewById(R.id.et_vacation_days_per_month);
         EditText etDepartment = dialogView.findViewById(R.id.et_department);
-        EditText etTeam = dialogView.findViewById(R.id.et_team);
         EditText etJobTitle = dialogView.findViewById(R.id.et_job_title);
 
         Button btnCancel = dialogView.findViewById(R.id.btn_cancel);
         Button btnApprove = dialogView.findViewById(R.id.btn_approve);
 
-        // Save references so we can disable them while loading
-        dialogCancelButton = btnCancel;
-        dialogApproveButton = btnApprove;
-
         String firstName = employee.getFirstName() == null ? "" : employee.getFirstName();
         String lastName = employee.getLastName() == null ? "" : employee.getLastName();
         String email = employee.getEmail() == null ? "" : employee.getEmail();
-        tvEmployeeInfo.setText((firstName + " " + lastName).trim() + " (" + email + ")");
+        String name = (firstName + " " + lastName).trim();
+        if (name.isEmpty()) name = "Employee";
 
-        // ArrayAdapter = list of options + how to draw each option
+        if (tvEmployeeInfo != null) {
+            tvEmployeeInfo.setText(name + " (" + email + ")");
+        }
+
+        // Roles spinner (same as before)
         ArrayAdapter<String> roleAdapter = new ArrayAdapter<>(
                 this,
                 android.R.layout.simple_spinner_item,
                 new String[]{Roles.EMPLOYEE.name(), Roles.MANAGER.name()}
         );
-
-        // Connects the Adapter to the Spinner.
         roleAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerRole.setAdapter(roleAdapter);
 
-        // Creating the actual dialogue. This proof exists in memory, but is not yet displayed.
-        approveDialog = builder.create();
+        // Team spinner (new change is OK)
+        List<String> teamLabels = new ArrayList<>();
+        teamLabels.add("No team");
+        for (Team t : cachedTeams) {
+            teamLabels.add(t.getName() == null ? "(Unnamed)" : t.getName());
+        }
+        ArrayAdapter<String> teamAdapter = new ArrayAdapter<>(
+                this,
+                android.R.layout.simple_spinner_item,
+                teamLabels
+        );
+        teamAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerTeam.setAdapter(teamAdapter);
 
-        btnCancel.setOnClickListener(v -> approveDialog.dismiss());
+        // Employment type spinner (new change is OK)
+        ArrayAdapter<String> employmentAdapter = new ArrayAdapter<>(
+                this,
+                android.R.layout.simple_spinner_item,
+                new String[]{"Not set", "FULL_TIME", "SHIFT_BASED"}
+        );
+        employmentAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerEmploymentType.setAdapter(employmentAdapter);
 
-        btnApprove.setOnClickListener(v -> {
+        // Defaults / vacations exactly like before
+        if (etVacationDaysPerMonth != null) {
+            etVacationDaysPerMonth.setText("1.5");
+        }
+        if (employee.getDepartment() != null && etDepartment != null) etDepartment.setText(employee.getDepartment());
+        if (employee.getJobTitle() != null && etJobTitle != null) etJobTitle.setText(employee.getJobTitle());
 
-            // Immediate UI guard to reduce double taps (in addition to isLoading observer)
-            btnApprove.setEnabled(false);
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setView(dialogView)
+                .create();
 
-            // Parse role from spinner
-            String selectedRoleStr = (String) spinnerRole.getSelectedItem();
-            Roles selectedRole;
-            try {
-                selectedRole = Roles.valueOf(selectedRoleStr); // Conversion to enum Roles.
-            } catch (Exception ex) {
-                btnApprove.setEnabled(true);
-                Toast.makeText(this, "Invalid role selected", Toast.LENGTH_SHORT).show();
-                return;
-            }
+        if (btnCancel != null) {
+            btnCancel.setOnClickListener(v -> dialog.dismiss());
+        }
 
-            // Read manager email
-            String directManagerEmail = etDirectManagerEmail.getText().toString().trim();
-            if (directManagerEmail.isEmpty()) {
-                directManagerEmail = null;
-            } else {
-                // Basic format validation (UI-level)
-                if (!Patterns.EMAIL_ADDRESS.matcher(directManagerEmail).matches()) {
-                    btnApprove.setEnabled(true);
-                    Toast.makeText(this, "Please enter a valid manager email", Toast.LENGTH_SHORT).show();
+        if (btnApprove != null) {
+            btnApprove.setOnClickListener(v -> {
+
+                // Validation as before
+                String selectedRoleStr = (String) spinnerRole.getSelectedItem();
+                Roles selectedRole;
+                try {
+                    selectedRole = Roles.valueOf(selectedRoleStr);
+                } catch (Exception ex) {
+                    Toast.makeText(this, "Invalid role selected", Toast.LENGTH_SHORT).show();
                     return;
                 }
-            }
 
-            // Parse vacation days per month
-            String vacationText = etVacationDaysPerMonth.getText().toString().trim();
-            double vacationDaysPerMonth;
+                String directManagerId = etDirectManagerId == null ? "" : etDirectManagerId.getText().toString().trim();
+                if (directManagerId.isEmpty()) directManagerId = null;
 
-            try {
-                vacationDaysPerMonth = Double.parseDouble(vacationText);
-            } catch (NumberFormatException e) { // If not a number
-                btnApprove.setEnabled(true);
-                Toast.makeText(this, "Invalid vacation days per month", Toast.LENGTH_SHORT).show();
-                return;
-            }
+                String vacationText = etVacationDaysPerMonth == null ? "" : etVacationDaysPerMonth.getText().toString().trim();
+                double vacationDaysPerMonth;
 
-            if (vacationDaysPerMonth <= 0) {
-                btnApprove.setEnabled(true);
-                Toast.makeText(this, "Vacation days per month must be greater than 0", Toast.LENGTH_SHORT).show();
-                return;
-            }
+                try {
+                    vacationDaysPerMonth = Double.parseDouble(vacationText);
+                } catch (NumberFormatException e) {
+                    Toast.makeText(this, "Invalid vacation days per month", Toast.LENGTH_SHORT).show();
+                    return;
+                }
 
-            String department = etDepartment.getText().toString().trim();
-            String team = etTeam.getText().toString().trim();
-            String jobTitle = etJobTitle.getText().toString().trim();
+                if (vacationDaysPerMonth <= 0) {
+                    Toast.makeText(this, "Vacation days per month must be greater than 0", Toast.LENGTH_SHORT).show();
+                    return;
+                }
 
-            // Delegate business logic to ViewModel/Repository
-            viewModel.approveEmployee(
-                    employee.getUid(),
-                    selectedRole,
-                    directManagerEmail,
-                    vacationDaysPerMonth,
-                    department,
-                    team,
-                    jobTitle
-            );
+                String department = etDepartment == null ? "" : etDepartment.getText().toString().trim();
+                String jobTitle = etJobTitle == null ? "" : etJobTitle.getText().toString().trim();
 
-        });
+                String selectedTeamId = null;
+                int teamPos = spinnerTeam.getSelectedItemPosition();
+                if (teamPos > 0 && (teamPos - 1) < cachedTeams.size()) {
+                    selectedTeamId = cachedTeams.get(teamPos - 1).getId();
+                }
 
-        // function that is called every time the dialog is closed, no matter how:
-        approveDialog.setOnDismissListener(d -> {
-            // Clear references to avoid leaking dialog views
-            approveDialog = null;
-            dialogApproveButton = null;
-            dialogCancelButton = null;
-        });
+                String empType = (String) spinnerEmploymentType.getSelectedItem();
+                String employmentType = "Not set".equals(empType) ? null : empType;
 
-        approveDialog.show();
+                viewModel.approveEmployee(
+                        employee.getUid(),
+                        selectedRole,
+                        directManagerId,
+                        vacationDaysPerMonth,
+                        department,
+                        jobTitle,
+                        selectedTeamId,
+                        employmentType
+                );
+
+                dialog.dismiss();
+            });
+        }
+
+        dialog.show();
     }
 }

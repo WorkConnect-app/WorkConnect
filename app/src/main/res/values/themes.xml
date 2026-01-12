@@ -1,16 +1,22 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Theme.WorkConnect" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <!-- Primary brand color. -->
-        <item name="colorPrimary">@color/purple_500</item>
-        <item name="colorPrimaryVariant">@color/purple_700</item>
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- App theme -->
+    <style name="Theme.WorkConnect" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/primaryBlue</item>
         <item name="colorOnPrimary">@color/white</item>
-        <!-- Secondary brand color. -->
-        <item name="colorSecondary">@color/teal_200</item>
-        <item name="colorSecondaryVariant">@color/teal_700</item>
-        <item name="colorOnSecondary">@color/black</item>
-        <!-- Status bar color. -->
-        <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
-        <!-- Customize your theme here. -->
+        <item name="colorSecondary">@color/secondaryBlue</item>
+        <item name="colorOnSecondary">@color/white</item>
     </style>
+
+    <!-- ✅ Reusable weekday header style -->
+    <style name="WeekdayHeader">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_columnWeight">1</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textSize">12sp</item>
+    </style>
+
 </resources>

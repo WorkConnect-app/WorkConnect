@@ -5,40 +5,34 @@ import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
 
+import com.example.workconnect.models.Team;
 import com.example.workconnect.models.User;
 import com.example.workconnect.models.enums.RegisterStatus;
 import com.example.workconnect.models.enums.Roles;
-import com.example.workconnect.models.enums.VacationStatus;
 import com.example.workconnect.repository.EmployeeRepository;
+import com.example.workconnect.repository.TeamRepository;
 import com.google.firebase.firestore.ListenerRegistration;
 
 import java.util.List;
 
 /**
- * ViewModel for the manager screen that displays all pending employees
+ * ViewModel for the manager's screen that shows all pending employees
  * and allows approving or rejecting them.
  */
 public class PendingEmployeesViewModel extends ViewModel {
 
-    // List of employees waiting for approval
     private final MutableLiveData<List<User>> pendingEmployees = new MutableLiveData<>();
-
-    // Error messages to be shown in the UI
     private final MutableLiveData<String> errorMessage = new MutableLiveData<>();
-
-    // Indicates whether an operation (initial load / approve / reject) is in progress
     private final MutableLiveData<Boolean> isLoading = new MutableLiveData<>(false);
 
-    // Repository that handles Firestore operations
-    private final EmployeeRepository repository = new EmployeeRepository();
+    private final EmployeeRepository employeeRepository = new EmployeeRepository();
+    private final TeamRepository teamRepository = new TeamRepository();
 
-    // Firestore listener reference (for cleanup)
     private ListenerRegistration listenerRegistration;
-
-    // Prevents starting the listener multiple times
     private boolean initialized = false;
 
-    // Expose LiveData to UI (read-only)
+    private LiveData<List<Team>> teamsLiveData;
+
     public LiveData<List<User>> getPendingEmployees() {
         return pendingEmployees;
     }
@@ -52,8 +46,18 @@ public class PendingEmployeesViewModel extends ViewModel {
     }
 
     /**
-     * Starts listening for pending employees of a given company.
-     * Will run only once per ViewModel instance.
+     * Teams list for the approval dialog spinner.
+     * NOTE: this expects TeamRepository.listenTeamsForCompany(companyId) to exist.
+     */
+    public LiveData<List<Team>> getTeamsForCompany(String companyId) {
+        if (teamsLiveData == null) {
+            teamsLiveData = teamRepository.getTeamsForCompany(companyId);
+        }
+        return teamsLiveData;
+    }
+
+    /**
+     * Start listening only once (even if Activity is recreated)
      */
     public void startListening(String companyId) {
         if (initialized) return;
@@ -61,10 +65,9 @@ public class PendingEmployeesViewModel extends ViewModel {
 
         isLoading.setValue(true);
 
-        listenerRegistration = repository.listenForPendingEmployees(
+        listenerRegistration = employeeRepository.listenForPendingEmployees(
                 companyId,
                 new EmployeeRepository.PendingEmployeesCallback() {
-
                     @Override
                     public void onSuccess(List<User> employees) {
                         isLoading.postValue(false);
@@ -81,29 +84,29 @@ public class PendingEmployeesViewModel extends ViewModel {
     }
 
     /**
-     * Approves an employee and sets full profile details.
+     * Approve employee with full details – role, manager, vacation accrual etc.
+     * team is REMOVED; we now pass optional selectedTeamId + employmentType.
      */
     public void approveEmployee(
             String uid,
-            Roles role,                          // EMPLOYEE / MANAGER
-            @Nullable String directManagerEmail, // null for top-level manager
+            Roles role,
+            @Nullable String directManagerEmail,
             Double vacationDaysPerMonth,
             String department,
-            String team,
-            String jobTitle
+            String jobTitle,
+            @Nullable String selectedTeamId,
+            @Nullable String employmentType
     ) {
-        isLoading.setValue(true);
-
-        repository.approveEmployeeWithDetailsByManagerEmail(
+        employeeRepository.approveEmployeeWithDetailsByManagerEmail(
                 uid,
                 role,
                 directManagerEmail,
                 vacationDaysPerMonth,
                 department,
-                team,
                 jobTitle,
-                (success, msg) -> { // The success = true is only sent from the last function: updateEmployeeDocument(...)
-                    isLoading.postValue(false);
+                selectedTeamId,
+                employmentType,
+                (success, msg) -> {
                     if (!success) {
                         errorMessage.postValue(msg);
                     }
@@ -112,28 +115,19 @@ public class PendingEmployeesViewModel extends ViewModel {
     }
 
     /**
-     * Rejects an employee (status = REJECTED).
+     * Reject employee (status = "rejected")
      */
     public void rejectEmployee(String uid) {
-        isLoading.setValue(true);
-
-        repository.updateEmployeeStatus(
-                uid,
-                RegisterStatus.REJECTED,
-                (success, msg) -> {
-                    isLoading.postValue(false);
-                    if (!success) {
-                        errorMessage.postValue(msg);
-                    }
-                }
-        );
+        employeeRepository.updateEmployeeStatus(uid, RegisterStatus.REJECTED, (success, msg) -> {
+            if (!success) {
+                errorMessage.postValue(msg);
+            }
+        });
     }
 
     @Override
     protected void onCleared() {
         super.onCleared();
-
-        // Stop Firestore listener when ViewModel is destroyed
         if (listenerRegistration != null) {
             listenerRegistration.remove();
         }

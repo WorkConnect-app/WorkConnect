@@ -3,6 +3,7 @@ package com.example.workconnect.models;
 import com.example.workconnect.models.enums.RegisterStatus;
 import com.example.workconnect.models.enums.Roles;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
@@ -13,62 +14,42 @@ import java.util.List;
 public class User {
 
     // ===== Identity / Basic Info =====
-
-    // Firebase Authentication UID
     private String uid;
-
     private String firstName;
     private String lastName;
-
-    // Convenience field used in the UI (some screens read "fullName" directly from Firestore)
     private String fullName;
-
     private String email;
 
     // ===== Organization =====
-
     private String companyId;
-
-    // Registration / approval status (PENDING, APPROVED, REJECTED)
     private RegisterStatus status;
-
-    // Role in the system (e.g., "EMPLOYEE" / "MANAGER")
     private Roles role;
 
-    // Direct manager UID (null/empty for top-level manager)
     private String directManagerId;
-
-    // Optional hierarchy list (keep only if you use it)
     private List<String> managerChain;
 
-    // Optional organization metadata (keep only if you use it in UI/filters)
     private String department;
-    private String team;
     private String jobTitle;
 
+    // NEW: Teams (0..N)
+    private List<String> teamIds;
+
+    // NEW: Employment type
+    // Example values: "FULL_TIME", "SHIFT_BASED"
+    private String employmentType;
+
     // ===== Vacation / Accrual =====
-
-    // How many vacation days the employee earns per month
     private Double vacationDaysPerMonth;
-
-    // Current vacation balance (updated by accrual logic + manager approvals)
     private Double vacationBalance;
-
-    // Last date we accrued vacation up to (stored as "yyyy-MM-dd")
     private String lastAccrualDate;
-
-    // When the employee was approved / joined
     private Date joinDate;
 
-    /**
-     * Empty constructor required for Firebase / Firestore deserialization.
-     */
     public User() {
+        // Ensure non-null list to avoid NPEs in UI code
+        this.teamIds = new ArrayList<>();
+        managerChain = new ArrayList<>();
     }
 
-    /**
-     * Full constructor (optional). Use whatever subset you need in your flows.
-     */
     public User(String uid,
                 String firstName,
                 String lastName,
@@ -80,8 +61,9 @@ public class User {
                 String directManagerId,
                 List<String> managerChain,
                 String department,
-                String team,
                 String jobTitle,
+                List<String> teamIds,
+                String employmentType,
                 Double vacationDaysPerMonth,
                 Double vacationBalance,
                 String lastAccrualDate,
@@ -100,8 +82,10 @@ public class User {
         this.managerChain = managerChain;
 
         this.department = department;
-        this.team = team;
         this.jobTitle = jobTitle;
+
+        this.teamIds = (teamIds != null) ? teamIds : new ArrayList<>();
+        this.employmentType = employmentType;
 
         this.vacationDaysPerMonth = vacationDaysPerMonth;
         this.vacationBalance = vacationBalance;
@@ -110,7 +94,6 @@ public class User {
     }
 
     // ===== Getters & Setters =====
-
     public String getUid() { return uid; }
     public void setUid(String uid) { this.uid = uid; }
 
@@ -144,11 +127,19 @@ public class User {
     public String getDepartment() { return department; }
     public void setDepartment(String department) { this.department = department; }
 
-    public String getTeam() { return team; }
-    public void setTeam(String team) { this.team = team; }
-
     public String getJobTitle() { return jobTitle; }
     public void setJobTitle(String jobTitle) { this.jobTitle = jobTitle; }
+
+    public List<String> getTeamIds() {
+        if (teamIds == null) teamIds = new ArrayList<>();
+        return teamIds;
+    }
+    public void setTeamIds(List<String> teamIds) {
+        this.teamIds = (teamIds != null) ? teamIds : new ArrayList<>();
+    }
+
+    public String getEmploymentType() { return employmentType; }
+    public void setEmploymentType(String employmentType) { this.employmentType = employmentType; }
 
     public Double getVacationDaysPerMonth() { return vacationDaysPerMonth; }
     public void setVacationDaysPerMonth(Double vacationDaysPerMonth) { this.vacationDaysPerMonth = vacationDaysPerMonth; }

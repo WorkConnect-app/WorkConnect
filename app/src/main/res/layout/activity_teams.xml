@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp">
+
+    <!-- Title -->
+
+    <!-- Back -->
+
+    <!-- Create -->
+    <Button
+        android:id="@+id/btn_back"
+        android:layout_width="wrap_content"
+        android:layout_height="48dp"
+        android:backgroundTint="@android:color/transparent"
+        android:minHeight="48dp"
+        android:text="Back"
+        android:textAllCaps="false"
+        android:textColor="@color/primaryBlue"
+        app:layout_constraintBottom_toBottomOf="@id/tv_title"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@id/tv_title"
+        app:layout_constraintVertical_bias="0.428" />
+
+    <TextView
+        android:id="@+id/tv_title"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="72dp"
+        android:layout_marginEnd="8dp"
+        android:text="Teams"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        app:layout_constraintEnd_toStartOf="@id/btn_back"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <Button
+        android:id="@+id/btn_edit_team"
+        android:layout_width="0dp"
+        android:layout_height="52dp"
+        android:layout_marginTop="8dp"
+        android:minHeight="52dp"
+        android:text="Edit team"
+        android:textAllCaps="false"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/btn_create_team" />
+
+    <Button
+        android:id="@+id/btn_create_team"
+        android:layout_width="0dp"
+        android:layout_height="52dp"
+        android:layout_marginTop="28dp"
+        android:backgroundTint="@color/primaryBlue"
+        android:minHeight="52dp"
+        android:text="Create team"
+        android:textAllCaps="false"
+        android:textColor="@color/white"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tv_title" />
+
+    <!-- Edit -->
+
+</androidx.constraintlayout.widget.ConstraintLayout>

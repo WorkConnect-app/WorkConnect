@@ -16,7 +16,7 @@ import com.example.workconnect.viewModels.manager.CompleteManagerProfileViewMode
 
 public class CompleteManagerProfileActivity extends AppCompatActivity {
 
-    private EditText etDepartment, etTeam, etJobTitle, etVacationDays;
+    private EditText etDepartment, etJobTitle, etVacationDays;
     private Button btnSave;
     private ProgressBar progress;
 
@@ -26,7 +26,6 @@ public class CompleteManagerProfileActivity extends AppCompatActivity {
         setContentView(R.layout.complete_manager_profile_activity);
 
         etDepartment = findViewById(R.id.et_department);
-        etTeam = findViewById(R.id.et_team);
         etJobTitle = findViewById(R.id.et_job_title);
         etVacationDays = findViewById(R.id.et_vacation_days_per_month);
         btnSave = findViewById(R.id.btn_save_profile);
@@ -38,7 +37,6 @@ public class CompleteManagerProfileActivity extends AppCompatActivity {
         btnSave.setOnClickListener(v -> {
             vm.save(
                     etDepartment.getText().toString(),
-                    etTeam.getText().toString(),
                     etJobTitle.getText().toString(),
                     etVacationDays.getText().toString()
             );
@@ -56,7 +54,7 @@ public class CompleteManagerProfileActivity extends AppCompatActivity {
         });
 
         vm.getDone().observe(this, done -> {
-            if (done != null && done) {
+            if (Boolean.TRUE.equals(done)) {
                 Toast.makeText(this, "Profile saved", Toast.LENGTH_SHORT).show();
                 Intent i = new Intent(this, ManagerHomeActivity.class);
                 i.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
@@ -68,7 +66,6 @@ public class CompleteManagerProfileActivity extends AppCompatActivity {
 
     @Override
     public void onBackPressed() {
-        // Prevent skipping the mandatory step.
         Toast.makeText(this, "Please complete your profile first", Toast.LENGTH_SHORT).show();
     }
 }

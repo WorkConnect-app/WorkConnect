@@ -23,10 +23,8 @@ public class VacationRequest {
     private String employeeName;
     private String employeeEmail;
 
-
     // ===== Manager info =====
     private String managerId;
-
 
     // ===== Vacation details =====
     private Date startDate;
