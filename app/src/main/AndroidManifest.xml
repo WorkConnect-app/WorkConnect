@@ -3,8 +3,13 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
 
     <application
+        android:name=".WorkConnectApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -14,10 +19,17 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.WorkConnect">
 
+
+        <!-- Chat -->
+        <activity android:name=".ui.chat.ChatListActivity" android:exported="false" />
+        <activity android:name=".ui.chat.ChatActivity" android:exported="false" />
         <!-- Auth & register screens -->
         <activity android:name=".ui.auth.RegisterTypeActivity" />
         <activity android:name=".ui.auth.RegisterCompanyActivity" />
         <activity android:name=".ui.auth.RegisterEmployeeActivity" />
+        <activity android:name=".ui.chat.CreateGroupActivity" />
+        <activity android:name=".ui.chat.GroupInfoActivity" />
+        <activity android:name=".ui.chat.AddMembersActivity" />
 
         <!-- Login is the launcher activity -->
         <activity

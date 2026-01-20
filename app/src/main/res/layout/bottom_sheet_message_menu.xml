@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Message Options"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:textColor="#000000"
+        android:paddingBottom="16dp" />
+
+    <!-- Copy Button -->
+    <Button
+        android:id="@+id/btnCopy"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="Copy"
+        android:textSize="16sp"
+        android:layout_marginBottom="8dp"
+        style="@style/Widget.Material3.Button.TextButton" />
+
+    <!-- React Button -->
+    <Button
+        android:id="@+id/btnReact"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="React"
+        android:textSize="16sp"
+        android:layout_marginBottom="8dp"
+        style="@style/Widget.Material3.Button.TextButton" />
+
+    <!-- Info Button (only for our messages in groups) -->
+    <Button
+        android:id="@+id/btnInfo"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="Info"
+        android:textSize="16sp"
+        android:visibility="gone"
+        style="@style/Widget.Material3.Button.TextButton" />
+
+</LinearLayout>

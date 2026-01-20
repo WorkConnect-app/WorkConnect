@@ -12,6 +12,10 @@ import com.example.workconnect.ui.auth.LoginActivity;
 import com.example.workconnect.ui.manager.ManagerHomeActivity;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.example.workconnect.ui.chat.ChatListActivity;
+import android.util.Log;
+import com.google.firebase.messaging.FirebaseMessaging;
+
 
 public class EmployeeHomeActivity extends AppCompatActivity {
 
@@ -159,8 +163,10 @@ public class EmployeeHomeActivity extends AppCompatActivity {
 
 
 
+
         btnChat.setOnClickListener(v -> {
-            // TODO: startActivity(new Intent(this, ChatsActivity.class));
+            Intent intent = new Intent(EmployeeHomeActivity.this, ChatListActivity.class);
+            startActivity(intent);
         });
 
         btnVideoCalls.setOnClickListener(v -> {

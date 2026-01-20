@@ -43,11 +43,13 @@ dependencies {
 
     // 🔹 Enable java.time on API < 26 (Desugaring)
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+    implementation("androidx.recyclerview:recyclerview:1.3.2")
 
     // 🔹 Firebase (BoM)
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
+    implementation("com.google.firebase:firebase-messaging")
 
     // 🔹 AndroidX & UI
     implementation(libs.androidx.core.ktx)
@@ -55,6 +57,9 @@ dependencies {
     implementation(libs.material)
     implementation(libs.androidx.activity)
     implementation(libs.androidx.constraintlayout)
+    
+    // 🔹 Image loading
+    implementation("com.github.bumptech.glide:glide:4.16.0")
 
     // 🔹 Testing
     testImplementation(libs.junit)
