@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Add Reaction"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:textColor="#000000"
+        android:paddingBottom="16dp" />
+
+    <GridLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:columnCount="4"
+        android:rowCount="2"
+        android:alignmentMode="alignMargins"
+        android:useDefaultMargins="true">
+
+        <!-- 👍 -->
+        <Button
+            android:id="@+id/btnReactionThumbsUp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="👍"
+            android:textSize="32sp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:padding="16dp"
+            android:background="?attr/selectableItemBackground"
+            android:layout_columnWeight="1"
+            android:layout_rowWeight="1" />
+
+        <!-- ❤️ -->
+        <Button
+            android:id="@+id/btnReactionHeart"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="❤️"
+            android:textSize="32sp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:padding="16dp"
+            android:background="?attr/selectableItemBackground"
+            android:layout_columnWeight="1"
+            android:layout_rowWeight="1" />
+
+        <!-- 😂 -->
+        <Button
+            android:id="@+id/btnReactionLaugh"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="😂"
+            android:textSize="32sp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:padding="16dp"
+            android:background="?attr/selectableItemBackground"
+            android:layout_columnWeight="1"
+            android:layout_rowWeight="1" />
+
+        <!-- 😮 -->
+        <Button
+            android:id="@+id/btnReactionWow"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="😮"
+            android:textSize="32sp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:padding="16dp"
+            android:background="?attr/selectableItemBackground"
+            android:layout_columnWeight="1"
+            android:layout_rowWeight="1" />
+
+        <!-- 😢 -->
+        <Button
+            android:id="@+id/btnReactionSad"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="😢"
+            android:textSize="32sp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:padding="16dp"
+            android:background="?attr/selectableItemBackground"
+            android:layout_columnWeight="1"
+            android:layout_rowWeight="1" />
+
+        <!-- 👏 -->
+        <Button
+            android:id="@+id/btnReactionClap"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="👏"
+            android:textSize="32sp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:padding="16dp"
+            android:background="?attr/selectableItemBackground"
+            android:layout_columnWeight="1"
+            android:layout_rowWeight="1" />
+
+        <!-- 😊 -->
+        <Button
+            android:id="@+id/btnReactionSmile"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="😊"
+            android:textSize="32sp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:padding="16dp"
+            android:background="?attr/selectableItemBackground"
+            android:layout_columnWeight="1"
+            android:layout_rowWeight="1" />
+
+        <!-- 🔥 -->
+        <Button
+            android:id="@+id/btnReactionFire"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🔥"
+            android:textSize="32sp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:padding="16dp"
+            android:background="?attr/selectableItemBackground"
+            android:layout_columnWeight="1"
+            android:layout_rowWeight="1" />
+
+    </GridLayout>
+
+</LinearLayout>
