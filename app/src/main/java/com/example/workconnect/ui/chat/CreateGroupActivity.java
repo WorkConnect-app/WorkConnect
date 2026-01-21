@@ -11,10 +11,9 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.workconnect.R;
-import com.example.workconnect.adapters.GroupMemberAdapter;
+import com.example.workconnect.adapters.chats.GroupMemberAdapter;
 import com.example.workconnect.models.ChatMessage;
 import com.example.workconnect.models.User;
-import com.example.workconnect.utils.SystemMessageHelper;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;

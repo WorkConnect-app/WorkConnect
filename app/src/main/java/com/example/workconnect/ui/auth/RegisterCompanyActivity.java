@@ -12,7 +12,7 @@ import android.widget.EditText;
 import android.widget.Toast;
 
 import com.example.workconnect.R;
-import com.example.workconnect.ui.manager.ManagerHomeActivity;
+import com.example.workconnect.ui.home.HomeActivity;
 import com.example.workconnect.viewModels.auth.RegisterCompanyViewModel;
 
 public class RegisterCompanyActivity extends AppCompatActivity {
@@ -153,7 +153,7 @@ public class RegisterCompanyActivity extends AppCompatActivity {
      * finish() removes this screen from the back stack.
      */
     private void goToManagerHome(String companyId) {
-        Intent intent = new Intent(RegisterCompanyActivity.this, ManagerHomeActivity.class);
+        Intent intent = new Intent(RegisterCompanyActivity.this, HomeActivity.class);
         intent.putExtra("companyId", companyId);
         startActivity(intent);
         finish();

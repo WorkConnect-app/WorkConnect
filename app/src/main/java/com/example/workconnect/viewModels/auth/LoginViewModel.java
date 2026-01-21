@@ -41,6 +41,10 @@ public class LoginViewModel extends ViewModel {
         return loginRole;
     }
 
+    private final MutableLiveData<Boolean> needsRegistration = new MutableLiveData<>(false);
+    public LiveData<Boolean> getNeedsRegistration() { return needsRegistration; }
+
+
     /**
      * Triggers the login process.
      * Performs basic input validation and updates LiveData according to the result.
@@ -80,4 +84,34 @@ public class LoginViewModel extends ViewModel {
             }
         });
     }
+
+    public void loginWithGoogleIdToken(String idToken) {
+        if (TextUtils.isEmpty(idToken)) {
+            errorMessage.setValue("Google ID token is missing.");
+            return;
+        }
+
+        isLoading.setValue(true);
+
+        repository.loginWithGoogleIdToken(idToken, new AuthRepository.GoogleLoginCallback() {
+            @Override
+            public void onExistingUserSuccess(String role) {
+                isLoading.postValue(false);
+                loginRole.postValue(role.toLowerCase());
+            }
+
+            @Override
+            public void onNewUserNeedsRegistration() {
+                isLoading.postValue(false);
+                needsRegistration.postValue(true);
+            }
+
+            @Override
+            public void onError(String message) {
+                isLoading.postValue(false);
+                errorMessage.postValue(message);
+            }
+        });
+    }
+
 }

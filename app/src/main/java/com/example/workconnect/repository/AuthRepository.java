@@ -6,6 +6,10 @@ import com.example.workconnect.models.enums.RegisterStatus;
 import com.example.workconnect.models.enums.Roles;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.auth.AuthCredential;
+import com.google.firebase.auth.GoogleAuthProvider;
+import com.google.firebase.firestore.DocumentSnapshot;
+
 
 /**
  * Repository responsible for authentication-related operations (login).
@@ -113,4 +117,85 @@ public class AuthRepository {
                     callback.onError(msg);
                 });
     }
+
+    public interface GoogleLoginCallback {
+        void onExistingUserSuccess(String role);
+        void onNewUserNeedsRegistration(); // אין users/{uid}
+        void onError(String message);
+    }
+
+    public void loginWithGoogleIdToken(@NonNull String idToken,
+                                       @NonNull GoogleLoginCallback callback) {
+
+        AuthCredential credential = GoogleAuthProvider.getCredential(idToken, null);
+
+        mAuth.signInWithCredential(credential)
+                .addOnSuccessListener(authResult -> {
+                    if (mAuth.getCurrentUser() == null) {
+                        callback.onError("Google login succeeded but user is null");
+                        return;
+                    }
+                    String uid = mAuth.getCurrentUser().getUid();
+
+                    db.collection("users").document(uid)
+                            .get()
+                            .addOnSuccessListener(snapshot -> {
+                                if (snapshot == null || !snapshot.exists()) {
+                                    // המשתמש התחבר לגוגל אבל אין לו פרופיל במערכת -> צריך הרשמה
+                                    callback.onNewUserNeedsRegistration();
+                                    return;
+                                }
+
+                                // משתמש קיים - מאמתים בדיוק כמו בלוגין הרגיל
+                                validateSnapshotAndReturnRole(snapshot, callback);
+                            })
+                            .addOnFailureListener(e ->
+                                    callback.onError(e.getMessage() == null ? "Error loading user data" : e.getMessage())
+                            );
+                })
+                .addOnFailureListener(e ->
+                        callback.onError(e.getMessage() == null ? "Google login failed" : e.getMessage())
+                );
+    }
+
+    private void validateSnapshotAndReturnRole(@NonNull DocumentSnapshot snapshot,
+                                               @NonNull GoogleLoginCallback callback) {
+
+        String roleStr = snapshot.getString("role");
+        String statusStr = snapshot.getString("status");
+
+        Roles role;
+        try {
+            if (roleStr == null || roleStr.trim().isEmpty()) throw new IllegalArgumentException("Missing role");
+            role = Roles.valueOf(roleStr.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            mAuth.signOut();
+            callback.onError("Invalid user role");
+            return;
+        }
+
+        RegisterStatus status;
+        try {
+            if (statusStr == null || statusStr.trim().isEmpty()) {
+                status = null;
+            } else {
+                status = RegisterStatus.valueOf(statusStr.trim().toUpperCase());
+            }
+        } catch (IllegalArgumentException e) {
+            mAuth.signOut();
+            callback.onError("Invalid user status");
+            return;
+        }
+
+        if (role == Roles.EMPLOYEE && status != RegisterStatus.APPROVED) {
+            mAuth.signOut();
+            callback.onError("User account is not approved yet");
+            return;
+        }
+
+        callback.onExistingUserSuccess(role.name());
+    }
+
 }
+
+

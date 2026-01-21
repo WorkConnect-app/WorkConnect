@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <group android:checkableBehavior="none">
+        <item
+            android:id="@+id/nav_profile"
+            android:title="My Profile"
+            android:icon="@android:drawable/ic_menu_myplaces"/>
+
+        <item
+            android:id="@+id/nav_attendance"
+            android:title="Attendance"
+            android:icon="@android:drawable/ic_menu_today"/>
+
+        <item
+            android:id="@+id/nav_shifts"
+            android:title="My shifts"
+            android:icon="@android:drawable/ic_menu_month"/>
+
+        <item
+            android:id="@+id/nav_shift_replacement"
+            android:title="Shift replacement"
+            android:icon="@android:drawable/ic_menu_month"/>
+
+        <item
+            android:id="@+id/nav_vacations"
+            android:title="My vacations"
+            android:icon="@android:drawable/ic_menu_compass"/>
+
+        <item
+            android:id="@+id/nav_tasks"
+            android:title="My tasks"
+            android:icon="@android:drawable/ic_menu_agenda"/>
+
+        <item
+            android:id="@+id/nav_chat"
+            android:title="Chat"
+            android:icon="@android:drawable/ic_menu_send"/>
+
+        <item
+            android:id="@+id/nav_video"
+            android:title="Video calls"
+            android:icon="@android:drawable/ic_menu_camera"/>
+    </group>
+
+    <group
+        android:id="@+id/group_management"
+        android:checkableBehavior="none">
+
+        <item
+            android:title="Management"
+            android:icon="@android:drawable/ic_menu_manage">
+            <menu>
+                <item
+                    android:id="@+id/nav_approve_users"
+                    android:title="Approve new users"
+                    android:icon="@android:drawable/ic_menu_add"/>
+
+                <item
+                    android:id="@+id/nav_vacation_requests"
+                    android:title="Vacation requests"
+                    android:icon="@android:drawable/ic_menu_view"/>
+
+                <item
+                    android:id="@+id/nav_manage_attendance"
+                    android:title="Manage attendance"
+                    android:icon="@android:drawable/ic_menu_edit"/>
+
+
+                <item
+                    android:id="@+id/nav_manage_shifts"
+                    android:title="Manage shifts"
+                    android:icon="@android:drawable/ic_menu_month"/>
+
+                <item
+                    android:id="@+id/nav_swap_approvals"
+                    android:title="Shift swap approvals"
+                    android:icon="@android:drawable/ic_menu_month"/>
+
+
+                <item
+                    android:id="@+id/nav_salary_slips"
+                    android:title="Upload salary slips"
+                    android:icon="@android:drawable/ic_menu_upload"/>
+
+                <item
+                    android:title="Company settings"
+                    android:icon="@android:drawable/ic_menu_preferences">
+                    <menu>
+                        <item
+                            android:id="@+id/nav_company_groups"
+                            android:title="Groups"
+                            android:icon="@android:drawable/ic_menu_sort_by_size"/>
+
+                        <item
+                            android:id="@+id/nav_edit_employee"
+                            android:title="Edit employee details"
+                            android:icon="@android:drawable/ic_menu_edit"/>
+
+                        <item
+                            android:id="@+id/nav_company_settings_general"
+                            android:title="Company settings"
+                            android:icon="@android:drawable/ic_menu_preferences"/>
+                    </menu>
+                </item>
+
+            </menu>
+        </item>
+    </group>
+
+    <group android:checkableBehavior="none">
+        <item
+            android:id="@+id/nav_logout"
+            android:title="Logout"
+            android:icon="@android:drawable/ic_lock_power_off"/>
+    </group>
+
+</menu>

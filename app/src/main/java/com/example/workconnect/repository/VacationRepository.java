@@ -20,6 +20,7 @@ import com.google.firebase.firestore.Query;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import androidx.annotation.NonNull;
 
 public class VacationRepository {
 
@@ -253,4 +254,9 @@ public class VacationRepository {
     public ListenerRegistration listenToUser(String uid, EventListener<DocumentSnapshot> listener) {
         return db.collection("users").document(uid).addSnapshotListener(listener);
     }
+
+    public Task<DocumentSnapshot> getUserTask(@NonNull String uid) {
+        return FirebaseFirestore.getInstance().collection("users").document(uid).get();
+    }
+
 }

@@ -13,8 +13,8 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.workconnect.R;
-import com.example.workconnect.adapters.ChatConversationAdapter;
-import com.example.workconnect.adapters.EmployeeSearchAdapter;
+import com.example.workconnect.adapters.chats.ChatConversationAdapter;
+import com.example.workconnect.adapters.chats.EmployeeSearchAdapter;
 import com.example.workconnect.models.ChatConversation;
 import com.example.workconnect.models.User;
 import com.google.firebase.auth.FirebaseAuth;
@@ -24,7 +24,6 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.SetOptions;
-import com.google.firebase.messaging.FirebaseMessaging;
 
 import android.util.Log;
 

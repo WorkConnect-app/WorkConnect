@@ -42,62 +42,58 @@
         </activity>
 
         <activity
-            android:name=".ui.manager.ManagerHomeActivity"
+            android:name=".ui.home.HomeActivity"
             android:exported="false" />
 
         <activity
-            android:name=".ui.employee.EmployeeHomeActivity"
+            android:name=".ui.auth.PendingEmployeesActivity"
             android:exported="false" />
 
         <activity
-            android:name=".ui.manager.PendingEmployeesActivity"
+            android:name=".ui.vacations.VacationRequestsActivity"
             android:exported="false" />
 
         <activity
-            android:name=".ui.employee.VacationRequestsActivity"
+            android:name=".ui.vacations.NewVacationRequestActivity"
             android:exported="false" />
 
-        <activity
-            android:name=".ui.employee.NewVacationRequestActivity"
-            android:exported="false" />
-
-        <activity android:name=".ui.manager.PendingVacationRequestsActivity"
+        <activity android:name=".ui.vacations.PendingVacationRequestsActivity"
             android:exported="false" />
 
         <activity android:name=".ui.employee.MyProfileActivity"
             android:exported="false" />
 
         <activity
-            android:name=".ui.manager.CompleteManagerProfileActivity"
+            android:name=".ui.auth.CompleteManagerProfileActivity"
             android:exported="false" />
 
         <activity
-            android:name=".ui.manager.EditEmployeeProfileActivity"
+            android:name=".ui.auth.EditEmployeeProfileActivity"
             android:exported="false"/>
         <activity
-            android:name=".ui.manager.TeamsActivity"
+            android:name=".ui.auth.TeamsActivity"
             android:exported="false"/>
         <activity
-            android:name=".ui.manager.EditTeamActivity"
+            android:name=".ui.auth.EditTeamActivity"
             android:exported="false"/>
         <activity
-            android:name=".ui.employee.MyShiftsActivity"
+            android:name=".ui.shifts.MyShiftsActivity"
             android:exported="false" />
         <activity
-            android:name=".ui.manager.ScheduleShiftsActivity"
+            android:name=".ui.shifts.ScheduleShiftsActivity"
             android:exported="false" />
         <activity
-            android:name=".ui.manager.ManageShiftTemplatesActivity"
+            android:name=".ui.shifts.ManageShiftTemplatesActivity"
             android:exported="false" />
         <activity
-            android:name=".ui.employee.MyAvailabilityActivity"
+            android:name=".ui.shifts.MyAvailabilityActivity"
             android:exported="false" />
         <activity
-            android:name=".ui.employee.ShiftReplacementActivity"
+            android:name=".ui.shifts.ShiftReplacementActivity"
             android:exported="false" />
 
         <activity
-            android:name=".ui.manager.SwapApprovalsActivity"
+            android:name=".ui.shifts.SwapApprovalsActivity"
             android:exported="false"/>
 
 

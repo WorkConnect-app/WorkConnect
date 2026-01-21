@@ -12,7 +12,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.workconnect.R;
-import com.example.workconnect.adapters.GroupInfoMemberAdapter;
+import com.example.workconnect.adapters.chats.GroupInfoMemberAdapter;
 import com.example.workconnect.models.ChatMessage;
 import com.example.workconnect.models.User;
 import com.example.workconnect.utils.SystemMessageHelper;

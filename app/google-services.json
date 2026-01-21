@@ -7,12 +7,25 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:932018404674:android:efd63682edbbaf1ab7dcdb",
+        "mobilesdk_app_id": "1:932018404674:android:dacd13a9eea35465b7dcdb",
         "android_client_info": {
           "package_name": "com.example.workconnect"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "932018404674-v9vbc20m4nva69putefg9lhdu2k8bs0d.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.workconnect",
+            "certificate_hash": "059371ac1a11ef69702560ac8a349cf3add9c522"
+          }
+        },
+        {
+          "client_id": "932018404674-6no7vv5pnvba2t0qtr4smevan02vckd2.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCXZ3MFONYIpSnm42rrx9wDzUh70SBszcQ"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "932018404674-6no7vv5pnvba2t0qtr4smevan02vckd2.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
