@@ -10,4 +10,7 @@
     <color name="white">#FFFFFFFF</color>
     <color name="primaryBlue">#2A76D2</color>
     <color name="secondaryBlue">#4FA6F0</color>
+    <color name="navyBlue">#3F51B5</color>
+    <color name="readCheckmarkBlue">#87CEEB</color>
+
 </resources>

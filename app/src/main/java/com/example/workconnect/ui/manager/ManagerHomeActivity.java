@@ -13,11 +13,13 @@ import com.example.workconnect.ui.employee.MyShiftsActivity;
 
 import com.example.workconnect.R;
 import com.example.workconnect.ui.auth.LoginActivity;
+import com.example.workconnect.ui.employee.EmployeeHomeActivity;
 import com.example.workconnect.ui.employee.MyProfileActivity;
 import com.example.workconnect.ui.employee.VacationRequestsActivity;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.example.workconnect.ui.manager.CompleteManagerProfileActivity;
+import com.example.workconnect.ui.chat.ChatListActivity;
 
 public class ManagerHomeActivity extends AppCompatActivity {
 
@@ -123,8 +125,8 @@ public class ManagerHomeActivity extends AppCompatActivity {
         });
 
         btnChat.setOnClickListener(v -> {
-            // TODO: startActivity(new Intent(this, ChatsActivity.class));
-            Toast.makeText(this, "TODO: Chats screen", Toast.LENGTH_SHORT).show();
+            Intent intent = new Intent(ManagerHomeActivity.this, ChatListActivity.class);
+            startActivity(intent);
         });
 
         btnVideoCalls.setOnClickListener(v -> {

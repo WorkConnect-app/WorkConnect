@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!--Push content below the status bar area -->
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/guideline_top"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        app:layout_constraintGuide_begin="24dp" />
+
+    <!-- Offline indicator bar -->
+    <LinearLayout
+        android:id="@+id/offlineIndicator"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="#FF9800"
+        android:padding="8dp"
+        android:gravity="center"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="You are offline, your messages would be send after a new internet connection"
+            android:textColor="@android:color/white"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <!-- Group infos (top-left) -->
+    <Button
+        android:id="@+id/btn_group_info"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Group"
+        android:textAllCaps="false"
+        app:icon="@android:drawable/ic_menu_info_details"
+        app:iconPadding="6dp"
+        app:iconTint="@color/primaryBlue"
+        android:backgroundTint="@android:color/transparent"
+        android:textColor="@color/primaryBlue"
+        android:layout_margin="8dp"
+        app:layout_constraintTop_toBottomOf="@id/guideline_top"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <!-- Back button (top-right) -->
+    <Button
+        android:id="@+id/btn_back"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Back"
+        android:textAllCaps="false"
+        app:icon="@android:drawable/ic_media_previous"
+        app:iconPadding="6dp"
+        app:iconTint="@color/primaryBlue"
+        android:backgroundTint="@android:color/transparent"
+        android:textColor="@color/primaryBlue"
+        android:layout_margin="8dp"
+        app:layout_constraintTop_toBottomOf="@id/guideline_top"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- ProgressBar for pagination loading -->
+    <ProgressBar
+        android:id="@+id/progressBarPagination"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:visibility="gone"
+        app:layout_constraintTop_toBottomOf="@id/btn_group_info"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerMessages"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:padding="8dp"
+        android:layout_marginTop="8dp"
+        app:layout_constraintTop_toBottomOf="@id/progressBarPagination"
+        app:layout_constraintBottom_toTopOf="@id/typingIndicator"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Typing indicator -->
+    <TextView
+        android:id="@+id/typingIndicator"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:padding="8dp"
+        android:text="Someone is typing..."
+        android:textSize="12sp"
+        android:textColor="#888888"
+        android:textStyle="italic"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@id/inputBar"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <LinearLayout
+        android:id="@+id/inputBar"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="12dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <EditText
+                android:id="@+id/inputMessage"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:hint="Your message..."
+                android:background="@drawable/bg_search"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:paddingTop="10dp"
+                android:paddingBottom="10dp"
+                android:textColor="#111111"
+                android:textColorHint="#777777"
+                android:layout_marginEnd="8dp"
+                android:inputType="textMultiLine"
+                android:maxLines="4"
+                android:gravity="top" />
+
+            <ImageButton
+                android:id="@+id/buttonSend"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:src="@android:drawable/ic_menu_send"
+                android:background="@android:color/transparent" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/textCharCount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
+            android:layout_marginTop="4dp"
+            android:text="0/2000"
+            android:textSize="11sp"
+            android:textColor="#888888" />
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

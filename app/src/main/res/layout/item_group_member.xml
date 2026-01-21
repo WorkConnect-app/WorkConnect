@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="12dp"
+    android:orientation="vertical"
+    android:background="@drawable/bg_member_item"
+    android:foreground="@null"
+    android:clickable="true"
+    android:focusable="true"
+    android:layout_marginBottom="8dp">
+
+    <TextView
+        android:id="@+id/tv_member_name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Member Name"
+        android:textStyle="bold"
+        android:textSize="15sp"/>
+
+    <TextView
+        android:id="@+id/tv_member_sub"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="uid / email"
+        android:textSize="12sp"
+        android:textColor="#777777"/>
+</LinearLayout>
