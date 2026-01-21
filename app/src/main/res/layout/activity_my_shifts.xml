@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp">
+
+
+    <ImageButton
+        android:id="@+id/btn_back"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Back"
+        android:minWidth="48dp"
+        android:minHeight="48dp"
+        android:padding="12dp"
+        android:scaleType="centerInside"
+        android:src="@android:drawable/ic_media_previous"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/tv_title"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="My shifts"
+        android:textStyle="bold"
+        android:textSize="20sp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toEndOf="@id/btn_back"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginStart="8dp"/>
+
+    <ImageButton
+        android:id="@+id/btn_prev"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="48dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Previous week"
+        android:minWidth="48dp"
+        android:minHeight="48dp"
+        android:padding="12dp"
+        android:scaleType="centerInside"
+        android:src="@android:drawable/ic_media_rew"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tv_title" />
+
+    <TextView
+        android:id="@+id/tv_range"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="yyyy-MM-dd - yyyy-MM-dd"
+        android:gravity="center"
+        android:textSize="14sp"
+        app:layout_constraintTop_toTopOf="@id/btn_prev"
+        app:layout_constraintBottom_toBottomOf="@id/btn_prev"
+        app:layout_constraintStart_toEndOf="@id/btn_prev"
+        app:layout_constraintEnd_toStartOf="@id/btn_next"
+        android:layout_marginStart="8dp"
+        android:layout_marginEnd="8dp"/>
+
+    <ImageButton
+        android:id="@+id/btn_next"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:minWidth="48dp"
+        android:minHeight="48dp"
+        android:padding="12dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:src="@android:drawable/ic_media_ff"
+        android:scaleType="centerInside"
+        android:contentDescription="Next week"
+        app:layout_constraintTop_toTopOf="@id/btn_prev"
+        app:layout_constraintEnd_toEndOf="parent"/>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rv_my_shifts"
+        android:layout_width="379dp"
+        android:layout_height="418dp"
+        android:layout_marginTop="56dp"
+
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/btn_prev" />
+
+    <Button
+        android:id="@+id/btn_availability"
+        android:layout_width="177dp"
+        android:layout_height="96dp"
+        android:text="Set Availability"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/rv_my_shifts"
+        app:layout_constraintVertical_bias="1.0" />
+
+
+</androidx.constraintlayout.widget.ConstraintLayout>

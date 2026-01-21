@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:id="@+id/tv_pick_shift"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Pick one of your upcoming shifts to offer"
+        android:textStyle="bold"
+        android:textSize="16sp" />
+
+    <TextView
+        android:id="@+id/tv_shift_hint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Tap a shift to select it."
+        android:layout_marginTop="6dp" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rv_upcoming_shifts"
+        android:layout_width="match_parent"
+        android:layout_height="220dp"
+        android:layout_marginTop="10dp" />
+
+    <TextView
+        android:id="@+id/tv_empty"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="No upcoming shifts found."
+        android:visibility="gone"
+        android:layout_marginTop="10dp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tv_selected"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Selected: (none)"
+        android:layout_marginTop="10dp"
+        android:textStyle="bold" />
+</LinearLayout>

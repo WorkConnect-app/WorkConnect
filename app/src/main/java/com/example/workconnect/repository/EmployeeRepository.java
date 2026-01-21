@@ -9,8 +9,12 @@ import com.example.workconnect.models.enums.Roles;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
+import com.google.firebase.firestore.WriteBatch;
+import androidx.lifecycle.LiveData;
+import androidx.lifecycle.MutableLiveData;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -31,7 +35,6 @@ import java.util.List;
 public class EmployeeRepository {
 
     private final FirebaseFirestore db = FirebaseFirestore.getInstance();
-
     private final FirebaseAuth mAuth = FirebaseAuth.getInstance();
 
     /** Callback for registering a new employee (sign-up). */
@@ -72,8 +75,8 @@ public class EmployeeRepository {
 
         // 1) Find company by code.
         db.collection("companies")
-                .whereEqualTo("code", normalizedCode) // Search by membership code
-                .limit(1) // even if there is more than one company with the same code (which shouldn't happen), You return only one document.
+                .whereEqualTo("code", normalizedCode)
+                .limit(1)
                 .get()
                 .addOnSuccessListener(qs -> {
                     if (qs == null || qs.isEmpty()) {
@@ -81,9 +84,7 @@ public class EmployeeRepository {
                         return;
                     }
 
-                    // Contains a list of documents that matched the query. but we limit the query for 1, so its save the doc.
                     DocumentSnapshot companyDoc = qs.getDocuments().get(0);
-
                     final String companyId = companyDoc.getId();
 
                     // 2) Create Firebase Auth user.
@@ -106,9 +107,9 @@ public class EmployeeRepository {
                                 userData.put("email", email);
                                 userData.put("companyId", companyId);
 
-                                // Initial status & role (must be consistent with enums).
-                                userData.put("status", RegisterStatus.PENDING.name()); // "PENDING"
-                                userData.put("role", Roles.EMPLOYEE.name());           // "EMPLOYEE"
+                                // Initial status & role
+                                userData.put("status", RegisterStatus.PENDING.name());
+                                userData.put("role", Roles.EMPLOYEE.name());
 
                                 // Hierarchy defaults (set later by manager).
                                 userData.put("directManagerId", null);
@@ -119,10 +120,13 @@ public class EmployeeRepository {
                                 userData.put("vacationBalance", 0.0);
                                 userData.put("lastAccrualDate", null);
 
-                                // Optional org fields.
+                                // Optional org fields (NO "team" anymore).
                                 userData.put("department", "");
-                                userData.put("team", "");
                                 userData.put("jobTitle", "");
+
+                                // NEW fields
+                                userData.put("teamIds", new ArrayList<String>());
+                                userData.put("employmentType", null);
 
                                 // joinDate is set on approval.
                                 userData.put("joinDate", null);
@@ -163,10 +167,8 @@ public class EmployeeRepository {
                 });
     }
 
-
     /**
      * Real-time listener for employees with status = PENDING in a given company.
-     * Caller should store the returned ListenerRegistration and remove it onStop/onDestroy.
      */
     public ListenerRegistration listenForPendingEmployees(
             @NonNull String companyId,
@@ -175,8 +177,6 @@ public class EmployeeRepository {
         return db.collection("users")
                 .whereEqualTo("companyId", companyId)
                 .whereEqualTo("status", RegisterStatus.PENDING.name())
-
-                // Listening that starts immediately with the first data, and starts again with every change (add / delete / update)
                 .addSnapshotListener((value, error) -> {
                     if (error != null) {
                         callback.onError(error.getMessage() == null ? "Listener error" : error.getMessage());
@@ -191,7 +191,6 @@ public class EmployeeRepository {
                     for (DocumentSnapshot doc : value.getDocuments()) {
                         User user = doc.toObject(User.class);
                         if (user != null) {
-                            // Ensure uid matches document ID.
                             user.setUid(doc.getId());
                             list.add(user);
                         }
@@ -200,10 +199,8 @@ public class EmployeeRepository {
                 });
     }
 
-
     /**
      * Updates only the employee's status field.
-     * Prefer passing RegisterStatus.name() to keep values consistent in Firestore.
      */
     public void updateEmployeeStatus(
             @NonNull String uid,
@@ -226,6 +223,10 @@ public class EmployeeRepository {
      * Manager enters a direct manager EMAIL in the UI, but we store directManagerId as UID in Firestore.
      *
      * If directManagerEmail is empty => top-level manager (directManagerId = null).
+     *
+     * NOTE:
+     * - selectedTeamId is optional (can be null/empty)
+     * - employmentType is optional (can be null/empty)
      */
     public void approveEmployeeWithDetailsByManagerEmail(
             @NonNull String employeeUid,
@@ -233,16 +234,21 @@ public class EmployeeRepository {
             @Nullable String directManagerEmail,
             @NonNull Double vacationDaysPerMonth,
             @Nullable String department,
-            @Nullable String team,
             @Nullable String jobTitle,
+            @Nullable String selectedTeamId,
+            @Nullable String employmentType,
             @NonNull SimpleCallback callback
     ) {
         String email = directManagerEmail == null ? "" : directManagerEmail.trim().toLowerCase();
 
         // Empty email => no direct manager.
         if (email.isEmpty()) {
-            approveEmployeeWithDetails(employeeUid, role, null,
-                    vacationDaysPerMonth, department, team, jobTitle, callback);
+            approveEmployeeWithDetails(
+                    employeeUid, role, null,
+                    vacationDaysPerMonth, department, jobTitle,
+                    selectedTeamId, employmentType,
+                    callback
+            );
             return;
         }
 
@@ -258,11 +264,14 @@ public class EmployeeRepository {
                         return;
                     }
 
-                    // Document ID is the manager UID.
                     String managerUid = qs.getDocuments().get(0).getId();
 
-                    approveEmployeeWithDetails(employeeUid, role, managerUid,
-                            vacationDaysPerMonth, department, team, jobTitle, callback);
+                    approveEmployeeWithDetails(
+                            employeeUid, role, managerUid,
+                            vacationDaysPerMonth, department, jobTitle,
+                            selectedTeamId, employmentType,
+                            callback
+                    );
                 })
                 .addOnFailureListener(e -> {
                     String msg = (e.getMessage() == null) ? "Failed to lookup manager by email" : e.getMessage();
@@ -270,12 +279,12 @@ public class EmployeeRepository {
                 });
     }
 
-
     /**
      * Approves an employee:
      * - Sets status to APPROVED
      * - Stores role, hierarchy fields, vacation policy and org metadata
      * - Initializes accrual tracking fields
+     * - Optionally adds employee to a team (user.teamIds + team.memberIds)
      *
      * directManagerId is UID or null for top-level.
      */
@@ -285,55 +294,74 @@ public class EmployeeRepository {
             @Nullable String directManagerId,
             @NonNull Double vacationDaysPerMonth,
             @Nullable String department,
-            @Nullable String team,
             @Nullable String jobTitle,
+            @Nullable String selectedTeamId,
+            @Nullable String employmentType,
             @NonNull SimpleCallback callback
     ) {
         DocumentReference employeeRef = db.collection("users").document(employeeUid);
 
-        // If there is a direct manager, fetch them to build managerChain.
-        if (directManagerId != null) {
-            DocumentReference managerRef = db.collection("users").document(directManagerId);
+        // Need companyId for team path updates.
+        employeeRef.get().addOnCompleteListener(empTask -> {
+            if (!empTask.isSuccessful()
+                    || empTask.getResult() == null
+                    || !empTask.getResult().exists()) {
+                callback.onComplete(false, "Failed to load employee data");
+                return;
+            }
 
-            managerRef.get().addOnCompleteListener(task -> {
-                if (!task.isSuccessful()
-                        || task.getResult() == null
-                        || !task.getResult().exists()) {
+            String companyId = empTask.getResult().getString("companyId");
+            if (companyId == null || companyId.trim().isEmpty()) {
+                callback.onComplete(false, "Employee has no companyId");
+                return;
+            }
 
-                    callback.onComplete(false, "Failed to load direct manager data");
-                    return;
-                }
+            // If there is a direct manager, fetch them to build managerChain.
+            if (directManagerId != null) {
+                DocumentReference managerRef = db.collection("users").document(directManagerId);
+                managerRef.get().addOnCompleteListener(task -> {
+                    if (!task.isSuccessful()
+                            || task.getResult() == null
+                            || !task.getResult().exists()) {
 
-                // build the managerChain
-                DocumentSnapshot managerDoc = task.getResult();
-                List<String> managerChain = buildManagerChain(directManagerId, managerDoc);
+                        callback.onComplete(false, "Failed to load direct manager data");
+                        return;
+                    }
 
+                    DocumentSnapshot managerDoc = task.getResult();
+                    List<String> managerChain = buildManagerChain(directManagerId, managerDoc);
+
+                    updateEmployeeDocument(
+                            companyId,
+                            employeeRef,
+                            role,
+                            directManagerId,
+                            managerChain,
+                            vacationDaysPerMonth,
+                            department,
+                            jobTitle,
+                            selectedTeamId,
+                            employmentType,
+                            callback
+                    );
+                });
+            } else {
+                // Top-level manager (no direct manager).
                 updateEmployeeDocument(
+                        companyId,
                         employeeRef,
                         role,
-                        directManagerId,
-                        managerChain,
+                        null,
+                        new ArrayList<>(),
                         vacationDaysPerMonth,
                         department,
-                        team,
                         jobTitle,
+                        selectedTeamId,
+                        employmentType,
                         callback
                 );
-            });
-        } else {
-            // Top-level manager (no direct manager).
-            updateEmployeeDocument(
-                    employeeRef,
-                    role,
-                    null,
-                    new ArrayList<>(),
-                    vacationDaysPerMonth,
-                    department,
-                    team,
-                    jobTitle,
-                    callback
-            );
-        }
+            }
+        });
     }
 
     /**
@@ -343,7 +371,6 @@ public class EmployeeRepository {
         List<String> chain = new ArrayList<>();
         chain.add(directManagerId);
 
-        // Pulling out the manager's own chain
         @SuppressWarnings("unchecked")
         List<String> managersOfManager = (List<String>) managerDoc.get("managerChain");
 
@@ -356,16 +383,19 @@ public class EmployeeRepository {
 
     /**
      * Central method to apply approval updates to employee document.
+     * Uses a batch when we also need to touch team membership.
      */
     private void updateEmployeeDocument(
+            @NonNull String companyId,
             @NonNull DocumentReference employeeRef,
             @NonNull Roles role,
             @Nullable String directManagerId,
             @NonNull List<String> managerChain,
             @NonNull Double vacationDaysPerMonth,
             @Nullable String department,
-            @Nullable String team,
             @Nullable String jobTitle,
+            @Nullable String selectedTeamId,
+            @Nullable String employmentType,
             @NonNull SimpleCallback callback
     ) {
         HashMap<String, Object> updates = new HashMap<>();
@@ -378,10 +408,12 @@ public class EmployeeRepository {
         updates.put("directManagerId", directManagerId);
         updates.put("managerChain", managerChain);
 
-        // Org metadata
+        // Org metadata (NO "team")
         updates.put("department", department == null ? "" : department);
-        updates.put("team", team == null ? "" : team);
         updates.put("jobTitle", jobTitle == null ? "" : jobTitle);
+
+        // NEW
+        updates.put("employmentType", (employmentType == null || employmentType.trim().isEmpty()) ? null : employmentType);
 
         // Vacation policy
         updates.put("vacationDaysPerMonth", vacationDaysPerMonth);
@@ -393,25 +425,54 @@ public class EmployeeRepository {
         updates.put("vacationBalance", 0.0);
         updates.put("lastAccrualDate", LocalDate.now().toString()); // yyyy-MM-dd
 
-        employeeRef.update(updates)
-                .addOnCompleteListener(task -> {
-                    if (task.isSuccessful()) {
-                        callback.onComplete(true, "Employee approved");
-                    } else {
-                        callback.onComplete(false, "Failed to approve employee");
-                    }
-                });
+        boolean hasTeam = selectedTeamId != null && !selectedTeamId.trim().isEmpty();
+
+        if (!hasTeam) {
+            employeeRef.update(updates)
+                    .addOnCompleteListener(task -> {
+                        if (task.isSuccessful()) {
+                            callback.onComplete(true, "Employee approved");
+                        } else {
+                            callback.onComplete(false, "Failed to approve employee");
+                        }
+                    });
+            return;
+        }
+
+        // Batch: user.teamIds += teamId, team.memberIds += userId, and user fields update
+        WriteBatch batch = db.batch();
+
+        // Update user fields
+        batch.update(employeeRef, updates);
+        batch.update(employeeRef, "teamIds", FieldValue.arrayUnion(selectedTeamId.trim()));
+
+        // Update team membership
+        DocumentReference teamRef = db.collection("companies")
+                .document(companyId)
+                .collection("teams")
+                .document(selectedTeamId.trim());
+
+        batch.update(teamRef, "memberIds", FieldValue.arrayUnion(employeeRef.getId()));
+
+        batch.commit().addOnCompleteListener(task -> {
+            if (task.isSuccessful()) {
+                callback.onComplete(true, "Employee approved");
+            } else {
+                callback.onComplete(false, "Failed to approve employee");
+            }
+        });
     }
 
     /**
      * Completes manager profile fields after registration.
      * Sets profileCompleted = true and initializes accrual fields.
+     *
+     * NOTE: no "team" field anymore.
      */
     public void completeManagerProfile(
             @NonNull String managerUid,
             @NonNull Double vacationDaysPerMonth,
             @Nullable String department,
-            @Nullable String team,
             @Nullable String jobTitle,
             @NonNull SimpleCallback callback
     ) {
@@ -420,7 +481,6 @@ public class EmployeeRepository {
         updates.put("vacationDaysPerMonth", vacationDaysPerMonth);
 
         updates.put("department", department == null ? "" : department);
-        updates.put("team", team == null ? "" : team);
         updates.put("jobTitle", jobTitle == null ? "" : jobTitle);
 
         // Initialize accrual tracking
@@ -440,5 +500,47 @@ public class EmployeeRepository {
                         callback.onComplete(false, "Failed to update profile");
                     }
                 });
+    }
+
+    public LiveData<List<User>> listenApprovedEmployeesForTeam(String companyId, String teamId) {
+        MutableLiveData<List<User>> live = new MutableLiveData<>(new ArrayList<>());
+
+        db.collection("users")
+                .whereEqualTo("companyId", companyId)
+                .whereEqualTo("status", RegisterStatus.APPROVED.name())
+                .whereArrayContains("teamIds", teamId)
+                .addSnapshotListener((snap, e) -> {
+                    if (e != null || snap == null) {
+                        live.postValue(new ArrayList<>());
+                        return;
+                    }
+
+                    List<User> list = new ArrayList<>();
+                    for (DocumentSnapshot doc : snap.getDocuments()) {
+                        User u = doc.toObject(User.class);
+                        if (u != null) {
+                            u.setUid(doc.getId());
+                            list.add(u);
+                        }
+                    }
+                    live.postValue(list);
+                });
+
+        return live;
+    }
+
+    /**
+     * Backwards-compatible overload (in case older screens still call it with "team").
+     * We DO NOT write team anywhere. This just forwards.
+     */
+    public void completeManagerProfile(
+            @NonNull String managerUid,
+            @NonNull Double vacationDaysPerMonth,
+            @Nullable String department,
+            @Nullable String team_IGNORED,
+            @Nullable String jobTitle,
+            @NonNull SimpleCallback callback
+    ) {
+        completeManagerProfile(managerUid, vacationDaysPerMonth, department, jobTitle, callback);
     }
 }

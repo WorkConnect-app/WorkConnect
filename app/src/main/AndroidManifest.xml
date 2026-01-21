@@ -36,9 +36,7 @@
             android:name=".ui.auth.LoginActivity"
             android:exported="true">
             <intent-filter>
-                <!--This is the entry point of the application.-->
                 <action android:name="android.intent.action.MAIN" />
-                <!--Put it on the icon on the home screen-->
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
@@ -72,6 +70,37 @@
         <activity
             android:name=".ui.manager.CompleteManagerProfileActivity"
             android:exported="false" />
+
+        <activity
+            android:name=".ui.manager.EditEmployeeProfileActivity"
+            android:exported="false"/>
+        <activity
+            android:name=".ui.manager.TeamsActivity"
+            android:exported="false"/>
+        <activity
+            android:name=".ui.manager.EditTeamActivity"
+            android:exported="false"/>
+        <activity
+            android:name=".ui.employee.MyShiftsActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.manager.ScheduleShiftsActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.manager.ManageShiftTemplatesActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.employee.MyAvailabilityActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.employee.ShiftReplacementActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ui.manager.SwapApprovalsActivity"
+            android:exported="false"/>
+
+
 
     </application>
 </manifest>

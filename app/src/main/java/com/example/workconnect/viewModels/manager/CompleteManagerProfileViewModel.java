@@ -21,7 +21,8 @@ public class CompleteManagerProfileViewModel extends ViewModel {
     public LiveData<String> getError() { return error; }
     public LiveData<Boolean> getDone() { return done; }
 
-    public void save(String department, String team, String jobTitle, String vacationDaysPerMonthStr) {
+    // ✅ Teams removed from this flow
+    public void save(String department, String jobTitle, String vacationDaysPerMonthStr) {
         String uid = FirebaseAuth.getInstance().getCurrentUser() != null
                 ? FirebaseAuth.getInstance().getCurrentUser().getUid()
                 : null;
@@ -31,7 +32,7 @@ public class CompleteManagerProfileViewModel extends ViewModel {
             return;
         }
 
-        if (TextUtils.isEmpty(jobTitle) || TextUtils.isEmpty(department) || TextUtils.isEmpty(team) || TextUtils.isEmpty(vacationDaysPerMonthStr)) {
+        if (TextUtils.isEmpty(jobTitle) || TextUtils.isEmpty(department) || TextUtils.isEmpty(vacationDaysPerMonthStr)) {
             error.setValue("Please fill all fields");
             return;
         }
@@ -51,9 +52,12 @@ public class CompleteManagerProfileViewModel extends ViewModel {
 
         loading.setValue(true);
 
-        repo.completeManagerProfile(uid, v,
+        // ✅ We keep repo signature for now, but pass empty team (or null)
+        repo.completeManagerProfile(
+                uid,
+                v,
                 department.trim(),
-                team.trim(),
+                "", // team removed from this screen
                 jobTitle.trim(),
                 (success, message) -> {
                     loading.postValue(false);
@@ -62,6 +66,7 @@ public class CompleteManagerProfileViewModel extends ViewModel {
                     } else {
                         error.postValue(message == null ? "Save failed" : message);
                     }
-                });
+                }
+        );
     }
 }

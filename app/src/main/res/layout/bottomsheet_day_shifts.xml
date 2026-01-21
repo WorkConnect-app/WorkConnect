@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:id="@+id/tv_day_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="yyyy-MM-dd"
+        android:textStyle="bold"
+        android:textSize="18sp" />
+
+    <!-- Bulk actions (availability flow). In manager flow, set this container GONE. -->
+    <LinearLayout
+        android:id="@+id/layout_availability_bulk_actions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="12dp">
+
+        <Button
+            android:id="@+id/btn_all_can"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="All CAN" />
+
+        <Button
+            android:id="@+id/btn_all_prefer_not"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="All Prefer Not"
+            android:layout_marginStart="8dp" />
+
+        <Button
+            android:id="@+id/btn_all_cant"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="All CANT"
+            android:layout_marginStart="8dp" />
+
+        <Button
+            android:id="@+id/btn_all_clear"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Clear"
+            android:layout_marginStart="8dp" />
+    </LinearLayout>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rv_day_shifts"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp" />
+
+</LinearLayout>
