@@ -59,10 +59,7 @@
 
         <activity android:name=".ui.vacations.PendingVacationRequestsActivity"
             android:exported="false" />
-
-        <activity android:name=".ui.employee.MyProfileActivity"
-            android:exported="false" />
-
+        
         <activity
             android:name=".ui.auth.CompleteManagerProfileActivity"
             android:exported="false" />
