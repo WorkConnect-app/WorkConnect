@@ -84,25 +84,23 @@
                     android:icon="@android:drawable/ic_menu_upload"/>
 
                 <item
+                    android:title="Company settings ▼"
+                    android:enabled="false" />
+
+                <item
+                    android:id="@+id/nav_company_groups"
+                    android:title="Groups"
+                    android:icon="@android:drawable/ic_menu_sort_by_size"/>
+
+                <item
+                    android:id="@+id/nav_edit_employee"
+                    android:title="Edit employee details"
+                    android:icon="@android:drawable/ic_menu_edit"/>
+
+                <item
+                    android:id="@+id/nav_company_settings_general"
                     android:title="Company settings"
-                    android:icon="@android:drawable/ic_menu_preferences">
-                    <menu>
-                        <item
-                            android:id="@+id/nav_company_groups"
-                            android:title="Groups"
-                            android:icon="@android:drawable/ic_menu_sort_by_size"/>
-
-                        <item
-                            android:id="@+id/nav_edit_employee"
-                            android:title="Edit employee details"
-                            android:icon="@android:drawable/ic_menu_edit"/>
-
-                        <item
-                            android:id="@+id/nav_company_settings_general"
-                            android:title="Company settings"
-                            android:icon="@android:drawable/ic_menu_preferences"/>
-                    </menu>
-                </item>
+                    android:icon="@android:drawable/ic_menu_preferences"/>
 
             </menu>
         </item>
