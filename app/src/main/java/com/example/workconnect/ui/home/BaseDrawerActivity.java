@@ -8,7 +8,6 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.LayoutRes;
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.ActionBarDrawerToggle;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
@@ -45,8 +44,6 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
     protected boolean cachedIsManager = false;
 
     private ActionBarDrawerToggle toggle;
-    private String companyId;
-    private String employmentType = "";
 
     @Override
     public void setContentView(@LayoutRes int layoutResID) {
@@ -84,6 +81,7 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
         drawerLayout.addDrawerListener(toggle);
         toggle.syncState();
 
+        // (optional) if you want black:
         toggle.getDrawerArrowDrawable().setColor(getResources().getColor(android.R.color.black));
 
         // NOTE: Hide management until role is loaded
@@ -95,9 +93,16 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
 
     private void setupDrawerMenu() {
         navView.setNavigationItemSelectedListener(item -> {
+
+            // ✅ FIX: If the item has a submenu (like "Management" or "Company settings"),
+            // don't close the drawer. Let Android expand/collapse the submenu.
+            if (item.hasSubMenu()) {
+                return true;
+            }
+
             int id = item.getItemId();
 
-            // NOTE: Close drawer first, then navigate (prevents swallowed clicks)
+            // NOTE: Close drawer first, then navigate
             drawerLayout.closeDrawers();
 
             new Handler(Looper.getMainLooper()).post(() -> handleMenuClick(id));
@@ -107,7 +112,7 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
 
     private void handleMenuClick(int id) {
 
-        // NOTE: "Profile" should not open Home again if we're already there
+        // Profile
         if (id == R.id.nav_profile) {
             if (!(this instanceof HomeActivity)) {
                 startActivity(new Intent(this, HomeActivity.class));
@@ -115,6 +120,7 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
             return;
         }
 
+        // Vacations
         if (id == R.id.nav_vacations) {
             if (!(this instanceof VacationRequestsActivity)) {
                 startActivity(new Intent(this, VacationRequestsActivity.class));
@@ -122,6 +128,7 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
             return;
         }
 
+        // Chat
         if (id == R.id.nav_chat) {
             Intent i = new Intent(this, ChatListActivity.class);
             if (cachedCompanyId != null) i.putExtra("companyId", cachedCompanyId);
@@ -129,7 +136,7 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
             return;
         }
 
-        // NOTE: Management items - only for managers
+        // Management items - only for managers
         if (id == R.id.nav_approve_users) {
             if (!cachedIsManager) return;
             Intent i = new Intent(this, PendingEmployeesActivity.class);
@@ -172,7 +179,7 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
             return;
         }
 
-
+        // Company settings -> submenu items
         if (id == R.id.nav_company_groups) {
             if (!cachedIsManager) return;
             Intent i = new Intent(this, TeamsActivity.class);
@@ -189,7 +196,12 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
             return;
         }
 
-
+        // ✅ FIX: handle nav_company_settings_general (inner item)
+        if (id == R.id.nav_company_settings_general) {
+            if (!cachedIsManager) return;
+            Toast.makeText(this, "TODO: Company settings screen", Toast.LENGTH_SHORT).show();
+            return;
+        }
 
         // Logout
         if (id == R.id.nav_logout) {
@@ -201,10 +213,9 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
             return;
         }
 
-
         // Placeholder items
         if (id == R.id.nav_attendance || id == R.id.nav_tasks || id == R.id.nav_video
-                || id == R.id.nav_manage_attendance || id == R.id.nav_salary_slips ){
+                || id == R.id.nav_manage_attendance || id == R.id.nav_salary_slips) {
             Toast.makeText(this, "TODO", Toast.LENGTH_SHORT).show();
         }
     }
@@ -259,12 +270,10 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
                 .get()
                 .addOnSuccessListener(doc -> {
                     String companyId = doc.getString("companyId");
-                    String employmentType = doc.getString("employmentType"); // kept exactly (even if unused)
 
                     Intent i = new Intent(this, MyShiftsActivity.class);
                     i.putExtra("companyId", companyId == null ? "" : companyId);
                     startActivity(i);
-
                 })
                 .addOnFailureListener(e ->
                         Toast.makeText(this, "Failed to load profile", Toast.LENGTH_SHORT).show()
@@ -309,6 +318,4 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
                         Toast.makeText(this, "Failed to load profile", Toast.LENGTH_SHORT).show()
                 );
     }
-
 }
-
