@@ -50,8 +50,8 @@ public class MyShiftsActivity extends AppCompatActivity {
 
     private Calendar maxWeekStart;
 
-    // Add fields
-    private String employmentType = null; // "FULL_TIME" / "SHIFT_BASED" / null
+    // comes from BaseDrawerActivity via intent extra
+    private String employmentType = ""; // "FULL_TIME" / "SHIFT_BASED" / null
     private final List<String> myTeamIds = new ArrayList<>();
     private Button btnAvailability;
 
@@ -260,36 +260,6 @@ public class MyShiftsActivity extends AppCompatActivity {
                     Toast.makeText(this, "Failed to load profile", Toast.LENGTH_SHORT).show();
                     bindTeamsThenListen();
                 });
-    }
-
-    private List<String> buildDateKeysForWeek(Calendar anchor) {
-        Calendar c = (Calendar) anchor.clone();
-        normalizeToSunday(c);
-
-        ArrayList<String> out = new ArrayList<>();
-        for (int i = 0; i < 7; i++) {
-            out.add(toDateKey(c));
-            c.add(Calendar.DAY_OF_MONTH, 1);
-        }
-        return out;
-    }
-
-    private List<String> buildDateKeysForMonth(Calendar anchor) {
-        Calendar c = (Calendar) anchor.clone();
-        c.set(Calendar.DAY_OF_MONTH, 1);
-        c.set(Calendar.HOUR_OF_DAY, 0);
-        c.set(Calendar.MINUTE, 0);
-        c.set(Calendar.SECOND, 0);
-        c.set(Calendar.MILLISECOND, 0);
-
-        int maxDay = c.getActualMaximum(Calendar.DAY_OF_MONTH);
-
-        ArrayList<String> out = new ArrayList<>();
-        for (int day = 1; day <= maxDay; day++) {
-            c.set(Calendar.DAY_OF_MONTH, day);
-            out.add(toDateKey(c));
-        }
-        return out;
     }
 
 

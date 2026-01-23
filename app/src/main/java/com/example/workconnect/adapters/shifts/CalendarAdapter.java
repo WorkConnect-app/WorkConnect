@@ -55,16 +55,11 @@ public class CalendarAdapter extends RecyclerView.Adapter<CalendarAdapter.VH> {
         this.listener = listener;
     }
 
-    // Compatibility with your activity code
     public void setItems(List<DayCell> list) {
         items.clear();
         if (list != null) items.addAll(list);
         notifyDataSetChanged();
     }
-
-    // Compatibility if any older code uses setDays / setCells
-    public void setDays(List<DayCell> list) { setItems(list); }
-    public void setCells(List<DayCell> list) { setItems(list); }
 
     @NonNull
     @Override

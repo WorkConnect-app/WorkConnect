@@ -41,8 +41,6 @@ public class MyShiftsRepository {
         // We will attach one snapshot listener per (teamId, dateKey) for simplicity.
         // For weekly view this is small and stable.
         final Map<String, List<MyShiftItem>> bucket = new HashMap<>();
-        final int totalListeners = teamIds.size() * dateKeysInRange.size();
-        final int[] readyCount = {0};
 
         for (String teamId : teamIds) {
             // Ensure templates are cached/listened for this team
@@ -90,9 +88,6 @@ public class MyShiftsRepository {
                                 }
                                 bucket.put(key, mine);
                             }
-
-                            // first wave: count readiness so UI gets initial data quickly
-                            if (readyCount[0] < totalListeners) readyCount[0]++;
 
                             // Merge all buckets into one list and post
                             ArrayList<MyShiftItem> merged = new ArrayList<>();
@@ -162,8 +157,7 @@ public class MyShiftsRepository {
         final Map<String, List<MyShiftItem>> bucket = new HashMap<>();
 
         for (String teamId : teamIds) {
-            FirebaseFirestore.getInstance()
-                    .collection("companies").document(companyId)
+            db.collection("companies").document(companyId)
                     .collection("teams").document(teamId)
                     .addSnapshotListener((doc, e) -> {
 
@@ -173,7 +167,7 @@ public class MyShiftsRepository {
                             Team t = doc.toObject(Team.class);
                             ShiftTemplate ft = (t != null) ? t.getFullTimeTemplate() : null;
 
-                            // ✅ days-of-week filter (1=Sun .. 7=Sat)
+                            // Apply days-of-week filter for full-time schedule (Calendar.SUNDAY=1 .. Calendar.SATURDAY=7)
                             List<Integer> allowedDays = (t != null) ? t.getFullTimeDays() : null;
 
                             String teamName = teamIdToName.get(teamId);

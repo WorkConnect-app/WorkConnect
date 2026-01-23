@@ -61,6 +61,8 @@ public class ScheduleShiftsActivity extends AppCompatActivity {
 
     private String selectedTeamId = null;
 
+    private String selectedTeamName = null;
+
     // month anchor = first day of displayed month
     private Calendar monthAnchor;
 
@@ -95,6 +97,7 @@ public class ScheduleShiftsActivity extends AppCompatActivity {
             }
             Intent i = new Intent(this, ManageShiftTemplatesActivity.class);
             i.putExtra("companyId", companyId);
+            i.putExtra("teamId", selectedTeamId);
             i.putExtra("teamId", selectedTeamId);
             startActivity(i);
         });
@@ -154,6 +157,7 @@ public class ScheduleShiftsActivity extends AppCompatActivity {
                 public void onItemSelected(android.widget.AdapterView<?> parent, android.view.View view, int position, long id) {
                     if (position == 0) {
                         selectedTeamId = null;
+                        selectedTeamName = null;
                         cachedEmployees.clear();
                         currentTemplates = new ArrayList<>();
                         return;
@@ -164,6 +168,7 @@ public class ScheduleShiftsActivity extends AppCompatActivity {
                     // IMPORTANT:
                     // If your Team model has getId(), replace this with chosen.getId()
                     selectedTeamId = chosen.getId();
+                    selectedTeamName = chosen.getName();
 
                     listenEmployeesInTeam();
                     listenTemplatesInTeam();

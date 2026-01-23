@@ -41,7 +41,6 @@ public class TeamRepository {
                     List<Team> list = new ArrayList<>();
                     for (DocumentSnapshot doc : snap.getDocuments()) {
                         Team t = doc.toObject(Team.class);
-                        t.setId(doc.getId());
                         if (t != null) {
                             t.setId(doc.getId());
                             list.add(t);

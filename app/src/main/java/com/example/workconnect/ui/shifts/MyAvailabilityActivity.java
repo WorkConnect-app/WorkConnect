@@ -65,7 +65,7 @@ public class MyAvailabilityActivity extends AppCompatActivity {
 
     // period anchor:
     // MONTHLY = first day of shown month
-    // WEEKLY = monday of shown week
+    // WEEKLY = sunday of shown week
     private Calendar periodAnchor;
 
     @Override

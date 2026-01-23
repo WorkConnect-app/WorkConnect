@@ -21,6 +21,7 @@ import com.example.workconnect.ui.auth.TeamsActivity;
 import com.example.workconnect.ui.chat.ChatListActivity;
 import com.example.workconnect.ui.shifts.MyShiftsActivity;
 import com.example.workconnect.ui.shifts.ScheduleShiftsActivity;
+import com.example.workconnect.ui.shifts.ShiftReplacementActivity;
 import com.example.workconnect.ui.shifts.SwapApprovalsActivity;
 import com.example.workconnect.ui.vacations.PendingVacationRequestsActivity;
 import com.example.workconnect.ui.vacations.VacationRequestsActivity;
@@ -42,6 +43,7 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
 
     protected String cachedCompanyId = null;
     protected boolean cachedIsManager = false;
+    protected String cachedEmploymentType = "";
 
     private ActionBarDrawerToggle toggle;
 
@@ -154,12 +156,17 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
         }
 
         if (id == R.id.nav_shifts) {
-            openMyShifts();
+            Intent i = new Intent(this, MyShiftsActivity.class);
+            if (cachedCompanyId != null) i.putExtra("companyId", cachedCompanyId);
+            i.putExtra("employmentType", cachedEmploymentType);
+            startActivity(i);
             return;
         }
 
         if (id == R.id.nav_shift_replacement) {
-            openShiftReplacement();
+            Intent i = new Intent(this, ShiftReplacementActivity.class);
+            if (cachedCompanyId != null) i.putExtra("companyId", cachedCompanyId);
+            startActivity(i);
             return;
         }
 
@@ -238,6 +245,10 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
                     cachedCompanyId = doc.getString("companyId");
                     if (cachedCompanyId != null && cachedCompanyId.trim().isEmpty()) cachedCompanyId = null;
 
+                    cachedEmploymentType = doc.getString("employmentType");
+                    if (cachedEmploymentType == null) cachedEmploymentType = "";
+
+
                     // NOTE: Show management group only for managers
                     navView.getMenu().setGroupVisible(R.id.group_management, cachedIsManager);
 
@@ -257,65 +268,4 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
         if (tvCompany != null) tvCompany.setText(companyName == null || companyName.trim().isEmpty() ? "-" : companyName.trim());
     }
 
-    private void openMyShifts() {
-        String uid = FirebaseAuth.getInstance().getUid();
-        if (uid == null) {
-            Toast.makeText(this, "Not logged in", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        FirebaseFirestore.getInstance()
-                .collection("users")
-                .document(uid)
-                .get()
-                .addOnSuccessListener(doc -> {
-                    String companyId = doc.getString("companyId");
-
-                    Intent i = new Intent(this, MyShiftsActivity.class);
-                    i.putExtra("companyId", companyId == null ? "" : companyId);
-                    startActivity(i);
-                })
-                .addOnFailureListener(e ->
-                        Toast.makeText(this, "Failed to load profile", Toast.LENGTH_SHORT).show()
-                );
-    }
-
-    private void openShiftReplacement() {
-        String uid = FirebaseAuth.getInstance().getUid();
-        if (uid == null) {
-            Toast.makeText(this, "Not logged in", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        FirebaseFirestore.getInstance()
-                .collection("users")
-                .document(uid)
-                .get()
-                .addOnSuccessListener(doc -> {
-                    String empType = doc.getString("employmentType");
-                    if (empType == null) empType = "";
-
-                    String cId = doc.getString("companyId");
-                    if (cId == null) cId = "";
-
-                    // optional: update cached company for chat etc.
-                    cachedCompanyId = cId.isEmpty() ? cachedCompanyId : cId;
-
-                    if ("FULL_TIME".equals(empType)) {
-                        new android.app.AlertDialog.Builder(this)
-                                .setTitle("Shift Replacement")
-                                .setMessage("FULL_TIME workers should speak to their manager regarding shift issues")
-                                .setPositiveButton("OK", (d, w) -> d.dismiss())
-                                .show();
-                        return;
-                    }
-
-                    Intent i = new Intent(this, com.example.workconnect.ui.shifts.ShiftReplacementActivity.class);
-                    i.putExtra("companyId", cId);
-                    startActivity(i);
-                })
-                .addOnFailureListener(e ->
-                        Toast.makeText(this, "Failed to load profile", Toast.LENGTH_SHORT).show()
-                );
-    }
 }
