@@ -18,14 +18,11 @@
             android:layout_height="?attr/actionBarSize"
             app:title="Attendance"/>
 
-
-        <!-- BaseDrawerActivity injects your screen into this frame -->
         <FrameLayout
             android:id="@+id/content_frame"
             android:layout_width="match_parent"
             android:layout_height="match_parent">
 
-            <!-- Your attendance screen UI -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
@@ -40,6 +37,48 @@
                     android:textStyle="bold"
                     android:visibility="gone"
                     android:paddingBottom="8dp"/>
+
+                <!-- Month navigation -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingBottom="8dp">
+
+                    <Button
+                        android:id="@+id/btnPrevMonth"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="&lt;"
+                        android:minWidth="48dp"
+                        android:minHeight="48dp" />
+
+                    <TextView
+                        android:id="@+id/txtMonthTitle"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:textStyle="bold"
+                        android:text="2026-02" />
+
+                    <Button
+                        android:id="@+id/btnNextMonth"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="&gt;"
+                        android:minWidth="48dp"
+                        android:minHeight="48dp" />
+                </LinearLayout>
+
+                <!-- Monthly hours -->
+                <TextView
+                    android:id="@+id/txtMonthlyHours"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Hours this month: 0.00"
+                    android:paddingBottom="12dp"/>
 
                 <LinearLayout
                     android:layout_width="match_parent"

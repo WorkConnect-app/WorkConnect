@@ -261,13 +261,19 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
                     cachedEmploymentType = doc.getString("employmentType");
                     if (cachedEmploymentType == null) cachedEmploymentType = "";
 
-
-                    // NOTE: Show management group only for managers
+                    // show management
                     navView.getMenu().setGroupVisible(R.id.group_management, cachedIsManager);
 
-                    // NOTE: Update header (name + company)
+                    // header
                     updateDrawerHeader(doc.getString("fullName"), doc.getString("companyName"));
+
+                    // ✅ NEW
+                    onCompanyStateLoaded();
+
                 });
+    }
+    protected void onCompanyStateLoaded() {
+        // subclasses may override
     }
 
     protected void updateDrawerHeader(String fullName, String companyName) {

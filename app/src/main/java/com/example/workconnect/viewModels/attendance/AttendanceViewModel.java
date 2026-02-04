@@ -22,6 +22,9 @@ public class AttendanceViewModel extends ViewModel {
     private static final DateTimeFormatter DAY_KEY_FORMAT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
+    private static final DateTimeFormatter MONTH_KEY_FORMAT =
+            DateTimeFormatter.ofPattern("yyyy-MM");
+
     private final MutableLiveData<List<Map<String, Object>>> periodsLiveData =
             new MutableLiveData<>();
 
@@ -33,6 +36,10 @@ public class AttendanceViewModel extends ViewModel {
 
     private final MutableLiveData<AttendanceRepository.Result> actionResultLiveData =
             new MutableLiveData<>();
+
+    // NEW (monthly)
+    private final MutableLiveData<String> monthKeyLiveData = new MutableLiveData<>();
+    private final MutableLiveData<Double> monthlyHoursLiveData = new MutableLiveData<>(0.0);
 
     private ListenerRegistration attendanceListener;
     private ListenerRegistration userListener;
@@ -59,13 +66,45 @@ public class AttendanceViewModel extends ViewModel {
         return actionResultLiveData;
     }
 
+    // NEW
+    public LiveData<String> getMonthKey() { return monthKeyLiveData; }
+    public LiveData<Double> getMonthlyHours() { return monthlyHoursLiveData; }
+
     // ---------------- INIT ----------------
 
     public void init(String companyId) {
         this.userId = FirebaseAuth.getInstance().getUid();
         this.companyId = companyId;
 
+        String mk = ZonedDateTime.now(companyZone).format(MONTH_KEY_FORMAT);
+        monthKeyLiveData.setValue(mk);
+        refreshMonthlyHours(mk);
+
         listenToUserActiveAttendance();
+    }
+
+    // ---------------- MONTHLY ----------------
+
+    public void refreshMonthlyHours(String monthKey) {
+        monthKeyLiveData.setValue(monthKey);
+
+        if (userId == null || companyId == null || companyId.trim().isEmpty()) {
+            monthlyHoursLiveData.postValue(0.0);
+            return;
+        }
+
+        attendanceRepository.getMonthlyHours(userId, companyId, monthKey,
+                new AttendanceRepository.MonthlyHoursCallback() {
+                    @Override
+                    public void onSuccess(double hours) {
+                        monthlyHoursLiveData.postValue(hours);
+                    }
+
+                    @Override
+                    public void onError(Exception e) {
+                        monthlyHoursLiveData.postValue(0.0);
+                    }
+                });
     }
 
     // ---------------- LISTENERS ----------------
@@ -122,7 +161,6 @@ public class AttendanceViewModel extends ViewModel {
 
                     periodsLiveData.postValue(periods);
                 });
-
     }
 
     // ---------------- ACTIONS ----------------
@@ -137,11 +175,17 @@ public class AttendanceViewModel extends ViewModel {
                     @Override
                     public void onComplete(AttendanceRepository.Result result) {
                         actionResultLiveData.postValue(result);
+
+                        String mk = monthKeyLiveData.getValue();
+                        if (mk != null) refreshMonthlyHours(mk);
                     }
 
                     @Override
                     public void onError(Exception e) {
                         actionResultLiveData.postValue(AttendanceRepository.Result.ERROR);
+
+                        String mk = monthKeyLiveData.getValue();
+                        if (mk != null) refreshMonthlyHours(mk);
                     }
                 }
         );
@@ -155,16 +199,21 @@ public class AttendanceViewModel extends ViewModel {
                     @Override
                     public void onComplete(AttendanceRepository.Result result) {
                         actionResultLiveData.postValue(result);
+
+                        String mk = monthKeyLiveData.getValue();
+                        if (mk != null) refreshMonthlyHours(mk);
                     }
 
                     @Override
                     public void onError(Exception e) {
                         actionResultLiveData.postValue(AttendanceRepository.Result.ERROR);
+
+                        String mk = monthKeyLiveData.getValue();
+                        if (mk != null) refreshMonthlyHours(mk);
                     }
                 }
         );
     }
-
 
     // ---------------- CLEANUP ----------------
 

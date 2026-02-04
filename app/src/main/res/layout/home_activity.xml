@@ -10,14 +10,12 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
-        <!-- Top bar (instead of Back) -->
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             app:title="WorkConnect" />
 
-        <!-- Your profile content -->
         <ScrollView
             android:layout_width="match_parent"
             android:layout_height="match_parent"
@@ -29,7 +27,6 @@
                 android:layout_height="wrap_content"
                 android:padding="16dp">
 
-                <!-- Title -->
                 <TextView
                     android:id="@+id/tv_title"
                     android:layout_width="0dp"
@@ -113,6 +110,15 @@
                             android:textSize="18sp"
                             android:textStyle="bold" />
 
+                        <!-- NEW -->
+                        <TextView
+                            android:id="@+id/tv_month_hours"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Hours this month: 0.00"
+                            android:layout_marginTop="10dp"
+                            android:textSize="15sp" />
+
                         <TextView
                             android:id="@+id/tv_note"
                             android:layout_width="wrap_content"
@@ -140,7 +146,6 @@
 
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
 
-    <!-- Drawer menu -->
     <com.google.android.material.navigation.NavigationView
         android:id="@+id/navView"
         android:layout_width="wrap_content"

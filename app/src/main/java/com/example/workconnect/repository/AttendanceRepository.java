@@ -32,6 +32,77 @@ public class AttendanceRepository {
     }
 
     // ===============================
+// MONTHLY HOURS API  (ROBUST)
+// ===============================
+    public interface MonthlyHoursCallback {
+        void onSuccess(double hours);
+        void onError(Exception e);
+    }
+
+    public void getMonthlyHours(
+            String userId,
+            String companyId,
+            String monthKey, // "yyyy-MM"
+            MonthlyHoursCallback cb
+    ) {
+        if (userId == null || userId.trim().isEmpty()
+                || companyId == null || companyId.trim().isEmpty()
+                || monthKey == null || monthKey.trim().isEmpty()) {
+            cb.onSuccess(0.0);
+            return;
+        }
+
+        // Robust strategy:
+        // 1) Query all attendance docs for this user inside the company
+        // 2) Filter client-side by month using:
+        //    - dateKey startsWith "yyyy-MM"
+        //    - OR docId startsWith "uid_yyyy-MM"
+        db.collection("companies")
+                .document(companyId)
+                .collection("attendance")
+                .whereEqualTo("userId", userId)
+                .get()
+                .addOnSuccessListener(qs -> {
+                    double totalHours = 0.0;
+
+                    String docIdPrefix = userId + "_" + monthKey; // e.g. uid_2026-02
+
+                    for (DocumentSnapshot doc : qs.getDocuments()) {
+                        String dateKey = doc.getString("dateKey");
+                        String docId = doc.getId();
+
+                        boolean inMonth =
+                                (dateKey != null && dateKey.startsWith(monthKey))
+                                        || (docId != null && docId.startsWith(docIdPrefix));
+
+                        if (!inMonth) continue;
+
+                        List<Map<String, Object>> periods =
+                                (List<Map<String, Object>>) doc.get("periods");
+
+                        if (periods == null) continue;
+
+                        for (Map<String, Object> p : periods) {
+                            Timestamp s = (Timestamp) p.get("startAt");
+                            Timestamp e = (Timestamp) p.get("endAt");
+                            if (s == null) continue;
+
+                            long startMs = s.toDate().getTime();
+                            long endMs = (e == null) ? System.currentTimeMillis() : e.toDate().getTime();
+
+                            if (endMs > startMs) {
+                                totalHours += (endMs - startMs) / 3600000.0;
+                            }
+                        }
+                    }
+
+                    cb.onSuccess(totalHours);
+                })
+                .addOnFailureListener(cb::onError);
+    }
+
+
+    // ===============================
     // START SHIFT
     // ===============================
     public void startShift(
@@ -103,6 +174,13 @@ public class AttendanceRepository {
                     attendanceData.put("dateKey", dateKey);
                     attendanceData.put("periods", periods);
                     attendanceData.put("updatedAt", now);
+
+                    // TTL: delete after 370 days (buffer)
+                    Calendar cal = Calendar.getInstance();
+                    cal.setTime(now.toDate());
+                    cal.add(Calendar.DAY_OF_YEAR, 370);
+                    Timestamp expiresAt = new Timestamp(cal.getTime());
+                    attendanceData.put("expiresAt", expiresAt);
 
                     transaction.set(attendanceRef, attendanceData, SetOptions.merge());
 
@@ -178,9 +256,16 @@ public class AttendanceRepository {
                         last.putAll(endLocation);
                     }
 
+                    // TTL refresh (optional but nice)
+                    Calendar cal = Calendar.getInstance();
+                    cal.setTime(now.toDate());
+                    cal.add(Calendar.DAY_OF_YEAR, 370);
+                    Timestamp expiresAt = new Timestamp(cal.getTime());
+
                     transaction.update(attendanceRef,
                             "periods", periods,
-                            "updatedAt", now
+                            "updatedAt", now,
+                            "expiresAt", expiresAt
                     );
 
                     transaction.update(userRef, "activeAttendance", FieldValue.delete());

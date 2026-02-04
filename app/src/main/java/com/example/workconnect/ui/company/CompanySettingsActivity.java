@@ -34,7 +34,6 @@ public class CompanySettingsActivity extends BaseDrawerActivity {
     private TextInputEditText etLat, etLng, etRadius;
     private Button btnSave, btnDisable;
 
-    // NEW
     private Button btnUseMyLocation;
     private FusedLocationProviderClient fusedLocationClient;
     private ActivityResultLauncher<String> fineLocationPermissionLauncher;
@@ -54,13 +53,10 @@ public class CompanySettingsActivity extends BaseDrawerActivity {
         btnSave = findViewById(R.id.btnSave);
         btnDisable = findViewById(R.id.btnDisable);
 
-        // NEW (make sure you added this button id in the XML)
         btnUseMyLocation = findViewById(R.id.btnUseMyLocation);
 
-        // NEW
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
-        // NEW
         fineLocationPermissionLauncher =
                 registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
                     if (!granted) {
@@ -70,12 +66,8 @@ public class CompanySettingsActivity extends BaseDrawerActivity {
                     fetchAndFillMyLocation();
                 });
 
-        // NEW
         btnUseMyLocation.setOnClickListener(v -> {
-            if (ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.ACCESS_FINE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED) {
+            if (!hasFineLocationPermission()) {
                 fineLocationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION);
                 return;
             }
@@ -102,6 +94,13 @@ public class CompanySettingsActivity extends BaseDrawerActivity {
 
         btnSave.setOnClickListener(v -> saveSettings());
         btnDisable.setOnClickListener(v -> disableGpsAttendance());
+    }
+
+    private boolean hasFineLocationPermission() {
+        return ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED;
     }
 
     private void loadCompany() {
@@ -196,32 +195,44 @@ public class CompanySettingsActivity extends BaseDrawerActivity {
         );
     }
 
-    // NEW
     private void fetchAndFillMyLocation() {
-        fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
-                .addOnSuccessListener(location -> {
-                    if (location == null) {
-                        fusedLocationClient.getLastLocation()
-                                .addOnSuccessListener(last -> {
-                                    if (last == null) {
-                                        Toast.makeText(this, "Could not get location. Try again.", Toast.LENGTH_SHORT).show();
-                                        return;
-                                    }
-                                    fillLatLng(last);
-                                })
-                                .addOnFailureListener(e ->
-                                        Toast.makeText(this, "Could not get location. Try again.", Toast.LENGTH_SHORT).show()
-                                );
-                        return;
-                    }
-                    fillLatLng(location);
-                })
-                .addOnFailureListener(e ->
-                        Toast.makeText(this, "Could not get location. Try again.", Toast.LENGTH_SHORT).show()
-                );
+        // Lint-friendly: re-check permission right before fused calls
+        if (!hasFineLocationPermission()) {
+            Toast.makeText(this, "Location permission is required.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        try {
+            fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
+                    .addOnSuccessListener(location -> {
+                        if (location == null) {
+                            try {
+                                fusedLocationClient.getLastLocation()
+                                        .addOnSuccessListener(last -> {
+                                            if (last == null) {
+                                                Toast.makeText(this, "Could not get location. Try again.", Toast.LENGTH_SHORT).show();
+                                                return;
+                                            }
+                                            fillLatLng(last);
+                                        })
+                                        .addOnFailureListener(e ->
+                                                Toast.makeText(this, "Could not get location. Try again.", Toast.LENGTH_SHORT).show()
+                                        );
+                            } catch (SecurityException se) {
+                                Toast.makeText(this, "Location permission is required.", Toast.LENGTH_SHORT).show();
+                            }
+                            return;
+                        }
+                        fillLatLng(location);
+                    })
+                    .addOnFailureListener(e ->
+                            Toast.makeText(this, "Could not get location. Try again.", Toast.LENGTH_SHORT).show()
+                    );
+        } catch (SecurityException se) {
+            Toast.makeText(this, "Location permission is required.", Toast.LENGTH_SHORT).show();
+        }
     }
 
-    // NEW
     private void fillLatLng(Location loc) {
         etLat.setText(String.valueOf(loc.getLatitude()));
         etLng.setText(String.valueOf(loc.getLongitude()));

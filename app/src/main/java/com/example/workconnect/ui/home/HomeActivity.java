@@ -7,22 +7,24 @@ import android.widget.Toast;
 import androidx.lifecycle.ViewModelProvider;
 
 import com.example.workconnect.R;
+import com.example.workconnect.repository.AttendanceRepository;
 import com.example.workconnect.viewModels.home.HomeViewModel;
+import com.google.firebase.auth.FirebaseAuth;
 
-/**
- * Home screen (Profile dashboard).
- *
- * NOTE:
- * - This Activity now extends BaseDrawerActivity.
- * - Drawer/Toolbar/Menu setup is handled by BaseDrawerActivity.
- * - HomeActivity only contains Home-specific UI and ViewModel logic.
- */
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
+
 public class HomeActivity extends BaseDrawerActivity {
 
-    // Profile UI
     private TextView tvFullName, tvCompanyName, tvStartDate, tvMonthlyQuota, tvVacationBalance;
 
-    // ViewModel
+    private TextView tvMonthHours;
+    private final AttendanceRepository attendanceRepo = new AttendanceRepository();
+    private static final DateTimeFormatter MONTH_KEY_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM");
+    private final ZoneId companyZone = ZoneId.of("Asia/Jerusalem");
+
     private HomeViewModel homeVm;
 
     @Override
@@ -30,26 +32,59 @@ public class HomeActivity extends BaseDrawerActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.home_activity);
 
-        // NOTE: Drawer/Toolbar/menu handling is done in BaseDrawerActivity
-
-        // Bind profile views (Home-specific UI)
         tvFullName = findViewById(R.id.tv_full_name);
         tvCompanyName = findViewById(R.id.tv_company_name);
         tvStartDate = findViewById(R.id.tv_start_date);
         tvMonthlyQuota = findViewById(R.id.tv_monthly_quota);
         tvVacationBalance = findViewById(R.id.tv_vacation_balance);
+        tvMonthHours = findViewById(R.id.tv_month_hours);
 
         setupHomeViewModel();
+
+        // Try once (may still be 0 if company not ready yet)
+        refreshCurrentMonthHours();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
 
-        // NOTE: Always refresh when returning to Home to ensure updated values
         if (homeVm != null) {
-            homeVm.refreshProfileOnce(); // fetch fresh snapshot and update UI
+            homeVm.refreshProfileOnce();
         }
+
+        refreshCurrentMonthHours();
+    }
+
+    // ✅ Called when cachedCompanyId becomes ready
+    @Override
+    protected void onCompanyStateLoaded() {
+        super.onCompanyStateLoaded();
+        refreshCurrentMonthHours();
+    }
+
+    private void refreshCurrentMonthHours() {
+        String uid = FirebaseAuth.getInstance().getUid();
+        if (uid == null) return;
+
+        String cid = cachedCompanyId;
+        if (cid == null || cid.trim().isEmpty()) return;
+
+        String monthKey = ZonedDateTime.now(companyZone).format(MONTH_KEY_FORMAT);
+
+        attendanceRepo.getMonthlyHours(uid, cid, monthKey, new AttendanceRepository.MonthlyHoursCallback() {
+            @Override
+            public void onSuccess(double hours) {
+                if (tvMonthHours == null) return;
+                tvMonthHours.setText(String.format(Locale.US, "Hours this month: %.2f", hours));
+            }
+
+            @Override
+            public void onError(Exception e) {
+                if (tvMonthHours == null) return;
+                tvMonthHours.setText("Hours this month: 0.00");
+            }
+        });
     }
 
     private void setupHomeViewModel() {
@@ -59,7 +94,6 @@ public class HomeActivity extends BaseDrawerActivity {
             String n = normalizeOrDash(name);
             tvFullName.setText("Name: " + n);
 
-            // NOTE: Update drawer header (name + company)
             String c = homeVm.getCompanyName().getValue();
             updateDrawerHeader(n, normalizeOrDash(c));
         });
@@ -68,14 +102,11 @@ public class HomeActivity extends BaseDrawerActivity {
             String c = normalizeOrDash(company);
             tvCompanyName.setText("Company: " + c);
 
-            // NOTE: Update drawer header (name + company)
             String n = homeVm.getFullName().getValue();
             updateDrawerHeader(normalizeOrDash(n), c);
         });
 
-        homeVm.getStartDate().observe(this, d -> {
-            tvStartDate.setText("Start date: " + normalizeOrDash(d));
-        });
+        homeVm.getStartDate().observe(this, d -> tvStartDate.setText("Start date: " + normalizeOrDash(d)));
 
         homeVm.getMonthlyQuota().observe(this, q -> {
             String text = (q == null || q.trim().isEmpty()) ? "-" : q.trim();
@@ -93,7 +124,6 @@ public class HomeActivity extends BaseDrawerActivity {
             }
         });
 
-        // NOTE: Start Firestore listener / initial load
         homeVm.loadProfile();
     }
 

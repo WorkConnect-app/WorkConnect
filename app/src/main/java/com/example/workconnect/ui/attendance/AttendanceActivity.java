@@ -4,7 +4,6 @@ import android.Manifest;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Bundle;
-import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -27,7 +26,9 @@ import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.Priority;
 
+import java.time.YearMonth;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 public class AttendanceActivity extends BaseDrawerActivity {
@@ -41,6 +42,13 @@ public class AttendanceActivity extends BaseDrawerActivity {
     private ActivityResultLauncher<String> fineLocationPermissionLauncher;
 
     private String companyId;
+
+    // Month UI
+    private Button btnPrevMonth, btnNextMonth;
+    private TextView txtMonthTitle, txtMonthlyHours;
+
+    // ✅ Ensure we don't init VM with empty companyId
+    private boolean vmInitialized = false;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -58,22 +66,26 @@ public class AttendanceActivity extends BaseDrawerActivity {
                                 Toast.LENGTH_SHORT).show();
                         return;
                     }
-                    // Permission granted -> retry start
                     tryStartShiftWithGpsCheck();
                 });
 
-        // Get companyId (intent first, fallback to cachedCompanyId)
+        // Read from intent first
         companyId = getIntent().getStringExtra("companyId");
         if (companyId == null || companyId.trim().isEmpty()) {
             companyId = cachedCompanyId;
         }
 
         vm = new ViewModelProvider(this).get(AttendanceViewModel.class);
-        vm.init(companyId);
 
         Button start = findViewById(R.id.btnStartShift);
         Button end = findViewById(R.id.btnEndShift);
         TextView info = findViewById(R.id.txtActiveInfo);
+
+        // Month views
+        btnPrevMonth = findViewById(R.id.btnPrevMonth);
+        btnNextMonth = findViewById(R.id.btnNextMonth);
+        txtMonthTitle = findViewById(R.id.txtMonthTitle);
+        txtMonthlyHours = findViewById(R.id.txtMonthlyHours);
 
         RecyclerView rv = findViewById(R.id.recyclerAttendance);
         rv.setLayoutManager(new LinearLayoutManager(this));
@@ -89,7 +101,7 @@ public class AttendanceActivity extends BaseDrawerActivity {
 
         vm.getActiveDateKey().observe(this, key -> {
             if (key == null) return;
-            info.setVisibility(View.VISIBLE);
+            info.setVisibility(TextView.VISIBLE);
             info.setText("Attendance day: " + key);
         });
 
@@ -98,16 +110,91 @@ public class AttendanceActivity extends BaseDrawerActivity {
             Toast.makeText(this, r.name(), Toast.LENGTH_SHORT).show();
         });
 
+        // Month title + hours
+        vm.getMonthKey().observe(this, mk -> {
+            if (mk == null) return;
+            txtMonthTitle.setText(mk);
+        });
+
+        vm.getMonthlyHours().observe(this, hours -> {
+            if (hours == null) hours = 0.0;
+            txtMonthlyHours.setText(String.format(Locale.US, "Hours this month: %.2f", hours));
+        });
+
+        // Month navigation
+        btnPrevMonth.setOnClickListener(v -> {
+            String mk = vm.getMonthKey().getValue();
+            String next = shiftMonth(mk, -1);
+            vm.refreshMonthlyHours(next);
+        });
+
+        btnNextMonth.setOnClickListener(v -> {
+            String mk = vm.getMonthKey().getValue();
+            String next = shiftMonth(mk, 1);
+            vm.refreshMonthlyHours(next);
+        });
+
         start.setOnClickListener(v -> tryStartShiftWithGpsCheck());
         end.setOnClickListener(v -> vm.endShift(null));
+
+        // ✅ init only when companyId is actually ready
+        ensureVmInit();
 
         if (companyId == null || companyId.trim().isEmpty()) {
             Toast.makeText(this, "Company not loaded yet. Try again in a moment.", Toast.LENGTH_SHORT).show();
         }
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        ensureVmInit();
+    }
+
+    // ✅ Called by BaseDrawerActivity when cachedCompanyId is loaded
+    @Override
+    protected void onCompanyStateLoaded() {
+        super.onCompanyStateLoaded();
+        ensureVmInit();
+    }
+
+    private void ensureVmInit() {
+        if (vmInitialized) return;
+
+        if (companyId == null || companyId.trim().isEmpty()) {
+            companyId = cachedCompanyId;
+        }
+
+        if (companyId == null || companyId.trim().isEmpty()) {
+            return;
+        }
+
+        vm.init(companyId);
+        vmInitialized = true;
+    }
+
+    private String shiftMonth(String monthKey, int deltaMonths) {
+        try {
+            if (monthKey == null || monthKey.trim().isEmpty()) {
+                YearMonth ym = YearMonth.now();
+                return ym.toString();
+            }
+            YearMonth ym = YearMonth.parse(monthKey);
+            return ym.plusMonths(deltaMonths).toString(); // yyyy-MM
+        } catch (Exception e) {
+            YearMonth ym = YearMonth.now();
+            return ym.toString();
+        }
+    }
+
+    private boolean hasFineLocationPermission() {
+        return ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED;
+    }
+
     private void tryStartShiftWithGpsCheck() {
-        // Refresh fallback (cachedCompanyId might become available after BaseDrawer loads user doc)
         if (companyId == null || companyId.trim().isEmpty()) {
             companyId = cachedCompanyId;
         }
@@ -117,21 +204,22 @@ public class AttendanceActivity extends BaseDrawerActivity {
             return;
         }
 
+        // ✅ Ensure VM is initialized before using it
+        ensureVmInit();
+        if (!vmInitialized) {
+            Toast.makeText(this, "Company not loaded yet. Try again.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         companyRepo.getCompanyById(companyId, new CompanyRepository.CompanyCallback() {
             @Override
             public void onSuccess(Company company) {
                 if (company == null || !company.isAttendanceGpsEnabled()) {
-                    // GPS disabled -> start immediately
                     vm.startShift(null);
                     return;
                 }
 
-                // GPS enabled -> permission check
-                if (ContextCompat.checkSelfPermission(
-                        AttendanceActivity.this,
-                        Manifest.permission.ACCESS_FINE_LOCATION
-                ) != PackageManager.PERMISSION_GRANTED) {
-
+                if (!hasFineLocationPermission()) {
                     fineLocationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION);
                     return;
                 }
@@ -149,9 +237,13 @@ public class AttendanceActivity extends BaseDrawerActivity {
     }
 
     private void validateLocationAndStart(Company company) {
+        if (!hasFineLocationPermission()) {
+            Toast.makeText(this, "Location permission is required.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         Company.AttendanceLocation cfg = company.getAttendanceLocation();
         if (cfg == null || !cfg.isEnabled() || cfg.getCenter() == null) {
-            // Safety fallback
             vm.startShift(null);
             return;
         }
@@ -160,29 +252,36 @@ public class AttendanceActivity extends BaseDrawerActivity {
         double targetLng = cfg.getCenter().getLongitude();
         double radiusMeters = cfg.getRadiusMeters();
 
-        fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
-                .addOnSuccessListener(location -> {
-                    if (location == null) {
-                        // Fallback to last known location
-                        fusedLocationClient.getLastLocation()
-                                .addOnSuccessListener(last -> {
-                                    if (last == null) {
-                                        Toast.makeText(this, "Could not get location. Try again.", Toast.LENGTH_SHORT).show();
-                                        return;
-                                    }
-                                    validateDistanceAndStart(last, targetLat, targetLng, radiusMeters);
-                                })
-                                .addOnFailureListener(e ->
-                                        Toast.makeText(this, "Could not get location. Try again.", Toast.LENGTH_SHORT).show()
-                                );
-                        return;
-                    }
+        try {
+            fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
+                    .addOnSuccessListener(location -> {
+                        if (location == null) {
+                            try {
+                                fusedLocationClient.getLastLocation()
+                                        .addOnSuccessListener(last -> {
+                                            if (last == null) {
+                                                Toast.makeText(this, "Could not get location. Try again.", Toast.LENGTH_SHORT).show();
+                                                return;
+                                            }
+                                            validateDistanceAndStart(last, targetLat, targetLng, radiusMeters);
+                                        })
+                                        .addOnFailureListener(e ->
+                                                Toast.makeText(this, "Could not get location. Try again.", Toast.LENGTH_SHORT).show()
+                                        );
+                            } catch (SecurityException se) {
+                                Toast.makeText(this, "Location permission is required.", Toast.LENGTH_SHORT).show();
+                            }
+                            return;
+                        }
 
-                    validateDistanceAndStart(location, targetLat, targetLng, radiusMeters);
-                })
-                .addOnFailureListener(e ->
-                        Toast.makeText(this, "Could not get location. Try again.", Toast.LENGTH_SHORT).show()
-                );
+                        validateDistanceAndStart(location, targetLat, targetLng, radiusMeters);
+                    })
+                    .addOnFailureListener(e ->
+                            Toast.makeText(this, "Could not get location. Try again.", Toast.LENGTH_SHORT).show()
+                    );
+        } catch (SecurityException se) {
+            Toast.makeText(this, "Location permission is required.", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void validateDistanceAndStart(
