@@ -20,7 +20,7 @@ public class ShiftScheduleAdapter extends RecyclerView.Adapter<ShiftScheduleAdap
     public static class Row {
         public ShiftTemplate template;
         public List<String> assignedUserIds;
-        public String assignedSummary; // NEW
+        public String assignedSummary;
 
         public Row(ShiftTemplate template,
                    List<String> assignedUserIds,
@@ -65,7 +65,6 @@ public class ShiftScheduleAdapter extends RecyclerView.Adapter<ShiftScheduleAdap
         h.tvTitle.setText(title);
         h.tvTime.setText(r.template.getStartHour() + ":00 - " + r.template.getEndHour() + ":00");
 
-        int count = (r.assignedUserIds == null) ? 0 : r.assignedUserIds.size();
         h.tvAssigned.setText(r.assignedSummary);
 
         h.btnAssign.setOnClickListener(v -> listener.onAssignClicked(r.template));
