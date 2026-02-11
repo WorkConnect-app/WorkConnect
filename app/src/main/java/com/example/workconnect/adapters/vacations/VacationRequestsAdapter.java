@@ -39,6 +39,8 @@ public class VacationRequestsAdapter extends RecyclerView.Adapter<VacationReques
     public void onBindViewHolder(@NonNull VH h, int position) {
         VacationRequest r = items.get(position);
 
+        h.itemView.setTag(r.getId());
+
         String start = (r.getStartDate() != null) ? df.format(r.getStartDate()) : "";
         String end = (r.getEndDate() != null) ? df.format(r.getEndDate()) : "";
         h.tvVacationDate.setText(start + " → " + end);
