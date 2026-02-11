@@ -59,12 +59,33 @@ dependencies {
     implementation(libs.material)
     implementation(libs.androidx.activity)
     implementation(libs.androidx.constraintlayout)
-    
+
     // 🔹 Image loading
     implementation("com.github.bumptech.glide:glide:4.16.0")
 
     // 🔹 Testing
     testImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation ("androidx.test.uiautomator:uiautomator:2.3.0")
+
+    // 🔹 Protobuf (force consistent version - important for Firestore + androidTest)
+    implementation("com.google.protobuf:protobuf-javalite:3.25.3")
+    androidTestImplementation("com.google.protobuf:protobuf-javalite:3.25.3")
+
+    // 🔹 Espresso
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
+
+    // IMPORTANT: exclude protobuf-lite pulled by espresso-contrib -> accessibility-test-framework
+    androidTestImplementation("androidx.test.espresso:espresso-contrib:3.5.1") {
+        exclude(group = "com.google.protobuf", module = "protobuf-lite")
+    }
+
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.test:rules:1.5.0")
+}
+
+configurations.all {
+    resolutionStrategy {
+        force("com.google.protobuf:protobuf-javalite:3.25.3")
+        force("com.google.protobuf:protobuf-java:3.25.3")
+    }
 }

@@ -6,6 +6,7 @@ import androidx.test.espresso.Root;
 
 import org.hamcrest.Description;
 import org.hamcrest.TypeSafeMatcher;
+import static androidx.test.espresso.matcher.RootMatchers.withDecorView;
 
 public class ToastMatcher extends TypeSafeMatcher<Root> {
 
