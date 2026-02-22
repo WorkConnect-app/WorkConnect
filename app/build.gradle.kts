@@ -60,7 +60,11 @@ dependencies {
     implementation(libs.material)
     implementation(libs.androidx.activity)
     implementation(libs.androidx.constraintlayout)
-    
+
+
+    //GPS
+    implementation("com.google.android.gms:play-services-location:21.3.0")
+
     // Image loading
     implementation("com.github.bumptech.glide:glide:4.16.0")
     
@@ -69,8 +73,6 @@ dependencies {
 
     // Testing
     testImplementation(libs.junit)
-    testImplementation("org.mockito:mockito-core:5.11.0")
-    testImplementation("org.mockito:mockito-inline:5.2.0") // Pour mocker les classes finales
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 }

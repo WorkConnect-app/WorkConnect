@@ -37,6 +37,7 @@ import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.navigation.NavigationView;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.example.workconnect.ui.attendance.AttendanceActivity;
 
 import java.util.Locale;
 
@@ -220,9 +221,12 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
 
         if (id == R.id.nav_company_settings_general) {
             if (!cachedIsManager) return;
-            Toast.makeText(this, "TODO: Company settings screen", Toast.LENGTH_SHORT).show();
+            Intent i = new Intent(this, com.example.workconnect.ui.company.CompanySettingsActivity.class);
+            if (cachedCompanyId != null) i.putExtra("companyId", cachedCompanyId);
+            startActivity(i);
             return;
         }
+
 
         // Logout
         if (id == R.id.nav_logout) {
@@ -234,11 +238,20 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
             return;
         }
 
+        // Attendance
+        if (id == R.id.nav_attendance) {
+            Intent i = new Intent(this, AttendanceActivity.class);
+            if (cachedCompanyId != null) i.putExtra("companyId", cachedCompanyId);
+            startActivity(i);
+            return;
+        }
+
         // Placeholder items
-        if (id == R.id.nav_attendance || id == R.id.nav_tasks
+        if (id == R.id.nav_tasks
                 || id == R.id.nav_manage_attendance || id == R.id.nav_salary_slips) {
             Toast.makeText(this, "TODO", Toast.LENGTH_SHORT).show();
         }
+
     }
 
     private void loadRoleAndCompanyStateForDrawer() {
@@ -262,13 +275,19 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
                     cachedEmploymentType = doc.getString("employmentType");
                     if (cachedEmploymentType == null) cachedEmploymentType = "";
 
-
-                    // NOTE: Show management group only for managers
+                    // show management
                     navView.getMenu().setGroupVisible(R.id.group_management, cachedIsManager);
 
-                    // NOTE: Update header (name + company)
+                    // header
                     updateDrawerHeader(doc.getString("fullName"), doc.getString("companyName"));
+
+                    // ✅ NEW
+                    onCompanyStateLoaded();
+
                 });
+    }
+    protected void onCompanyStateLoaded() {
+        // subclasses may override
     }
 
     protected void updateDrawerHeader(String fullName, String companyName) {

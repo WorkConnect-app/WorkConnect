@@ -47,6 +47,8 @@ public class PendingVacationRequestsAdapter extends RecyclerView.Adapter<Pending
     public void onBindViewHolder(@NonNull VH h, int position) {
         VacationRequest r = items.get(position);
 
+        h.itemView.setTag(r.getId());
+
         h.tvDates.setText((r.getStartDate() != null ? r.getStartDate() : "") +
                 " → " + (r.getEndDate() != null ? r.getEndDate() : ""));
         h.tvReason.setText(r.getReason() != null ? r.getReason() : "");
