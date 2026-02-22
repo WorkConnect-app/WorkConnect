@@ -62,10 +62,8 @@ public class GroupInfoMemberAdapter extends RecyclerView.Adapter<GroupInfoMember
         User u = members.get(position);
         String uid = (u != null) ? u.getUid() : null;
 
-        String first = (u != null && u.getFirstName() != null) ? u.getFirstName() : "";
-        String last  = (u != null && u.getLastName() != null) ? u.getLastName() : "";
-        String name  = (first + " " + last).trim();
-        if (name.isEmpty()) name = (u != null && u.getEmail() != null) ? u.getEmail() : uid;
+        String name = com.example.workconnect.utils.UserUtils.getDisplayName(u, 
+            (u != null && u.getEmail() != null) ? u.getEmail() : uid);
 
         holder.name.setText(name);
         holder.sub.setText((u != null && u.getEmail() != null) ? u.getEmail() : uid);
@@ -74,7 +72,7 @@ public class GroupInfoMemberAdapter extends RecyclerView.Adapter<GroupInfoMember
         boolean isSelected = uid != null && selectedUids.contains(uid);
         holder.itemView.setSelected(isSelected);
 
-        // Consume click to handle selection (no navigation)
+        // Consume click to handle selection
         holder.itemView.setOnClickListener(v -> {
             int pos = holder.getBindingAdapterPosition();
             if (pos == RecyclerView.NO_POSITION) return;

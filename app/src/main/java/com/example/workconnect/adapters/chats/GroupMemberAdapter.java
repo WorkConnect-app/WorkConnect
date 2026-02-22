@@ -54,13 +54,7 @@ public class GroupMemberAdapter extends RecyclerView.Adapter<GroupMemberAdapter.
         // 1. Use fullName if available
         // 2. Otherwise combine firstName + lastName
         // 3. Fallback to uid if no name is available
-        String name = u.getFullName();
-        if (name == null || name.trim().isEmpty()) {
-            String first = u.getFirstName() != null ? u.getFirstName() : "";
-            String last  = u.getLastName() != null ? u.getLastName() : "";
-            name = (first + " " + last).trim();
-        }
-        if (name == null || name.trim().isEmpty()) name = uid;
+        String name = com.example.workconnect.utils.UserUtils.getDisplayName(u, uid);
 
         holder.tvName.setText(name);
 

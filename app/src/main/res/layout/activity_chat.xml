@@ -1,9 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
+<androidx.drawerlayout.widget.DrawerLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/drawerLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
+
+    <!-- Main content -->
+    <androidx.coordinatorlayout.widget.CoordinatorLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <!-- Toolbar with custom layout -->
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:contentInsetStart="0dp"
+            app:contentInsetStartWithNavigation="0dp">
+            <include
+                android:id="@+id/header_layout"
+                layout="@layout/toolbar_chat"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+        </com.google.android.material.appbar.MaterialToolbar>
+
+        <!-- Content -->
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_marginTop="?attr/actionBarSize">
 
     <!--Push content below the status bar area -->
     <androidx.constraintlayout.widget.Guideline
@@ -34,36 +60,14 @@
             android:textSize="12sp" />
     </LinearLayout>
 
-    <!-- Group infos (top-left) -->
-    <Button
-        android:id="@+id/btn_group_info"
-        android:layout_width="wrap_content"
+    <!-- Call banner (active call indicator) -->
+    <include
+        android:id="@+id/call_banner_container"
+        layout="@layout/layout_call_banner"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:text="Group"
-        android:textAllCaps="false"
-        app:icon="@android:drawable/ic_menu_info_details"
-        app:iconPadding="6dp"
-        app:iconTint="@color/primaryBlue"
-        android:backgroundTint="@android:color/transparent"
-        android:textColor="@color/primaryBlue"
-        android:layout_margin="8dp"
-        app:layout_constraintTop_toBottomOf="@id/guideline_top"
-        app:layout_constraintStart_toStartOf="parent" />
-
-    <!-- Back button (top-right) -->
-    <Button
-        android:id="@+id/btn_back"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Back"
-        android:textAllCaps="false"
-        app:icon="@android:drawable/ic_media_previous"
-        app:iconPadding="6dp"
-        app:iconTint="@color/primaryBlue"
-        android:backgroundTint="@android:color/transparent"
-        android:textColor="@color/primaryBlue"
-        android:layout_margin="8dp"
-        app:layout_constraintTop_toBottomOf="@id/guideline_top"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
     <!-- ProgressBar for pagination loading -->
@@ -73,7 +77,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
         android:visibility="gone"
-        app:layout_constraintTop_toBottomOf="@id/btn_group_info"
+        app:layout_constraintTop_toBottomOf="@id/call_banner_container"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
@@ -155,4 +159,25 @@
             android:textColor="#888888" />
     </LinearLayout>
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+        </androidx.constraintlayout.widget.ConstraintLayout>
+    </androidx.coordinatorlayout.widget.CoordinatorLayout>
+
+    <!-- Drawer menu -->
+    <com.google.android.material.navigation.NavigationView
+        android:id="@+id/navView"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_gravity="start"
+        android:fitsSystemWindows="true"
+        app:menu="@menu/drawer_menu"
+        app:headerLayout="@layout/drawer_header"
+        app:itemIconSize="24dp"
+        app:itemHorizontalPadding="16dp"
+        app:itemVerticalPadding="10dp"
+        app:itemShapeAppearanceOverlay="@style/DrawerItemShape"
+        app:itemTextAppearance="@style/DrawerItemText"
+        app:itemRippleColor="@color/primaryBlue"
+        app:itemIconTint="@color/primaryBlue"
+        app:itemTextColor="@android:color/black" />
+
+</androidx.drawerlayout.widget.DrawerLayout>
