@@ -23,8 +23,8 @@ import com.example.workconnect.adapters.shifts.OpenRequestsAdapter;
 import com.example.workconnect.models.ShiftSwapOffer;
 import com.example.workconnect.models.ShiftSwapRequest;
 import com.example.workconnect.models.Team;
-import com.example.workconnect.repository.ShiftSwapRepository;
-import com.example.workconnect.repository.TeamRepository;
+import com.example.workconnect.repository.shifts.ShiftSwapRepository;
+import com.example.workconnect.repository.authAndUsers.TeamRepository;
 import com.google.firebase.auth.FirebaseAuth;
 
 import java.util.ArrayList;

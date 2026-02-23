@@ -16,8 +16,8 @@ import com.example.workconnect.R;
 import com.example.workconnect.adapters.shifts.SwapApprovalsAdapter;
 import com.example.workconnect.models.ShiftSwapRequest;
 import com.example.workconnect.models.Team;
-import com.example.workconnect.repository.ShiftSwapRepository;
-import com.example.workconnect.repository.TeamRepository;
+import com.example.workconnect.repository.shifts.ShiftSwapRepository;
+import com.example.workconnect.repository.authAndUsers.TeamRepository;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -71,8 +71,8 @@ dependencies {
     // Agora (audio and video in real time)
     implementation("io.agora.rtc:full-sdk:4.4.1")
 
-    // Testing
     testImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+
 }

@@ -16,8 +16,8 @@ import com.example.workconnect.R;
 import com.example.workconnect.adapters.shifts.MyShiftsAdapter;
 import com.example.workconnect.models.Team;
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.example.workconnect.repository.MyShiftsRepository;
-import com.example.workconnect.repository.TeamRepository;
+import com.example.workconnect.repository.shifts.MyShiftsRepository;
+import com.example.workconnect.repository.authAndUsers.TeamRepository;
 import com.google.firebase.auth.FirebaseAuth;
 
 import java.util.ArrayList;

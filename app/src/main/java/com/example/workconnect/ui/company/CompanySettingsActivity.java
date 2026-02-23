@@ -16,7 +16,7 @@ import androidx.core.content.ContextCompat;
 
 import com.example.workconnect.R;
 import com.example.workconnect.models.Company;
-import com.example.workconnect.repository.CompanyRepository;
+import com.example.workconnect.repository.authAndUsers.CompanyRepository;
 import com.example.workconnect.ui.home.BaseDrawerActivity;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;

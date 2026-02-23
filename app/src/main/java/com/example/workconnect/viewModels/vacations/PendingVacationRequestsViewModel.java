@@ -5,7 +5,7 @@ import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
 
 import com.example.workconnect.models.VacationRequest;
-import com.example.workconnect.repository.VacationRepository;
+import com.example.workconnect.repository.vacations.VacationRepository;
 
 import java.util.List;
 

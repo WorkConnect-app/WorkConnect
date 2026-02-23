@@ -120,6 +120,13 @@
             android:name=".ui.company.CompanySettingsActivity"
             android:exported="false" />
 
+        <activity android:name=".ui.auth.CompleteGoogleProfileActivity"
+            android:exported="false" />
+
+        <activity android:name=".ui.notifications.NotificationsActivity"
+            android:exported="false"/>
+
+
         <!-- Call Foreground Service -->
         <service
             android:name=".services.CallForegroundService"

@@ -1,4 +1,4 @@
-package com.example.workconnect.repository;
+package com.example.workconnect.repository.vacations;
 
 import android.util.Log;
 
@@ -7,6 +7,7 @@ import androidx.lifecycle.MutableLiveData;
 
 import com.example.workconnect.models.VacationRequest;
 import com.example.workconnect.models.enums.VacationStatus;
+import com.example.workconnect.services.NotificationService;
 import com.google.android.gms.tasks.Task;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentReference;
@@ -15,7 +16,6 @@ import com.google.firebase.firestore.EventListener;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.FirebaseFirestoreException;
 import com.google.firebase.firestore.ListenerRegistration;
-import com.google.firebase.firestore.Query;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -75,10 +75,33 @@ public class VacationRepository {
      * Assumes request and request.getId() are not null.
      */
     public Task<Void> createVacationRequest(VacationRequest request) {
-        return db.collection("vacation_requests")
-                .document(request.getId())
-                .set(request);
+        if (request == null || request.getId() == null) return null;
+
+        String managerId = request.getManagerId();
+        String employeeId = request.getEmployeeId();
+        String requestId = request.getId();
+
+        com.google.firebase.firestore.WriteBatch batch = db.batch();
+
+        // 1) create the vacation request
+        DocumentReference reqRef = db.collection("vacation_requests").document(requestId);
+        batch.set(reqRef, request);
+
+        // 2) notify manager (only if managerId exists)
+        if (managerId != null && !managerId.trim().isEmpty()
+                && employeeId != null && !employeeId.trim().isEmpty()) {
+
+            NotificationService.addVacationNewRequestForManager(
+                    batch,
+                    managerId,
+                    requestId,
+                    employeeId
+            );
+        }
+
+        return batch.commit();
     }
+
 
     /**
      * Realtime listener: returns LiveData of all PENDING requests for a manager.
@@ -214,6 +237,13 @@ public class VacationRepository {
                     "vacationBalance", newBalance
             );
 
+            NotificationService.addVacationApproved(
+                    transaction,
+                    employeeId,
+                    requestId,
+                    daysRequested
+            );
+
             return null;
         });
     }
@@ -238,14 +268,28 @@ public class VacationRepository {
                 return null;
             }
 
+            String employeeId = reqSnap.getString("employeeId");
+            if (employeeId == null || employeeId.trim().isEmpty()) {
+                throw new FirebaseFirestoreException("Invalid request fields",
+                        FirebaseFirestoreException.Code.INVALID_ARGUMENT);
+            }
+
             transaction.update(reqRef,
                     "status", VacationStatus.REJECTED.name(),
                     "decisionAt", new Date()
             );
 
+            // notification inside same transaction
+            NotificationService.addVacationRejected(
+                    transaction,
+                    employeeId,
+                    requestId
+            );
+
             return null;
         });
     }
+
 
     /**
      * Realtime listener for a single user document.

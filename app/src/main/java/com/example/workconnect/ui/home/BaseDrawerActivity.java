@@ -3,6 +3,8 @@ package com.example.workconnect.ui.home;
 import android.content.Intent;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
@@ -11,12 +13,14 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.LayoutRes;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.ActionBarDrawerToggle;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 
 import com.example.workconnect.R;
+import com.example.workconnect.ui.attendance.AttendanceActivity;
 import com.example.workconnect.models.Call;
 import com.example.workconnect.repository.CallRepository;
 import com.example.workconnect.ui.chat.CallActivity;
@@ -27,6 +31,7 @@ import com.example.workconnect.ui.auth.LoginActivity;
 import com.example.workconnect.ui.auth.PendingEmployeesActivity;
 import com.example.workconnect.ui.auth.TeamsActivity;
 import com.example.workconnect.ui.chat.ChatListActivity;
+import com.example.workconnect.ui.notifications.NotificationsActivity;
 import com.example.workconnect.ui.shifts.MyShiftsActivity;
 import com.example.workconnect.ui.shifts.ScheduleShiftsActivity;
 import com.example.workconnect.ui.shifts.ShiftReplacementActivity;
@@ -34,12 +39,24 @@ import com.example.workconnect.ui.shifts.SwapApprovalsActivity;
 import com.example.workconnect.ui.vacations.PendingVacationRequestsActivity;
 import com.example.workconnect.ui.vacations.VacationRequestsActivity;
 import com.google.android.material.appbar.MaterialToolbar;
+import com.google.android.material.badge.BadgeDrawable;
+import com.google.android.material.badge.BadgeUtils;
 import com.google.android.material.navigation.NavigationView;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.example.workconnect.ui.attendance.AttendanceActivity;
+import com.google.firebase.firestore.ListenerRegistration;
 
 import java.util.Locale;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.view.animation.Animation;
+import android.view.animation.AnimationUtils;
+
+import androidx.annotation.Nullable;
+
+import com.google.android.material.badge.BadgeDrawable;
+import com.google.android.material.badge.BadgeUtils;
+import com.google.firebase.firestore.ListenerRegistration;
 
 public abstract class BaseDrawerActivity extends AppCompatActivity {
 
@@ -60,6 +77,14 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
     private CallRepository callRepository;
     private ListenerRegistration incomingCallListener;
     private BottomSheetDialog currentIncomingCallDialog;
+
+    // 🔔 Notifications badge
+    @Nullable private BadgeDrawable notifBadge;
+    @Nullable private ListenerRegistration notifBadgeListener;
+
+    private int lastUnreadCount = -1; // so we detect changes
+    private boolean firstBadgeLoad = true;
+
 
     @Override
     public void setContentView(@LayoutRes int layoutResID) {
@@ -110,6 +135,88 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
         setupDrawerMenu();
         loadRoleAndCompanyStateForDrawer();
     }
+
+    @androidx.annotation.OptIn(
+            markerClass = com.google.android.material.badge.ExperimentalBadgeUtils.class
+    )
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.topbar_menu, menu);
+
+        notifBadge = BadgeDrawable.create(this);
+        notifBadge.setVisible(false);
+
+        BadgeUtils.attachBadgeDrawable(notifBadge, toolbar, R.id.action_notifications);
+
+        startUnreadBadgeListener();
+        return true;
+    }
+
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == R.id.action_notifications) {
+            startActivity(new Intent(this, com.example.workconnect.ui.notifications.NotificationsActivity.class));
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+    private void startUnreadBadgeListener() {
+        if (mAuth.getCurrentUser() == null) return;
+
+        String uid = mAuth.getCurrentUser().getUid();
+        android.util.Log.d("BaseDrawer", "BaseDrawer uid=" + uid);
+
+        if (notifBadgeListener != null) {
+            notifBadgeListener.remove();
+            notifBadgeListener = null;
+        }
+
+        notifBadgeListener = db.collection("users")
+                .document(uid)
+                .collection("notifications")
+                .whereEqualTo("read", false)
+                .addSnapshotListener((snap, e) -> {
+                    if (notifBadge == null) return;
+
+                    if (e != null || snap == null) {
+                        notifBadge.clearNumber();   // ✅ חשוב
+                        notifBadge.setVisible(false);
+                        return;
+                    }
+
+                    int count = snap.size();
+                    android.util.Log.d("BaseDrawer", "unreadCount=" + count);
+
+                    if (count <= 0) {
+                        notifBadge.clearNumber();
+                        notifBadge.setVisible(false);
+                    } else {
+                        notifBadge.setNumber(Math.min(count, 99));
+                        notifBadge.setVisible(true);
+                    }
+
+                    if (!firstBadgeLoad && lastUnreadCount >= 0 && count > lastUnreadCount) {
+                        animateBell();
+                    }
+
+                    firstBadgeLoad = false;
+                    lastUnreadCount = count;
+                });
+    }
+
+    private void animateBell() {
+        if (toolbar == null) return;
+
+        View bellView = toolbar.findViewById(R.id.action_notifications);
+        // sometimes menu item view isn't directly found; fallback to whole toolbar
+        View target = (bellView != null) ? bellView : toolbar;
+
+        Animation anim = AnimationUtils.loadAnimation(this, R.anim.bell_bounce);
+        target.startAnimation(anim);
+    }
+
 
     private void setupDrawerMenu() {
         navView.setNavigationItemSelectedListener(item -> {
@@ -219,6 +326,7 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
             return;
         }
 
+        // handle nav_company_settings_general (inner item)
         if (id == R.id.nav_company_settings_general) {
             if (!cachedIsManager) return;
             Intent i = new Intent(this, com.example.workconnect.ui.company.CompanySettingsActivity.class);
@@ -226,7 +334,6 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
             startActivity(i);
             return;
         }
-
 
         // Logout
         if (id == R.id.nav_logout) {
@@ -247,11 +354,9 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
         }
 
         // Placeholder items
-        if (id == R.id.nav_tasks
-                || id == R.id.nav_manage_attendance || id == R.id.nav_salary_slips) {
+        if (id == R.id.nav_manage_attendance || id == R.id.nav_salary_slips) {
             Toast.makeText(this, "TODO", Toast.LENGTH_SHORT).show();
         }
-
     }
 
     private void loadRoleAndCompanyStateForDrawer() {
@@ -281,11 +386,10 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
                     // header
                     updateDrawerHeader(doc.getString("fullName"), doc.getString("companyName"));
 
-                    // ✅ NEW
                     onCompanyStateLoaded();
-
                 });
     }
+
     protected void onCompanyStateLoaded() {
         // subclasses may override
     }
@@ -466,18 +570,23 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        
+
         // Remove incoming call listener
         if (incomingCallListener != null) {
             incomingCallListener.remove();
             incomingCallListener = null;
         }
-        
+
         // Dismiss any showing dialog
         if (currentIncomingCallDialog != null && currentIncomingCallDialog.isShowing()) {
             currentIncomingCallDialog.dismiss();
             currentIncomingCallDialog = null;
         }
-    }
 
+        // Remove notification badge listener
+        if (notifBadgeListener != null) {
+            notifBadgeListener.remove();
+            notifBadgeListener = null;
+        }
+    }
 }

@@ -7,7 +7,7 @@ import android.widget.Toast;
 import androidx.lifecycle.ViewModelProvider;
 
 import com.example.workconnect.R;
-import com.example.workconnect.repository.AttendanceRepository;
+import com.example.workconnect.repository.attendance.AttendanceRepository;
 import com.example.workconnect.viewModels.home.HomeViewModel;
 import com.google.firebase.auth.FirebaseAuth;
 
@@ -100,7 +100,14 @@ public class HomeActivity extends BaseDrawerActivity {
 
         homeVm.getCompanyName().observe(this, company -> {
             String c = normalizeOrDash(company);
-            tvCompanyName.setText("Company: " + c);
+
+            String shortId = "-";
+            if (cachedCompanyId != null && !cachedCompanyId.trim().isEmpty()) {
+                String id = cachedCompanyId.trim();
+                shortId = id.length() >= 6 ? id.substring(0, 6).toUpperCase() : id.toUpperCase();
+            }
+
+            tvCompanyName.setText("Company: " + c + " , " + shortId);
 
             String n = homeVm.getFullName().getValue();
             updateDrawerHeader(normalizeOrDash(n), c);

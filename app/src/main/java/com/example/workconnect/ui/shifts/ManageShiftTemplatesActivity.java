@@ -18,7 +18,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.example.workconnect.R;
 import com.example.workconnect.adapters.shifts.ShiftTemplateAdapter;
 import com.example.workconnect.models.ShiftTemplate;
-import com.example.workconnect.repository.ShiftRepository;
+import com.example.workconnect.repository.shifts.ShiftRepository;
 
 import java.util.ArrayList;
 import java.util.List;
