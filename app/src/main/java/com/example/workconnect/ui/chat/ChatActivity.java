@@ -34,7 +34,7 @@ import com.example.workconnect.adapters.chats.ChatMessageAdapter;
 import com.example.workconnect.adapters.chats.MessageInfoAdapter;
 import com.example.workconnect.adapters.chats.ReactionsDetailAdapter;
 import com.example.workconnect.models.ChatMessage;
-import com.example.workconnect.repository.MessageRepository;
+import com.example.workconnect.repository.chat.MessageRepository;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldValue;

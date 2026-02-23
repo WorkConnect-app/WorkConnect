@@ -22,11 +22,11 @@ import com.example.workconnect.models.ShiftAssignment;
 import com.example.workconnect.models.ShiftTemplate;
 import com.example.workconnect.models.Team;
 import com.example.workconnect.models.User;
-import com.example.workconnect.repository.AvailabilityRepository;
-import com.example.workconnect.repository.EmployeeRepository;
-import com.example.workconnect.repository.ShiftAssignmentRepository;
-import com.example.workconnect.repository.ShiftRepository;
-import com.example.workconnect.repository.TeamRepository;
+import com.example.workconnect.repository.shifts.AvailabilityRepository;
+import com.example.workconnect.repository.authAndUsers.EmployeeRepository;
+import com.example.workconnect.repository.shifts.ShiftAssignmentRepository;
+import com.example.workconnect.repository.shifts.ShiftRepository;
+import com.example.workconnect.repository.authAndUsers.TeamRepository;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 
 import java.text.DateFormatSymbols;

@@ -105,6 +105,12 @@
             android:name=".ui.company.CompanySettingsActivity"
             android:exported="false" />
 
+        <activity android:name=".ui.auth.CompleteGoogleProfileActivity"
+            android:exported="false" />
+
+        <activity android:name=".ui.notifications.NotificationsActivity"
+            android:exported="false"/>
+
 
 
 

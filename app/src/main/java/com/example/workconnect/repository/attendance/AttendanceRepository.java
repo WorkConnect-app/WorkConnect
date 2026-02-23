@@ -1,4 +1,4 @@
-package com.example.workconnect.repository;
+package com.example.workconnect.repository.attendance;
 
 import com.google.firebase.Timestamp;
 import com.google.firebase.firestore.*;

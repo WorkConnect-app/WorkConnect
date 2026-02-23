@@ -6,7 +6,7 @@ import androidx.lifecycle.ViewModel;
 
 import android.text.TextUtils;
 
-import com.example.workconnect.repository.CompanyRepository;
+import com.example.workconnect.repository.authAndUsers.CompanyRepository;
 
 /**
  * ViewModel responsible for the logic of registering a new company

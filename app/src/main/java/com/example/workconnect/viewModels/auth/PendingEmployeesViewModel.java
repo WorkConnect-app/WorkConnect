@@ -9,8 +9,8 @@ import com.example.workconnect.models.Team;
 import com.example.workconnect.models.User;
 import com.example.workconnect.models.enums.RegisterStatus;
 import com.example.workconnect.models.enums.Roles;
-import com.example.workconnect.repository.EmployeeRepository;
-import com.example.workconnect.repository.TeamRepository;
+import com.example.workconnect.repository.authAndUsers.EmployeeRepository;
+import com.example.workconnect.repository.authAndUsers.TeamRepository;
 import com.google.firebase.firestore.ListenerRegistration;
 
 import java.util.List;

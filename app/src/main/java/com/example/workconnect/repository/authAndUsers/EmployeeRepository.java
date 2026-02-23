@@ -1,4 +1,4 @@
-package com.example.workconnect.repository;
+package com.example.workconnect.repository.authAndUsers;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -6,6 +6,7 @@ import androidx.annotation.Nullable;
 import com.example.workconnect.models.User;
 import com.example.workconnect.models.enums.RegisterStatus;
 import com.example.workconnect.models.enums.Roles;
+import com.example.workconnect.services.NotificationService;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
@@ -135,7 +136,12 @@ public class EmployeeRepository {
                                         .document(uid)
                                         .set(userData)
                                         .addOnSuccessListener(unused -> {
-                                            // Sign out: employee cannot access app until approved.
+                                            android.util.Log.d("Notif", "✅ user saved. calling notifyManagersEmployeePending. companyId=" + companyId);
+
+                                            notifyManagersEmployeePending(companyId, uid, fullName);
+
+                                            android.util.Log.d("Notif", "✅ notifyManagersEmployeePending called (async)");
+
                                             mAuth.signOut();
                                             callback.onSuccess();
                                         })
@@ -542,5 +548,38 @@ public class EmployeeRepository {
             @NonNull SimpleCallback callback
     ) {
         completeManagerProfile(managerUid, vacationDaysPerMonth, department, jobTitle, callback);
+    }
+
+    private void notifyManagersEmployeePending(@NonNull String companyId,
+                                               @NonNull String employeeUid,
+                                               @NonNull String employeeName) {
+
+        db.collection("users")
+                .whereEqualTo("companyId", companyId)
+                .whereEqualTo("role", Roles.MANAGER.name())
+                .get()
+                .addOnSuccessListener(qs -> {
+                    if (qs == null || qs.isEmpty()) return;
+
+                    WriteBatch batch = db.batch();
+
+                    for (DocumentSnapshot m : qs.getDocuments()) {
+                        String managerId = m.getId();
+                        NotificationService.addEmployeePendingApprovalForManager(
+                                batch,
+                                managerId,
+                                employeeUid,
+                                employeeName,
+                                companyId
+                        );
+                    }
+
+                    batch.commit().addOnFailureListener(e ->
+                            android.util.Log.e("Notif", "❌ notifyManagersEmployeePending failed", e)
+                    );
+                })
+                .addOnFailureListener(e ->
+                        android.util.Log.e("Notif", "❌ failed to find managers", e)
+                );
     }
 }

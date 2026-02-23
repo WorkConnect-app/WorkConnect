@@ -11,7 +11,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.workconnect.R;
 import com.example.workconnect.models.User;
-import com.example.workconnect.repository.EmployeeRepository;
+import com.example.workconnect.repository.authAndUsers.EmployeeRepository;
 import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.google.firebase.firestore.FirebaseFirestore;
 

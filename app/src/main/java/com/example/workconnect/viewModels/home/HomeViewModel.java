@@ -4,8 +4,7 @@ import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
 
-import com.example.workconnect.repository.VacationRepository;
-import com.example.workconnect.utils.VacationAccrualCalculatorHelper;
+import com.example.workconnect.repository.vacations.VacationRepository;
 import com.example.workconnect.utils.VacationAccrualCalculatorHelper;
 import com.google.firebase.Timestamp;
 import com.google.firebase.firestore.DocumentSnapshot;
@@ -23,6 +22,7 @@ public class HomeViewModel extends ViewModel {
 
     private final MutableLiveData<String> fullName = new MutableLiveData<>("-");
     private final MutableLiveData<String> companyName = new MutableLiveData<>("-");
+    private final MutableLiveData<String> companyCode = new MutableLiveData<>("-");
     private final MutableLiveData<String> startDate = new MutableLiveData<>("-");
     private final MutableLiveData<String> monthlyQuota = new MutableLiveData<>("-");
     private final MutableLiveData<String> vacationBalance = new MutableLiveData<>("0.00");
@@ -38,6 +38,8 @@ public class HomeViewModel extends ViewModel {
 
     public LiveData<String> getFullName() { return fullName; }
     public LiveData<String> getCompanyName() { return companyName; }
+
+    public LiveData<String> getCompanyCode() { return companyCode; }
     public LiveData<String> getStartDate() { return startDate; }
     public LiveData<String> getMonthlyQuota() { return monthlyQuota; }
     public LiveData<String> getVacationBalance() { return vacationBalance; }

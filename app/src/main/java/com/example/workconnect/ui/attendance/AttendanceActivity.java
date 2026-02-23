@@ -19,7 +19,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.example.workconnect.R;
 import com.example.workconnect.adapters.attendance.AttendancePeriodsAdapter;
 import com.example.workconnect.models.Company;
-import com.example.workconnect.repository.CompanyRepository;
+import com.example.workconnect.repository.authAndUsers.CompanyRepository;
 import com.example.workconnect.ui.home.BaseDrawerActivity;
 import com.example.workconnect.viewModels.attendance.AttendanceViewModel;
 import com.google.android.gms.location.FusedLocationProviderClient;

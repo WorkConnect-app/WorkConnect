@@ -135,7 +135,7 @@ public class LoginActivity extends AppCompatActivity {
         viewModel.getNeedsRegistration().observe(this, needs -> {
             if (needs != null && needs) {
                 Toast.makeText(this, "Signed in with Google. Please complete registration.", Toast.LENGTH_LONG).show();
-                startActivity(new Intent(this, RegisterTypeActivity.class));
+                startActivity(new Intent(this, CompleteGoogleProfileActivity.class));
                 finish();
             }
         });

@@ -1,4 +1,4 @@
-package com.example.workconnect.repository;
+package com.example.workconnect.repository.authAndUsers;
 
 import com.example.workconnect.models.Company;
 import com.google.firebase.Timestamp;
@@ -8,7 +8,6 @@ import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Random;
 import java.util.function.Consumer;
 
 public class CompanyRepository {
@@ -42,7 +41,7 @@ public class CompanyRepository {
 
                     String managerId = user.getUid();
                     String companyId = db.collection("companies").document().getId();
-                    String companyCode = generateCompanyCode();
+                    String companyCode = companyId.substring(0, 6).toUpperCase();
 
                     Map<String, Object> companyData = new HashMap<>();
                     companyData.put("id", companyId);
@@ -75,14 +74,6 @@ public class CompanyRepository {
                             .addOnFailureListener(e -> callback.onError(e.getMessage()));
                 })
                 .addOnFailureListener(e -> callback.onError(e.getMessage()));
-    }
-
-    private String generateCompanyCode() {
-        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-        Random r = new Random();
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < 6; i++) sb.append(chars.charAt(r.nextInt(chars.length())));
-        return sb.toString();
     }
 
     // ===============================

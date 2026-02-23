@@ -4,7 +4,7 @@ import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
 
-import com.example.workconnect.repository.AttendanceRepository;
+import com.example.workconnect.repository.attendance.AttendanceRepository;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.*;
 

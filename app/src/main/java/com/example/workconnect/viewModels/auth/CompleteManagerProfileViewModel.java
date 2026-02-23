@@ -6,7 +6,7 @@ import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
 
-import com.example.workconnect.repository.EmployeeRepository;
+import com.example.workconnect.repository.authAndUsers.EmployeeRepository;
 import com.google.firebase.auth.FirebaseAuth;
 
 public class CompleteManagerProfileViewModel extends ViewModel {

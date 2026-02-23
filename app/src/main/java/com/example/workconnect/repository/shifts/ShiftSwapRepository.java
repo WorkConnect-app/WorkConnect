@@ -1,4 +1,4 @@
-package com.example.workconnect.repository;
+package com.example.workconnect.repository.shifts;
 
 import androidx.annotation.NonNull;
 import androidx.lifecycle.LiveData;

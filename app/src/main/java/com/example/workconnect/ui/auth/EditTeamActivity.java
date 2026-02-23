@@ -17,7 +17,7 @@ import com.example.workconnect.R;
 import com.example.workconnect.models.ShiftTemplate;
 import com.example.workconnect.models.Team;
 import com.example.workconnect.models.User;
-import com.example.workconnect.repository.TeamRepository;
+import com.example.workconnect.repository.authAndUsers.TeamRepository;
 import com.example.workconnect.ui.shifts.ManageShiftTemplatesActivity;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.firestore.FirebaseFirestore;
