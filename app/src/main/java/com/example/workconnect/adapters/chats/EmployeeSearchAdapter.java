@@ -51,14 +51,7 @@ public class EmployeeSearchAdapter extends RecyclerView.Adapter<EmployeeSearchAd
         // 1. Use fullName if available
         // 2. Otherwise combine firstName + lastName
         // 3. Fallback to "Employee" if no name is available
-        if (u.getFullName() != null && !u.getFullName().trim().isEmpty()) {
-            displayName = u.getFullName().trim();
-        } else {
-            String first = u.getFirstName() != null ? u.getFirstName().trim() : "";
-            String last  = u.getLastName()  != null ? u.getLastName().trim()  : "";
-            displayName = (first + " " + last).trim();
-            if (displayName.isEmpty()) displayName = "Employee";
-        }
+        displayName = com.example.workconnect.utils.UserUtils.getDisplayName(u, "Employee");
 
         holder.name.setText(displayName);
         holder.email.setText(u.getEmail() != null ? u.getEmail() : "");

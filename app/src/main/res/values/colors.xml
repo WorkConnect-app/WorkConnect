@@ -12,5 +12,6 @@
     <color name="secondaryBlue">#4FA6F0</color>
     <color name="navyBlue">#3F51B5</color>
     <color name="readCheckmarkBlue">#87CEEB</color>
+    <color name="lightBlue">#E3F2FD</color>
 
 </resources>

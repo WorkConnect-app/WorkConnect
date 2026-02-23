@@ -13,6 +13,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 public class MessageRepository {
 
@@ -55,7 +56,7 @@ public class MessageRepository {
         messageData.put("readAt", null);
         messageData.put("readBy", new ArrayList<String>()); // Initialize empty list for read receipts
         messageData.put("messageType", message.getMessageType() != null ? message.getMessageType().name() : "TEXT");
-        
+
         // Add reply data if present
         if (message.isReply()) {
             messageData.put("replyToMessageId", message.getReplyToMessageId());
@@ -63,7 +64,7 @@ public class MessageRepository {
             messageData.put("replyToSenderId", message.getReplyToSenderId());
             messageData.put("replyToSenderName", message.getReplyToSenderName());
         }
-        
+
         // Add file data if present
         if (message.hasFile()) {
             messageData.put("fileUrl", message.getFileUrl());
@@ -189,7 +190,7 @@ public class MessageRepository {
         messageData.put("readAt", null);
         messageData.put("readBy", new ArrayList<String>()); // Initialize empty list for read receipts
         messageData.put("messageType", message.getMessageType() != null ? message.getMessageType().name() : "TEXT");
-        
+
         // Add file data if present
         if (message.hasFile()) {
             messageData.put("fileUrl", message.getFileUrl());
@@ -232,13 +233,13 @@ public class MessageRepository {
         retryQueue.remove(messageId);
         retryMessage(message, conversationId, currentUserId, callback);
     }
-    
+
     // Add reaction to a message
     public void addReaction(String messageId, String emoji, String userId, String conversationId) {
         if (messageId == null || emoji == null || userId == null || conversationId == null) {
             return;
         }
-        
+
         db.collection("conversations")
                 .document(conversationId)
                 .collection("messages")
@@ -247,13 +248,13 @@ public class MessageRepository {
                 .addOnSuccessListener(aVoid -> Log.d(TAG, "Reaction added: " + emoji))
                 .addOnFailureListener(e -> Log.e(TAG, "Failed to add reaction", e));
     }
-    
+
     // Remove reaction from a message
     public void removeReaction(String messageId, String emoji, String userId, String conversationId) {
         if (messageId == null || emoji == null || userId == null || conversationId == null) {
             return;
         }
-        
+
         db.collection("conversations")
                 .document(conversationId)
                 .collection("messages")
@@ -261,6 +262,57 @@ public class MessageRepository {
                 .update("reactions." + emoji, FieldValue.arrayRemove(userId))
                 .addOnSuccessListener(aVoid -> Log.d(TAG, "Reaction removed: " + emoji))
                 .addOnFailureListener(e -> Log.e(TAG, "Failed to remove reaction", e));
+    }
+
+    /**
+     * Load conversation type from Firestore
+     * @param conversationId Conversation ID
+     * @param callback Callback with conversation type ("group" or "direct") or null
+     */
+    public static void loadConversationType(String conversationId, Consumer<String> callback) {
+        if (conversationId == null || conversationId.trim().isEmpty()) {
+            callback.accept(null);
+            return;
+        }
+
+        FirebaseFirestore.getInstance().collection("conversations").document(conversationId).get()
+                .addOnSuccessListener(document -> {
+                    if (document.exists()) {
+                        callback.accept(document.getString("type"));
+                    } else {
+                        callback.accept(null);
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to load conversation type", e);
+                    callback.accept(null);
+                });
+    }
+
+    /**
+     * Load conversation title from Firestore
+     * @param conversationId Conversation ID
+     * @param callback Callback with conversation title or "Group" as fallback
+     */
+    public static void loadConversationTitle(String conversationId, Consumer<String> callback) {
+        if (conversationId == null || conversationId.trim().isEmpty()) {
+            callback.accept("Group");
+            return;
+        }
+
+        FirebaseFirestore.getInstance().collection("conversations").document(conversationId).get()
+                .addOnSuccessListener(document -> {
+                    if (document.exists()) {
+                        String title = document.getString("title");
+                        callback.accept(title != null && !title.trim().isEmpty() ? title : "Group");
+                    } else {
+                        callback.accept("Group");
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to load conversation title", e);
+                    callback.accept("Group");
+                });
     }
 
     private static class RetryTask {

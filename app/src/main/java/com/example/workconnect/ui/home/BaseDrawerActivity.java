@@ -5,7 +5,10 @@ import android.os.Handler;
 import android.os.Looper;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -18,6 +21,11 @@ import androidx.drawerlayout.widget.DrawerLayout;
 
 import com.example.workconnect.R;
 import com.example.workconnect.ui.attendance.AttendanceActivity;
+import com.example.workconnect.models.Call;
+import com.example.workconnect.repository.CallRepository;
+import com.example.workconnect.ui.chat.CallActivity;
+import com.google.android.material.bottomsheet.BottomSheetDialog;
+import com.google.firebase.firestore.ListenerRegistration;
 import com.example.workconnect.ui.auth.EditEmployeeProfileActivity;
 import com.example.workconnect.ui.auth.LoginActivity;
 import com.example.workconnect.ui.auth.PendingEmployeesActivity;
@@ -64,6 +72,11 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
     protected String cachedEmploymentType = "";
 
     private ActionBarDrawerToggle toggle;
+    
+    // Incoming call management
+    private CallRepository callRepository;
+    private ListenerRegistration incomingCallListener;
+    private BottomSheetDialog currentIncomingCallDialog;
 
     // 🔔 Notifications badge
     @Nullable private BadgeDrawable notifBadge;
@@ -84,6 +97,7 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
 
         mAuth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
+        callRepository = new CallRepository();
 
         // NOTE: Prevent crashes if a screen forgot to include drawer views
         if (drawerLayout == null || navView == null || toolbar == null) {
@@ -91,6 +105,9 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
         }
 
         setSupportActionBar(toolbar);
+        
+        // Start listening for incoming calls
+        setupIncomingCallListener();
 
         // NOTE: Connect DrawerLayout with Toolbar to show hamburger icon
         toggle = new ActionBarDrawerToggle(
@@ -337,8 +354,7 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
         }
 
         // Placeholder items
-        if (id == R.id.nav_video
-                || id == R.id.nav_manage_attendance || id == R.id.nav_salary_slips) {
+        if (id == R.id.nav_manage_attendance || id == R.id.nav_salary_slips) {
             Toast.makeText(this, "TODO", Toast.LENGTH_SHORT).show();
         }
     }
@@ -388,14 +404,189 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
         if (tvName != null) tvName.setText(fullName == null || fullName.trim().isEmpty() ? "-" : fullName.trim());
         if (tvCompany != null) tvCompany.setText(companyName == null || companyName.trim().isEmpty() ? "-" : companyName.trim());
     }
+    
+    /**
+     * Setup listener for incoming calls (available in all activities)
+     * Also handles call cancellation/ending to close dialogs
+     */
+    private void setupIncomingCallListener() {
+        if (mAuth.getCurrentUser() == null) return;
+        
+        String currentUserId = mAuth.getCurrentUser().getUid();
+        
+        // Listen to all calls where user is a participant (no status filter to avoid composite index).
+        // Status filtering is done client-side below.
+        // Documents are deleted 2 seconds after ending, so stale results are not an issue.
+        incomingCallListener = db.collection("calls")
+            .whereArrayContains("participants", currentUserId)
+            .addSnapshotListener((snapshot, e) -> {
+                if (e != null) {
+                    android.util.Log.e("BaseDrawerActivity", "Error listening to calls", e);
+                    return;
+                }
+
+                if (snapshot == null) return;
+
+                
+                // Process each call
+                for (com.google.firebase.firestore.DocumentSnapshot doc : snapshot.getDocuments()) {
+                    Call call = doc.toObject(Call.class);
+                    if (call == null) continue;
+
+                    call.setCallId(doc.getId());
+                    String status = call.getStatus();
+
+                    // Skip calls initiated by me
+                    if (call.getCallerId().equals(currentUserId)) continue;
+
+                    if ("ringing".equals(status)) {
+                        // New incoming call: show dialog only if we are NOT already in a call.
+                        // CallActivity.isInCall is a static volatile flag set by CallActivity itself —
+                        // it is true even when the call is minimized (user is in ChatActivity etc.).
+                        if (!com.example.workconnect.ui.chat.CallActivity.isInCall) {
+                            runOnUiThread(() -> showIncomingCallDialog(call));
+                        }
+                        // If already in a call, silently ignore — the caller's dialog will eventually
+                        // time out or they can cancel. We do NOT auto-reject here because in a group call
+                        // it is normal to receive a "ringing" event even if we are the caller.
+                    } else if ("cancelled".equals(status) || "ended".equals(status) || "missed".equals(status)) {
+                        // Call terminated: close dialog if open
+                        runOnUiThread(() -> {
+                            if (currentIncomingCallDialog != null && currentIncomingCallDialog.isShowing()) {
+                                currentIncomingCallDialog.dismiss();
+                                currentIncomingCallDialog = null;
+                            }
+                        });
+                    }
+                    // "active" → group call already answered by someone else; keep the dialog open
+                    // so the current user can still join
+                }
+            });
+    }
+    
+    /**
+     * Show incoming call dialog.
+     * Guards are already applied upstream (CallActivity.isInCall check in the listener).
+     */
+    private void showIncomingCallDialog(Call call) {
+        // Double-check with the static flag (guards against very fast concurrent calls)
+        if (com.example.workconnect.ui.chat.CallActivity.isInCall) {
+            android.util.Log.d("BaseDrawerActivity", "Ignoring incoming call — already in a call");
+            return;
+        }
+
+        {
+            // Close any existing incoming call dialog
+            if (currentIncomingCallDialog != null && currentIncomingCallDialog.isShowing()) {
+                currentIncomingCallDialog.dismiss();
+                currentIncomingCallDialog = null;
+            }
+            
+            // Create a dialog for incoming call
+            BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
+            currentIncomingCallDialog = bottomSheet;
+            View view = LayoutInflater.from(this).inflate(R.layout.dialog_incoming_call, null);
+            bottomSheet.setContentView(view);
+            bottomSheet.setCancelable(false); // Cannot dismiss by clicking outside
+        
+        TextView tvCallerName = view.findViewById(R.id.tv_caller_name);
+        TextView tvCallType = view.findViewById(R.id.tv_call_type);
+        ImageView ivCallIcon = view.findViewById(R.id.iv_call_icon);
+        Button btnAccept = view.findViewById(R.id.btn_accept);
+        Button btnDecline = view.findViewById(R.id.btn_decline);
+        
+        // Load caller name
+        String callerId = call.getCallerId();
+        db.collection("users").document(callerId)
+            .get()
+            .addOnSuccessListener(doc -> {
+                String firstName = doc.getString("firstName");
+                String lastName = doc.getString("lastName");
+                String fullName = doc.getString("fullName");
+                String name = fullName != null ? fullName : 
+                    (firstName != null ? firstName + " " + (lastName != null ? lastName : "") : "Unknown");
+                tvCallerName.setText(name.trim());
+            });
+        
+        // Set call type and icon
+        if (call.isVideoCall()) {
+            tvCallType.setText("Incoming video call...");
+            ivCallIcon.setImageResource(R.drawable.ic_call_video);
+        } else {
+            tvCallType.setText("Incoming audio call...");
+            ivCallIcon.setImageResource(R.drawable.ic_call_audio);
+        }
+        
+        btnAccept.setOnClickListener(v -> {
+            bottomSheet.dismiss();
+            // Update call status to active when accepting
+            callRepository.updateCallStatus(call.getCallId(), "active");
+            Intent intent = new Intent(this, CallActivity.class);
+            intent.putExtra("callId", call.getCallId());
+            intent.putExtra("conversationId", call.getConversationId());
+            intent.putExtra("callType", call.getType());
+            intent.putExtra("isCaller", false);
+            boolean isGroupCall = call.getParticipants() != null && call.getParticipants().size() > 2;
+            intent.putExtra("isGroupCall", isGroupCall);
+            startActivity(intent);
+        });
+        
+        btnDecline.setOnClickListener(v -> {
+            bottomSheet.dismiss();
+            // Mark call as missed
+            callRepository.updateCallStatus(call.getCallId(), "missed");
+        });
+        
+        // Dismiss dialog only on terminal states (ended/cancelled/missed) or document deletion.
+        // "active" means someone else in a group call answered — keep the dialog so this user can still join.
+        ListenerRegistration callStatusListener = callRepository.listenToCall(call.getCallId(), updatedCall -> {
+            runOnUiThread(() -> {
+                if (!bottomSheet.isShowing()) return;
+                if (updatedCall == null) {
+                    // Document deleted → call is fully over
+                    bottomSheet.dismiss();
+                    return;
+                }
+                String s = updatedCall.getStatus();
+                if ("ended".equals(s) || "cancelled".equals(s) || "missed".equals(s)) {
+                    bottomSheet.dismiss();
+                }
+                // "ringing" or "active" → keep dialog open
+            });
+        });
+        
+        // Remove listener when dialog is dismissed
+        bottomSheet.setOnDismissListener(dialog -> {
+            if (callStatusListener != null) {
+                callStatusListener.remove();
+            }
+            currentIncomingCallDialog = null;
+        });
+        
+        bottomSheet.show();
+        }
+    }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
+
+        // Remove incoming call listener
+        if (incomingCallListener != null) {
+            incomingCallListener.remove();
+            incomingCallListener = null;
+        }
+
+        // Dismiss any showing dialog
+        if (currentIncomingCallDialog != null && currentIncomingCallDialog.isShowing()) {
+            currentIncomingCallDialog.dismiss();
+            currentIncomingCallDialog = null;
+        }
+
+        // Remove notification badge listener
         if (notifBadgeListener != null) {
             notifBadgeListener.remove();
             notifBadgeListener = null;
         }
     }
-
 }

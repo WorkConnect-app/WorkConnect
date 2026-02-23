@@ -25,7 +25,9 @@ public class ChatMessage {
         GROUP_CREATED,
         USER_ADDED,
         USER_REMOVED,
-        GROUP_OPENED
+        GROUP_OPENED,
+        CALL_ENDED,
+        CALL_MISSED
     }
 
     private String id;                 // Unique message ID

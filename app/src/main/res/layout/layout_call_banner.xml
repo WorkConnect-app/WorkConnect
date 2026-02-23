@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/call_banner"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:background="@color/primaryBlue"
+    android:padding="12dp"
+    android:gravity="center_vertical"
+    android:visibility="gone">
+
+    <TextView
+        android:id="@+id/tv_call_status"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:text=""
+        android:textColor="@android:color/white"
+        android:textSize="14sp"
+        android:textStyle="bold" />
+
+    <Button
+        android:id="@+id/btn_return_to_call"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Enter"
+        android:textAllCaps="false"
+        android:textColor="@android:color/white"
+        android:backgroundTint="@android:color/transparent"
+        android:layout_marginEnd="8dp" />
+
+    <Button
+        android:id="@+id/btn_end_call_from_banner"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="End call"
+        android:textAllCaps="false"
+        android:textColor="@android:color/white"
+        android:backgroundTint="@android:color/transparent" />
+
+</LinearLayout>

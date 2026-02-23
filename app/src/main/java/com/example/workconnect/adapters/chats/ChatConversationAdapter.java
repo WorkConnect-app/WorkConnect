@@ -10,6 +10,9 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.workconnect.R;
 import com.example.workconnect.models.ChatConversation;
+import com.example.workconnect.repository.UserRepository;
+import com.example.workconnect.utils.UserUtils;
+import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.text.DateFormat;
@@ -68,7 +71,6 @@ public class ChatConversationAdapter extends RecyclerView.Adapter<ChatConversati
                     holder.itemView.getContext().getColor(R.color.navyBlue)
             );
         } else {
-            // Use same blue color as groups for direct conversations
             holder.tvTitle.setTextColor(
                     holder.itemView.getContext().getColor(R.color.navyBlue)
             );
@@ -88,8 +90,8 @@ public class ChatConversationAdapter extends RecyclerView.Adapter<ChatConversati
 
         // -----------------------------
         // LAST MESSAGE
-        // - Group: if empty => show members preview
-        // - Direct: just last text (no prefix)
+        // Group: if empty => show members preview
+        // Direct: just last text (no prefix)
         // -----------------------------
         String lastText = conv.getLastMessageText() != null ? conv.getLastMessageText() : "";
         String senderId = conv.getLastMessageSenderId();
@@ -134,7 +136,7 @@ public class ChatConversationAdapter extends RecyclerView.Adapter<ChatConversati
         }
 
         // -----------------------------
-        // UNREAD BADGE (WhatsApp style)
+        // UNREAD BADGE
         // -----------------------------
         long unread = 0;
         try {
@@ -167,7 +169,6 @@ public class ChatConversationAdapter extends RecyclerView.Adapter<ChatConversati
         }
 
         // Display participant names (TextView will show "..." if too long)
-        // Example: "Raphael, David, Yakir, Ayala..."
         List<String> ids = conv.getParticipantIds();
 
         StringBuilder sb = new StringBuilder();
@@ -212,19 +213,11 @@ public class ChatConversationAdapter extends RecyclerView.Adapter<ChatConversati
 
             db.collection("users").document(uid)
                     .get()
-                    .addOnSuccessListener(doc -> {
-                        String first = doc.getString("firstName");
-                        String last  = doc.getString("lastName");
-
-                        String full = ((first != null ? first : "") + " " + (last != null ? last : "")).trim();
-                        if (full.isEmpty()) full = doc.getString("fullName");
-                        if (full == null || full.trim().isEmpty()) full = doc.getString("name");
-                        if (full == null || full.trim().isEmpty()) full = uid;
-
+                    .addOnSuccessListener((DocumentSnapshot doc) -> {
+                        String full = UserUtils.getDisplayNameFromSnapshot(doc, uid);
                         nameCache.put(uid, full);
 
                         // refresh visible row safely
-                        // (On relancera le preview lors du prochain bind; simple & safe)
                         notifyDataSetChanged();
                     });
         }
@@ -234,35 +227,28 @@ public class ChatConversationAdapter extends RecyclerView.Adapter<ChatConversati
      * @param updateLastMessagePrefix if true, we refresh tvLastMessage using the loaded name
      */
     private void loadUserName(String uid, ConversationViewHolder holder, boolean updateLastMessagePrefix) {
-        db.collection("users").document(uid)
-                .get()
-                .addOnSuccessListener(doc -> {
-                    String first = doc.getString("firstName");
-                    String last  = doc.getString("lastName");
+        UserRepository.loadUserName(uid, full -> {
+            if (full != null && !full.isEmpty()) {
+                nameCache.put(uid, full);
 
-                    String full = ((first != null ? first : "") + " " + (last != null ? last : "")).trim();
-                    if (full.isEmpty()) full = doc.getString("fullName");
-                    if (full == null || full.trim().isEmpty()) full = doc.getString("name");
-                    if (full == null || full.trim().isEmpty()) full = uid;
-
-                    nameCache.put(uid, full);
-
-                    if (updateLastMessagePrefix) {
-                        String current = holder.tvLastMessage.getText().toString();
-                        if (current.startsWith("...:")) {
-                            holder.tvLastMessage.setText(full + current.substring(3)); // keeps ": message"
-                        } else if (current.startsWith("...")) {
-                            holder.tvLastMessage.setText(full + ": " + current);
-                        } else {
-                            // if something else, do nothing (avoid corrupting text)
-                        }
+                if (updateLastMessagePrefix) {
+                    String current = holder.tvLastMessage.getText().toString();
+                    if (current.startsWith("...:")) {
+                        holder.tvLastMessage.setText(full + current.substring(3)); // keeps ": message"
+                    } else if (current.startsWith("...")) {
+                        holder.tvLastMessage.setText(full + ": " + current);
                     } else {
-                        holder.tvTitle.setText(full);
+                        // if something else, do nothing (avoid corrupting text)
                     }
-                })
-                .addOnFailureListener(e -> {
-                    if (!updateLastMessagePrefix) holder.tvTitle.setText(uid);
-                });
+                } else {
+                    holder.tvTitle.setText(full);
+                }
+            } else {
+                // Fallback to uid if name not found
+                nameCache.put(uid, uid);
+                if (!updateLastMessagePrefix) holder.tvTitle.setText(uid);
+            }
+        });
     }
 
     @Override

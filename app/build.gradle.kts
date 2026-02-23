@@ -41,19 +41,20 @@ android {
 
 dependencies {
 
-    // 🔹 Enable java.time on API < 26 (Desugaring)
+    // Enable java.time on API < 26 (Desugaring)
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
     implementation("androidx.recyclerview:recyclerview:1.3.2")
 
-    implementation("com.google.android.gms:play-services-auth:21.0.0")
-
-    // 🔹 Firebase (BoM)
+    // Firebase (BoM)
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
     implementation("com.google.firebase:firebase-messaging")
+    
+    // Google Sign-In
+    implementation("com.google.android.gms:play-services-auth:21.2.0")
 
-    // 🔹 AndroidX & UI
+    // AndroidX & UI
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
@@ -64,32 +65,14 @@ dependencies {
     //GPS
     implementation("com.google.android.gms:play-services-location:21.3.0")
 
-    // 🔹 Image loading
+    // Image loading
     implementation("com.github.bumptech.glide:glide:4.16.0")
+    
+    // Agora (audio and video in real time)
+    implementation("io.agora.rtc:full-sdk:4.4.1")
 
-    // 🔹 Testing
     testImplementation(libs.junit)
-    androidTestImplementation ("androidx.test.uiautomator:uiautomator:2.3.0")
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.espresso.core)
 
-    // 🔹 Protobuf (force consistent version - important for Firestore + androidTest)
-    implementation("com.google.protobuf:protobuf-javalite:3.25.3")
-    androidTestImplementation("com.google.protobuf:protobuf-javalite:3.25.3")
-
-    // 🔹 Espresso
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
-
-    // IMPORTANT: exclude protobuf-lite pulled by espresso-contrib -> accessibility-test-framework
-    androidTestImplementation("androidx.test.espresso:espresso-contrib:3.5.1") {
-        exclude(group = "com.google.protobuf", module = "protobuf-lite")
-    }
-
-    androidTestImplementation("androidx.test.ext:junit:1.1.5")
-    androidTestImplementation("androidx.test:rules:1.5.0")
-}
-
-configurations.all {
-    resolutionStrategy {
-        force("com.google.protobuf:protobuf-javalite:3.25.3")
-        force("com.google.protobuf:protobuf-java:3.25.3")
-    }
 }
