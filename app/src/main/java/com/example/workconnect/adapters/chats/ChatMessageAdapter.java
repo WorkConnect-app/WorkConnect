@@ -17,6 +17,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.example.workconnect.R;
 import com.example.workconnect.models.ChatMessage;
 import com.example.workconnect.models.ChatItem;
+import com.example.workconnect.repository.UserRepository;
 import com.example.workconnect.utils.DateHelper;
 import com.google.firebase.firestore.FirebaseFirestore;
 
@@ -346,6 +347,12 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
                 return userName + " was removed from the group";
             case GROUP_OPENED:
                 return userName + " opened this group";
+            case CALL_ENDED:
+            case CALL_MISSED:
+                // For call messages, use the text directly (contains duration or "Missed call")
+                return msg.getText() != null ? msg.getText() : 
+                    (msg.getSystemType() == ChatMessage.SystemMessageType.CALL_MISSED ? 
+                        "Missed call" : "Call ended");
             default:
                 return msg.getText() != null ? msg.getText() : "System message";
         }
@@ -354,18 +361,14 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
     private void loadUserNameForSystemMessage(String uid) {
         if (nameCache.containsKey(uid)) return;
         
-        db.collection("users").document(uid)
-                .get()
-                .addOnSuccessListener(doc -> {
-                    String first = doc.getString("firstName");
-                    String last = doc.getString("lastName");
-                    String full = ((first != null ? first : "") + " " + (last != null ? last : "")).trim();
-                    if (full.isEmpty()) full = doc.getString("fullName");
-                    if (full == null || full.trim().isEmpty()) full = doc.getString("name");
-                    if (full == null || full.trim().isEmpty()) full = uid;
-                    nameCache.put(uid, full);
-                    notifyDataSetChanged(); // Refresh to show correct name
-                });
+        UserRepository.loadUserName(uid, full -> {
+            if (full != null && !full.isEmpty()) {
+                nameCache.put(uid, full);
+            } else {
+                nameCache.put(uid, uid); // Fallback to uid
+            }
+            notifyDataSetChanged(); // Refresh to show correct name
+        });
     }
     
     private void updateReadStatus(MessageViewHolder holder, ChatMessage msg) {
@@ -403,7 +406,6 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
             }
         } else {
             // Direct message: WhatsApp style
-            // ✓ = sent (not received/read yet), ✓✓ = read (blue)
             List<String> readBy = msg.getReadBy();
             boolean isRead = readBy != null && !readBy.isEmpty();
             
@@ -434,7 +436,6 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
 
                     nameCache.put(uid, full);
 
-                    // ⚠️ holder could be recycled; we still set it, it's acceptable for MVP.
                     if (holder.textSenderName != null) {
                         holder.textSenderName.setText(full);
                     }

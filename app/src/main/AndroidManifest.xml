@@ -7,10 +7,19 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    
+    <!-- Agora RTC permissions -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    
+    <!-- Location permissions -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-
-
+    
+    <!-- Features -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 
     <application
         android:name=".WorkConnectApplication"
@@ -27,6 +36,12 @@
         <!-- Chat -->
         <activity android:name=".ui.chat.ChatListActivity" android:exported="false" />
         <activity android:name=".ui.chat.ChatActivity" android:exported="false" />
+        <activity
+            android:name=".ui.chat.CallActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:supportsPictureInPicture="true"
+            android:launchMode="singleTop" />
         <!-- Auth & register screens -->
         <activity android:name=".ui.auth.RegisterTypeActivity" />
         <activity android:name=".ui.auth.RegisterCompanyActivity" />
@@ -105,9 +120,12 @@
             android:name=".ui.company.CompanySettingsActivity"
             android:exported="false" />
 
-
-
-
+        <!-- Call Foreground Service -->
+        <service
+            android:name=".services.CallForegroundService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="phoneCall" />
 
     </application>
 </manifest>

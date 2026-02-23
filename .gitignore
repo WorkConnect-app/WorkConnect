@@ -13,3 +13,5 @@
 .externalNativeBuild
 .cxx
 local.properties
+*.md
+app/src/main/java/com/example/workconnect/adapters/r.txt

@@ -8,7 +8,6 @@ import android.widget.Button;
 import android.widget.EditText;
 
 import androidx.annotation.Nullable;
-import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -17,6 +16,7 @@ import com.example.workconnect.adapters.chats.ChatConversationAdapter;
 import com.example.workconnect.adapters.chats.EmployeeSearchAdapter;
 import com.example.workconnect.models.ChatConversation;
 import com.example.workconnect.models.User;
+import com.example.workconnect.ui.home.BaseDrawerActivity;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldValue;
@@ -33,13 +33,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class ChatListActivity extends AppCompatActivity {
+public class ChatListActivity extends BaseDrawerActivity {
 
     private static final String TAG = "ChatListActivity";
-
-    // Firestore
-    private FirebaseFirestore db;
-    private FirebaseAuth auth;
 
     private String currentUserId;
     private String companyId;
@@ -65,23 +61,18 @@ public class ChatListActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_chat_list);
 
-        auth = FirebaseAuth.getInstance();
-        db = FirebaseFirestore.getInstance();
 
-        if (auth.getCurrentUser() == null) {
-            Log.e(TAG, "auth.getCurrentUser() == null -> finish()");
+        if (mAuth.getCurrentUser() == null) {
+            Log.e(TAG, "mAuth.getCurrentUser() == null -> finish()");
             finish();
             return;
         }
-        currentUserId = auth.getCurrentUser().getUid();
+        currentUserId = mAuth.getCurrentUser().getUid();
         Log.d(TAG, "currentUserId=" + currentUserId);
 
         etSearchEmployee = findViewById(R.id.et_search_employee);
         rvSearchResults  = findViewById(R.id.rv_search_results);
         rvConversations  = findViewById(R.id.rv_conversations);
-
-        Button btnBack = findViewById(R.id.btn_back);
-        btnBack.setOnClickListener(v -> finish());
 
         Button btnNewGroup = findViewById(R.id.btn_new_group);
         btnNewGroup.setOnClickListener(v -> {
