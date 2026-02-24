@@ -41,6 +41,7 @@ android {
 
 dependencies {
 
+    implementation(libs.androidx.lifecycle.livedata)
     // Enable java.time on API < 26 (Desugaring)
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
     implementation("androidx.recyclerview:recyclerview:1.3.2")

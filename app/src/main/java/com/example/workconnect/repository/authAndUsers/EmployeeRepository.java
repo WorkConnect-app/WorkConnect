@@ -74,7 +74,6 @@ public class EmployeeRepository {
         final String fullName = (firstName + " " + lastName).trim();
         final String normalizedCode = companyCode.trim();
 
-        // 1) Find company by code.
         db.collection("companies")
                 .whereEqualTo("code", normalizedCode)
                 .limit(1)
@@ -88,7 +87,6 @@ public class EmployeeRepository {
                     DocumentSnapshot companyDoc = qs.getDocuments().get(0);
                     final String companyId = companyDoc.getId();
 
-                    // 2) Create Firebase Auth user.
                     mAuth.createUserWithEmailAndPassword(email, password)
                             .addOnSuccessListener(authResult -> {
 
@@ -99,7 +97,6 @@ public class EmployeeRepository {
 
                                 final String uid = mAuth.getCurrentUser().getUid();
 
-                                // 3) Create Firestore user document (users/{uid}).
                                 HashMap<String, Object> userData = new HashMap<>();
                                 userData.put("uid", uid);
                                 userData.put("firstName", firstName);
@@ -108,28 +105,22 @@ public class EmployeeRepository {
                                 userData.put("email", email);
                                 userData.put("companyId", companyId);
 
-                                // Initial status & role
                                 userData.put("status", RegisterStatus.PENDING.name());
                                 userData.put("role", Roles.EMPLOYEE.name());
 
-                                // Hierarchy defaults (set later by manager).
                                 userData.put("directManagerId", null);
                                 userData.put("managerChain", new ArrayList<String>());
 
-                                // Vacation defaults.
                                 userData.put("vacationDaysPerMonth", 0.0);
                                 userData.put("vacationBalance", 0.0);
                                 userData.put("lastAccrualDate", null);
 
-                                // Optional org fields (NO "team" anymore).
                                 userData.put("department", "");
                                 userData.put("jobTitle", "");
 
-                                // NEW fields
                                 userData.put("teamIds", new ArrayList<String>());
                                 userData.put("employmentType", null);
 
-                                // joinDate is set on approval.
                                 userData.put("joinDate", null);
 
                                 db.collection("users")
@@ -138,15 +129,15 @@ public class EmployeeRepository {
                                         .addOnSuccessListener(unused -> {
                                             android.util.Log.d("Notif", "✅ user saved. calling notifyManagersEmployeePending. companyId=" + companyId);
 
-                                            notifyManagersEmployeePending(companyId, uid, fullName);
+                                            notifyManagersEmployeePending(companyId, uid, fullName, () -> {
+                                                android.util.Log.d("Notif", "✅ notifyManagersEmployeePending finished. signing out.");
+                                                mAuth.signOut();
+                                                callback.onSuccess();
+                                            });
 
                                             android.util.Log.d("Notif", "✅ notifyManagersEmployeePending called (async)");
-
-                                            mAuth.signOut();
-                                            callback.onSuccess();
                                         })
                                         .addOnFailureListener(e -> {
-                                            // Firestore failed AFTER Auth succeeded => delete Auth user to avoid orphan account.
                                             if (mAuth.getCurrentUser() != null) {
                                                 mAuth.getCurrentUser().delete()
                                                         .addOnCompleteListener(t -> {
@@ -173,9 +164,6 @@ public class EmployeeRepository {
                 });
     }
 
-    /**
-     * Real-time listener for employees with status = PENDING in a given company.
-     */
     public ListenerRegistration listenForPendingEmployees(
             @NonNull String companyId,
             @NonNull PendingEmployeesCallback callback
@@ -205,6 +193,7 @@ public class EmployeeRepository {
                 });
     }
 
+
     /**
      * Updates only the employee's status field.
      */
@@ -224,6 +213,42 @@ public class EmployeeRepository {
                     }
                 });
     }
+
+    private void notifyManagersEmployeePending(
+            @NonNull String companyId,
+            @NonNull String employeeUid,
+            @NonNull String employeeName,
+            @NonNull Runnable onDone
+    ) {
+        db.collection("users")
+                .whereEqualTo("companyId", companyId)
+                .whereEqualTo("role", Roles.MANAGER.name())
+                .get()
+                .addOnSuccessListener(qs -> {
+                    if (qs != null && !qs.isEmpty()) {
+                        WriteBatch batch = db.batch();
+                        for (DocumentSnapshot m : qs.getDocuments()) {
+                            String managerId = m.getId();
+                            NotificationService.addEmployeePendingApprovalForManager(
+                                    batch, managerId, employeeUid, employeeName, companyId
+                            );
+                        }
+                        batch.commit()
+                                .addOnSuccessListener(v -> onDone.run())
+                                .addOnFailureListener(e -> {
+                                    android.util.Log.e("Notif", "❌ notifyManagersEmployeePending failed", e);
+                                    onDone.run();
+                                });
+                    } else {
+                        onDone.run();
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    android.util.Log.e("Notif", "❌ failed to find managers", e);
+                    onDone.run();
+                });
+    }
+
 
     /**
      * Manager enters a direct manager EMAIL in the UI, but we store directManagerId as UID in Firestore.
@@ -548,38 +573,5 @@ public class EmployeeRepository {
             @NonNull SimpleCallback callback
     ) {
         completeManagerProfile(managerUid, vacationDaysPerMonth, department, jobTitle, callback);
-    }
-
-    private void notifyManagersEmployeePending(@NonNull String companyId,
-                                               @NonNull String employeeUid,
-                                               @NonNull String employeeName) {
-
-        db.collection("users")
-                .whereEqualTo("companyId", companyId)
-                .whereEqualTo("role", Roles.MANAGER.name())
-                .get()
-                .addOnSuccessListener(qs -> {
-                    if (qs == null || qs.isEmpty()) return;
-
-                    WriteBatch batch = db.batch();
-
-                    for (DocumentSnapshot m : qs.getDocuments()) {
-                        String managerId = m.getId();
-                        NotificationService.addEmployeePendingApprovalForManager(
-                                batch,
-                                managerId,
-                                employeeUid,
-                                employeeName,
-                                companyId
-                        );
-                    }
-
-                    batch.commit().addOnFailureListener(e ->
-                            android.util.Log.e("Notif", "❌ notifyManagersEmployeePending failed", e)
-                    );
-                })
-                .addOnFailureListener(e ->
-                        android.util.Log.e("Notif", "❌ failed to find managers", e)
-                );
     }
 }

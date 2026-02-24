@@ -17,7 +17,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.example.workconnect.R;
 import com.example.workconnect.models.ChatMessage;
 import com.example.workconnect.models.ChatItem;
-import com.example.workconnect.repository.UserRepository;
+import com.example.workconnect.repository.authAndUsers.UserRepository;
 import com.example.workconnect.utils.DateHelper;
 import com.google.firebase.firestore.FirebaseFirestore;
 

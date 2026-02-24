@@ -55,6 +55,7 @@
                         android:orientation="vertical"
                         android:padding="16dp">
 
+                        <!-- Profile -->
                         <TextView
                             android:id="@+id/tv_full_name"
                             android:layout_width="wrap_content"
@@ -79,6 +80,7 @@
                             android:layout_marginTop="6dp"
                             android:textSize="15sp" />
 
+                        <!-- Divider: Profile -> Attendance -->
                         <View
                             android:layout_width="match_parent"
                             android:layout_height="1dp"
@@ -86,6 +88,39 @@
                             android:layout_marginBottom="12dp"
                             android:background="#DDDDDD" />
 
+                        <!-- Attendance -->
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Attendance"
+                            android:textStyle="bold"
+                            android:textSize="16sp" />
+
+                        <TextView
+                            android:id="@+id/tv_month_hours"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Hours this month: 0.00"
+                            android:layout_marginTop="6dp"
+                            android:textSize="15sp" />
+
+                        <TextView
+                            android:id="@+id/tv_daily_start"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Start time today: --:--"
+                            android:layout_marginTop="6dp"
+                            android:textSize="15sp" />
+
+                        <!-- Divider: Attendance -> Vacation -->
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="1dp"
+                            android:layout_marginTop="12dp"
+                            android:layout_marginBottom="12dp"
+                            android:background="#DDDDDD" />
+
+                        <!-- Vacation -->
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
@@ -109,15 +144,6 @@
                             android:layout_marginTop="6dp"
                             android:textSize="18sp"
                             android:textStyle="bold" />
-
-                        <!-- NEW -->
-                        <TextView
-                            android:id="@+id/tv_month_hours"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Hours this month: 0.00"
-                            android:layout_marginTop="10dp"
-                            android:textSize="15sp" />
 
                         <TextView
                             android:id="@+id/tv_note"

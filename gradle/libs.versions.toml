@@ -20,6 +20,7 @@ uiautomator = "2.3.0"
 agp = "8.13.2"
 kotlin = "1.9.24"
 googleServices = "4.4.2"
+lifecycleLivedata = "2.10.0"
 
 
 [libraries]
@@ -40,6 +41,7 @@ androidx-test-rules = { group = "androidx.test", name = "rules", version.ref = "
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso" }
 androidx-espresso-contrib = { group = "androidx.test.espresso", name = "espresso-contrib", version.ref = "espresso" }
 androidx-uiautomator = { group = "androidx.test.uiautomator", name = "uiautomator", version.ref = "uiautomator" }
+androidx-lifecycle-livedata = { group = "androidx.lifecycle", name = "lifecycle-livedata", version.ref = "lifecycleLivedata" }
 
 
 [plugins]

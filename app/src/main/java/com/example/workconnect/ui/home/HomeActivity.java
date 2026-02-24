@@ -19,9 +19,10 @@ import java.util.Locale;
 public class HomeActivity extends BaseDrawerActivity {
 
     private TextView tvFullName, tvCompanyName, tvStartDate, tvMonthlyQuota, tvVacationBalance;
+    private TextView tvMonthHours, tvDailyStart;
 
-    private TextView tvMonthHours;
     private final AttendanceRepository attendanceRepo = new AttendanceRepository();
+
     private static final DateTimeFormatter MONTH_KEY_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM");
     private final ZoneId companyZone = ZoneId.of("Asia/Jerusalem");
 
@@ -37,11 +38,13 @@ public class HomeActivity extends BaseDrawerActivity {
         tvStartDate = findViewById(R.id.tv_start_date);
         tvMonthlyQuota = findViewById(R.id.tv_monthly_quota);
         tvVacationBalance = findViewById(R.id.tv_vacation_balance);
+
         tvMonthHours = findViewById(R.id.tv_month_hours);
+        tvDailyStart = findViewById(R.id.tv_daily_start);
 
         setupHomeViewModel();
 
-        // Try once (may still be 0 if company not ready yet)
+        // Monthly hours comes from attendance docs
         refreshCurrentMonthHours();
     }
 
@@ -50,7 +53,7 @@ public class HomeActivity extends BaseDrawerActivity {
         super.onResume();
 
         if (homeVm != null) {
-            homeVm.refreshProfileOnce();
+            homeVm.refreshProfileOnce(); // will update todayStartTime via activeAttendance
         }
 
         refreshCurrentMonthHours();
@@ -90,30 +93,26 @@ public class HomeActivity extends BaseDrawerActivity {
     private void setupHomeViewModel() {
         homeVm = new ViewModelProvider(this).get(HomeViewModel.class);
 
-        homeVm.getFullName().observe(this, name -> {
-            String n = normalizeOrDash(name);
+        // Header (MVVM-consistent: observe headerState only)
+        homeVm.getHeaderState().observe(this, s -> {
+            String n = normalizeOrDash(s.fullName);
+            String c = normalizeOrDash(s.companyName);
+            String sid = normalizeOrDash(s.companyShortId);
+
             tvFullName.setText("Name: " + n);
-
-            String c = homeVm.getCompanyName().getValue();
-            updateDrawerHeader(n, normalizeOrDash(c));
+            tvCompanyName.setText("Company: " + c + " , " + sid);
+            updateDrawerHeader(n, c);
         });
 
-        homeVm.getCompanyName().observe(this, company -> {
-            String c = normalizeOrDash(company);
-
-            String shortId = "-";
-            if (cachedCompanyId != null && !cachedCompanyId.trim().isEmpty()) {
-                String id = cachedCompanyId.trim();
-                shortId = id.length() >= 6 ? id.substring(0, 6).toUpperCase() : id.toUpperCase();
-            }
-
-            tvCompanyName.setText("Company: " + c + " , " + shortId);
-
-            String n = homeVm.getFullName().getValue();
-            updateDrawerHeader(normalizeOrDash(n), c);
+        // ✅ Daily start time: from user.activeAttendance.startedAt (VM)
+        homeVm.getTodayStartTime().observe(this, t -> {
+            String time = (t == null || t.trim().isEmpty()) ? "--:--" : t.trim();
+            tvDailyStart.setText("Start time today: " + time);
         });
 
-        homeVm.getStartDate().observe(this, d -> tvStartDate.setText("Start date: " + normalizeOrDash(d)));
+        homeVm.getStartDate().observe(this, d ->
+                tvStartDate.setText("Start date: " + normalizeOrDash(d))
+        );
 
         homeVm.getMonthlyQuota().observe(this, q -> {
             String text = (q == null || q.trim().isEmpty()) ? "-" : q.trim();
