@@ -8,48 +8,76 @@ import java.util.Date;
 import java.util.List;
 
 /**
- * Model class representing a user in the system.
+ * Model representing a user in the system.
  * Stored in Firestore under the "users" collection.
  */
 public class User {
 
     // ===== Identity / Basic Info =====
+
+    // Firebase Authentication UID
     private String uid;
+
     private String firstName;
     private String lastName;
+
+    // Full name (can be pre-calculated for easier display/search)
     private String fullName;
+
     private String email;
 
     // ===== Organization =====
+
+    // Company the user belongs to
     private String companyId;
+
+    // Registration approval status (PENDING / APPROVED / REJECTED)
     private RegisterStatus status;
+
+    // User role (EMPLOYEE / MANAGER / ADMIN)
     private Roles role;
 
+    // Direct manager id (for hierarchy)
     private String directManagerId;
+
+    // Full management chain (useful for approval flows)
     private List<String> managerChain;
 
     private String department;
     private String jobTitle;
 
-    // NEW: Teams (0..N)
+    // Teams the user belongs to (0..N)
     private List<String> teamIds;
 
-    // NEW: Employment type
-    // Example values: "FULL_TIME", "SHIFT_BASED"
+    // Employment type (e.g. FULL_TIME / SHIFT_BASED)
     private String employmentType;
 
     // ===== Vacation / Accrual =====
+
+    // Monthly vacation accrual
     private Double vacationDaysPerMonth;
+
+    // Current available vacation balance
     private Double vacationBalance;
+
+    // Last date vacation was accrued (yyyy-MM-dd format)
     private String lastAccrualDate;
+
+    // Employment start date
     private Date joinDate;
 
+    /**
+     * Required empty constructor for Firestore.
+     * Also ensures lists are initialized to avoid NullPointerException.
+     */
     public User() {
-        // Ensure non-null list to avoid NPEs in UI code
         this.teamIds = new ArrayList<>();
-        managerChain = new ArrayList<>();
+        this.managerChain = new ArrayList<>();
     }
 
+    /**
+     * Full constructor used when manually creating a User object.
+     */
     public User(String uid,
                 String firstName,
                 String lastName,
@@ -79,7 +107,9 @@ public class User {
         this.status = status;
         this.role = role;
         this.directManagerId = directManagerId;
-        this.managerChain = managerChain;
+
+        // Ensure lists are never null
+        this.managerChain = (managerChain != null) ? managerChain : new ArrayList<>();
 
         this.department = department;
         this.jobTitle = jobTitle;
@@ -94,6 +124,7 @@ public class User {
     }
 
     // ===== Getters & Setters =====
+
     public String getUid() { return uid; }
     public void setUid(String uid) { this.uid = uid; }
 
@@ -122,7 +153,9 @@ public class User {
     public void setDirectManagerId(String directManagerId) { this.directManagerId = directManagerId; }
 
     public List<String> getManagerChain() { return managerChain; }
-    public void setManagerChain(List<String> managerChain) { this.managerChain = managerChain; }
+    public void setManagerChain(List<String> managerChain) {
+        this.managerChain = (managerChain != null) ? managerChain : new ArrayList<>();
+    }
 
     public String getDepartment() { return department; }
     public void setDepartment(String department) { this.department = department; }
@@ -130,10 +163,14 @@ public class User {
     public String getJobTitle() { return jobTitle; }
     public void setJobTitle(String jobTitle) { this.jobTitle = jobTitle; }
 
+    /**
+     * Ensures teamIds list is never null when accessed.
+     */
     public List<String> getTeamIds() {
         if (teamIds == null) teamIds = new ArrayList<>();
         return teamIds;
     }
+
     public void setTeamIds(List<String> teamIds) {
         this.teamIds = (teamIds != null) ? teamIds : new ArrayList<>();
     }

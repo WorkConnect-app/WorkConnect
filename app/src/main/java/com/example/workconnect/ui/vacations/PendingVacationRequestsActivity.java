@@ -11,13 +11,14 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.workconnect.R;
 import com.example.workconnect.adapters.vacations.PendingVacationRequestsAdapter;
+import com.example.workconnect.ui.home.BaseDrawerActivity;
 import com.example.workconnect.viewModels.vacations.PendingVacationRequestsViewModel;
 import com.google.firebase.auth.FirebaseAuth;
 
 /**
  * Screen for managers to view and handle pending vacation requests.
  */
-public class PendingVacationRequestsActivity extends AppCompatActivity {
+public class PendingVacationRequestsActivity extends BaseDrawerActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -60,10 +61,6 @@ public class PendingVacationRequestsActivity extends AppCompatActivity {
                 });
 
         rv.setAdapter(adapter);
-
-        // Back button
-        Button btnBack = findViewById(R.id.btn_back);
-        btnBack.setOnClickListener(v -> finish());
 
         // Load pending requests for this manager
         vm.load(managerId);

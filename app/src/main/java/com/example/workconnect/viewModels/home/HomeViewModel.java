@@ -81,7 +81,7 @@ public class HomeViewModel extends ViewModel {
     public LiveData<Boolean> getLoading() { return loading; }
     public LiveData<String> getError() { return error; }
 
-    // ✅ Attendance (daily start time) from user.activeAttendance.startedAt
+    // Attendance (daily start time) from user.activeAttendance.startedAt
     public LiveData<String> getTodayStartTime() { return todayStartTime; }
 
     /**

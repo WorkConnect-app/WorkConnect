@@ -16,20 +16,32 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
+/**
+ * Adapter for showing vacation requests of the current user.
+ * Displays date range and request status.
+ */
 public class VacationRequestsAdapter extends RecyclerView.Adapter<VacationRequestsAdapter.VH> {
 
+    // List holding vacation requests
     private final List<VacationRequest> items = new ArrayList<>();
-    private final SimpleDateFormat df = new SimpleDateFormat("dd/MM/yyyy", Locale.getDefault());
 
+    // Date formatter for displaying start/end dates
+    private final SimpleDateFormat df =
+            new SimpleDateFormat("dd/MM/yyyy", Locale.getDefault());
+
+    /**
+     * Replace current data with new list.
+     */
     public void submit(List<VacationRequest> list) {
         items.clear();
         if (list != null) items.addAll(list);
-        notifyDataSetChanged();
+        notifyDataSetChanged(); // full refresh
     }
 
     @NonNull
     @Override
     public VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        // Inflate single vacation request layout
         View v = LayoutInflater.from(parent.getContext())
                 .inflate(R.layout.item_vacation_request, parent, false);
         return new VH(v);
@@ -37,15 +49,26 @@ public class VacationRequestsAdapter extends RecyclerView.Adapter<VacationReques
 
     @Override
     public void onBindViewHolder(@NonNull VH h, int position) {
+        // Get current request
         VacationRequest r = items.get(position);
 
+        // Store id as tag (optional use)
         h.itemView.setTag(r.getId());
 
-        String start = (r.getStartDate() != null) ? df.format(r.getStartDate()) : "";
-        String end = (r.getEndDate() != null) ? df.format(r.getEndDate()) : "";
+        // Format start and end dates
+        String start = (r.getStartDate() != null)
+                ? df.format(r.getStartDate())
+                : "";
+        String end = (r.getEndDate() != null)
+                ? df.format(r.getEndDate())
+                : "";
+
         h.tvVacationDate.setText(start + " → " + end);
 
-        String status = (r.getStatus() != null) ? r.getStatus().toString() : "";
+        // Show status (APPROVED / REJECTED / PENDING)
+        String status = (r.getStatus() != null)
+                ? r.getStatus().toString()
+                : "";
         h.tvVacationStatus.setText(status);
     }
 
@@ -54,7 +77,11 @@ public class VacationRequestsAdapter extends RecyclerView.Adapter<VacationReques
         return items.size();
     }
 
+    /**
+     * ViewHolder holding references to item views.
+     */
     static class VH extends RecyclerView.ViewHolder {
+
         TextView tvVacationDate, tvVacationStatus;
 
         VH(@NonNull View itemView) {
