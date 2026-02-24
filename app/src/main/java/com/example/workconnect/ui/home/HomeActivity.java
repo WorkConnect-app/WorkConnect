@@ -40,7 +40,6 @@ public class HomeActivity extends BaseDrawerActivity {
         tvVacationBalance = findViewById(R.id.tv_vacation_balance);
 
         tvMonthHours = findViewById(R.id.tv_month_hours);
-        tvDailyStart = findViewById(R.id.tv_daily_start);
 
         setupHomeViewModel();
 
@@ -104,11 +103,6 @@ public class HomeActivity extends BaseDrawerActivity {
             updateDrawerHeader(n, c);
         });
 
-        // ✅ Daily start time: from user.activeAttendance.startedAt (VM)
-        homeVm.getTodayStartTime().observe(this, t -> {
-            String time = (t == null || t.trim().isEmpty()) ? "--:--" : t.trim();
-            tvDailyStart.setText("Start time today: " + time);
-        });
 
         homeVm.getStartDate().observe(this, d ->
                 tvStartDate.setText("Start date: " + normalizeOrDash(d))
