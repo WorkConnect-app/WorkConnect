@@ -118,16 +118,12 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
                 R.string.navigation_drawer_close
         );
 
-        // NOTE: Force hamburger/arrow color (fixes black icon)
         toggle.getDrawerArrowDrawable().setColor(
-                ContextCompat.getColor(this, R.color.primaryBlue)
+                ContextCompat.getColor(this, R.color.black)
         );
 
         drawerLayout.addDrawerListener(toggle);
         toggle.syncState();
-
-        // (optional) if you want black:
-        toggle.getDrawerArrowDrawable().setColor(getResources().getColor(android.R.color.black));
 
         // NOTE: Hide management until role is loaded
         navView.getMenu().setGroupVisible(R.id.group_management, false);
@@ -383,8 +379,25 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
                     // show management
                     navView.getMenu().setGroupVisible(R.id.group_management, cachedIsManager);
 
-                    // header
-                    updateDrawerHeader(doc.getString("fullName"), doc.getString("companyName"));
+                    // ✅ header: set name immediately
+                    String fullName = doc.getString("fullName");
+                    updateDrawerHeader(fullName, "-");
+
+                    // ✅ fetch company name by companyId
+                    if (cachedCompanyId != null) {
+                        db.collection("companies")
+                                .document(cachedCompanyId)
+                                .get()
+                                .addOnSuccessListener(cDoc -> {
+                                    String companyName = null;
+                                    if (cDoc != null && cDoc.exists()) {
+                                        companyName = cDoc.getString("name");
+                                        if (companyName == null) companyName = cDoc.getString("companyName");
+                                    }
+                                    updateDrawerHeader(fullName, companyName);
+                                })
+                                .addOnFailureListener(e -> updateDrawerHeader(fullName, "-"));
+                    }
 
                     onCompanyStateLoaded();
                 });

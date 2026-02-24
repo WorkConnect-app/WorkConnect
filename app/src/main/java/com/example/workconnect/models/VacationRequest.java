@@ -47,7 +47,7 @@ public class VacationRequest {
     private Boolean balanceDeducted;
 
     /**
-     * Empty constructor required for Firebase / Firestore deserialization.
+     * Required empty constructor for Firestore.
      */
     public VacationRequest() {
     }
