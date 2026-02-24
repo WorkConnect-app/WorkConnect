@@ -1,4 +1,4 @@
-package com.example.workconnect.repository;
+package com.example.workconnect.repository.authAndUsers;
 
 import android.util.Log;
 import com.example.workconnect.models.User;

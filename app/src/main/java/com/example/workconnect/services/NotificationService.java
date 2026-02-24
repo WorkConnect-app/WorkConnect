@@ -91,20 +91,14 @@ public class NotificationService {
         data.put("employeeId", employeeId);
         data.put("companyId", companyId);
 
-        // נבנה Map כדי להוסיף createdAt serverTimestamp (ולא להיתקע בלי createdAt)
-        Map<String, Object> notif = new HashMap<>();
-        notif.put("type", "EMPLOYEE_PENDING_APPROVAL");
-        notif.put("title", "New employee pending approval ✅");
-        notif.put("body", employeeName + " is waiting for approval");
-        notif.put("read", false);
-        notif.put("createdAt", FieldValue.serverTimestamp());
-        notif.put("data", data);
+        AppNotification n = new AppNotification(
+                "EMPLOYEE_PENDING_APPROVAL",
+                "New employee pending approval ",
+                employeeName + " is waiting for approval",
+                data
+        );
 
-        DocumentReference notifRef = FirebaseFirestore.getInstance()
-                .collection("users").document(managerId)
-                .collection("notifications").document();
-
-        batch.set(notifRef, notif);
+        batch.set(newNotifRef(managerId), n);
     }
 
     // בהמשך: addShiftAssigned, addSwapApproved וכו'

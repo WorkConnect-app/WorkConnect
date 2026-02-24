@@ -28,13 +28,11 @@ import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.example.workconnect.R;
 import com.example.workconnect.config.AgoraConfig;
 import com.example.workconnect.models.Call;
-import com.example.workconnect.models.User;
 import com.example.workconnect.repository.CallRepository;
 import com.example.workconnect.repository.chat.MessageRepository;
-import com.example.workconnect.repository.UserRepository;
+import com.example.workconnect.repository.authAndUsers.UserRepository;
 import com.example.workconnect.utils.AgoraErrorHandler;
 import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 

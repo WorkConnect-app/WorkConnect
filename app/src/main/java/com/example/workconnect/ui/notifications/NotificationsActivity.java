@@ -13,6 +13,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.example.workconnect.R;
 import com.example.workconnect.adapters.notifications.NotificationsAdapter;
 import com.example.workconnect.repository.notifications.NotificationsRepository;
+import com.example.workconnect.ui.auth.PendingEmployeesActivity;
 import com.example.workconnect.ui.vacations.PendingVacationRequestsActivity;
 import com.example.workconnect.ui.vacations.VacationRequestsActivity;
 import com.google.firebase.auth.FirebaseAuth;
@@ -43,35 +44,42 @@ public class NotificationsActivity extends AppCompatActivity {
 
         NotificationsAdapter adapter = new NotificationsAdapter(n -> {
 
-            // delete after click
-            if (n.getId() != null) {
-                repo.deleteNotification(uid, n.getId());
-            } else {
-                Log.e(TAG, "Clicked notification has null id");
-            }
-
-            // navigation by type
             String type = n.getType();
 
             if ("EMPLOYEE_PENDING_APPROVAL".equals(type)) {
-                // ✅ עובד חדש מחכה לאישור
-                startActivity(new Intent(this, com.example.workconnect.ui.auth.PendingEmployeesActivity.class));
+                String companyId = null;
+                if (n.getData() != null) {
+                    Object v = n.getData().get("companyId");
+                    if (v != null) companyId = String.valueOf(v);
+                }
 
-            } else if ("VACATION_NEW_REQUEST".equals(type)) {
-                // ✅ בקשת חופשה חדשה שממתינה לאישור
-                startActivity(new Intent(this, PendingVacationRequestsActivity.class));
+                if (companyId == null || companyId.trim().isEmpty()) {
+                    Toast.makeText(this, "Missing companyId in notification", Toast.LENGTH_SHORT).show();
+                    return;
+                }
 
-            } else if ("VACATION_APPROVED".equals(type)) {
-                // ✅ חופשה אושרה
-                startActivity(new Intent(this, VacationRequestsActivity.class));
+                Intent i = new Intent(this, PendingEmployeesActivity.class);
+                i.putExtra("companyId", companyId);
+                startActivity(i);
 
-            } else if ("VACATION_REJECTED".equals(type)) {
-                // ❌ חופשה נדחתה
-                startActivity(new Intent(this, VacationRequestsActivity.class));
-
-            } else {
-                Log.w(TAG, "Unknown notification type: " + type);
+                // delete only after successful navigation
+                if (n.getId() != null) repo.deleteNotification(uid, n.getId());
+                return;
             }
+
+            if ("VACATION_NEW_REQUEST".equals(type)) {
+                startActivity(new Intent(this, PendingVacationRequestsActivity.class));
+                if (n.getId() != null) repo.deleteNotification(uid, n.getId());
+                return;
+            }
+
+            if ("VACATION_APPROVED".equals(type) || "VACATION_REJECTED".equals(type)) {
+                startActivity(new Intent(this, VacationRequestsActivity.class));
+                if (n.getId() != null) repo.deleteNotification(uid, n.getId());
+                return;
+            }
+
+            Log.w(TAG, "Unknown notification type: " + type);
         });
 
         rv.setAdapter(adapter);
