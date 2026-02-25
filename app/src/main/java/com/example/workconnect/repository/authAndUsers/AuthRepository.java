@@ -11,35 +11,44 @@ import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 /**
- * Handles authentication logic (Email/Password + Google login).
- * Also validates that a matching user profile exists in Firestore.
+ * Repository responsible for authentication operations.
+ * Supports Email/Password and Google authentication.
+ * After authentication, validates that a corresponding user
+ * document exists in Firestore.
  */
 public class AuthRepository {
 
+    // FirebaseAuth instance used for authentication operations
     private final FirebaseAuth mAuth = FirebaseAuth.getInstance();
+
+    // Firestore instance used to retrieve user profile data
     private final FirebaseFirestore db = FirebaseFirestore.getInstance();
 
     /**
      * Callback for Google login flow.
-     * Used both for real Google login and internal validation reuse.
+     * Separates between existing user and new user cases.
      */
     public interface GoogleLoginCallback {
-        void onExistingUserSuccess(String role);
-        void onNewUserNeedsRegistration(); // User authenticated but no users/{uid} document
+        void onExistingUserSuccess(String role, String status, boolean profileCompleted);
+        void onNewUserNeedsRegistration();
         void onError(String message);
     }
 
     /**
-     * Callback for email/password login.
+     * Callback for Email/Password login.
      */
     public interface LoginCallback {
-        void onSuccess(String role);
+        void onSuccess(String role, String status, boolean profileCompleted);
         void onError(String message);
     }
 
+    // =========================
+    // Email login
+    // =========================
+
     /**
-     * Login using email and password.
-     * After FirebaseAuth success, verifies user profile in Firestore.
+     * Attempts login using email and password.
+     * After successful authentication, validates user document in Firestore.
      */
     public void login(@NonNull String email,
                       @NonNull String password,
@@ -48,7 +57,7 @@ public class AuthRepository {
         mAuth.signInWithEmailAndPassword(email, password)
                 .addOnSuccessListener(authResult -> {
 
-                    // Safety check
+                    // Extra safety check – theoretically shouldn't be null after success
                     if (mAuth.getCurrentUser() == null) {
                         callback.onError("Login succeeded but user is null");
                         return;
@@ -56,28 +65,28 @@ public class AuthRepository {
 
                     final String uid = mAuth.getCurrentUser().getUid();
 
-                    // Fetch user profile from Firestore
+                    // Retrieve corresponding user document from Firestore
                     db.collection("users").document(uid)
                             .get()
                             .addOnSuccessListener(snapshot -> {
 
-                                // If no profile exists -> treat as error
+                                // If user document does not exist - force sign out
                                 if (snapshot == null || !snapshot.exists()) {
                                     mAuth.signOut();
                                     callback.onError("User data not found");
                                     return;
                                 }
 
-                                // Reuse same validation logic as Google login
-                                validateSnapshotAndReturnRole(snapshot, new GoogleLoginCallback() {
+                                // Reuse common validation logic
+                                validateSnapshotAndReturnRoleAndStatus(snapshot, new GoogleLoginCallback() {
                                     @Override
-                                    public void onExistingUserSuccess(String role) {
-                                        callback.onSuccess(role);
+                                    public void onExistingUserSuccess(String role, String status, boolean profileCompleted) {
+                                        callback.onSuccess(role, status, profileCompleted);
                                     }
 
                                     @Override
                                     public void onNewUserNeedsRegistration() {
-                                        // Email/password users are expected to have a profile
+                                        // Email login should not reach this state
                                         mAuth.signOut();
                                         callback.onError("User profile missing");
                                     }
@@ -89,27 +98,23 @@ public class AuthRepository {
                                 });
                             })
                             .addOnFailureListener(e -> {
+                                // On Firestore failure, invalidate session
                                 mAuth.signOut();
-                                callback.onError(
-                                        e.getMessage() == null ?
-                                                "Error loading user data" :
-                                                e.getMessage()
-                                );
+                                callback.onError(e.getMessage() == null ? "Error loading user data" : e.getMessage());
                             });
                 })
                 .addOnFailureListener(e ->
-                        callback.onError(
-                                e.getMessage() == null ?
-                                        "Login failed" :
-                                        e.getMessage()
-                        )
+                        callback.onError(e.getMessage() == null ? "Login failed" : e.getMessage())
                 );
     }
 
+    // =========================
+    // Google login
+    // =========================
+
     /**
-     * Login using Google ID token.
-     * If user exists in Firestore -> continue.
-     * If not -> user must complete registration.
+     * Authenticates user using Google ID token.
+     * If Firestore document does not exist - considered new user.
      */
     public void loginWithGoogleIdToken(@NonNull String idToken,
                                        @NonNull GoogleLoginCallback callback) {
@@ -126,68 +131,59 @@ public class AuthRepository {
 
                     String uid = mAuth.getCurrentUser().getUid();
 
-                    // Check if profile already exists
                     db.collection("users").document(uid)
                             .get()
                             .addOnSuccessListener(snapshot -> {
 
+                                // No Firestore document - user must complete registration
                                 if (snapshot == null || !snapshot.exists()) {
-                                    // Authenticated with Google, but no profile in app yet
                                     callback.onNewUserNeedsRegistration();
                                     return;
                                 }
 
-                                validateSnapshotAndReturnRole(snapshot, callback);
+                                validateSnapshotAndReturnRoleAndStatus(snapshot, callback);
                             })
                             .addOnFailureListener(e ->
-                                    callback.onError(
-                                            e.getMessage() == null ?
-                                                    "Error loading user data" :
-                                                    e.getMessage()
-                                    )
+                                    callback.onError(e.getMessage() == null ? "Error loading user data" : e.getMessage())
                             );
                 })
                 .addOnFailureListener(e ->
-                        callback.onError(
-                                e.getMessage() == null ?
-                                        "Google login failed" :
-                                        e.getMessage()
-                        )
+                        callback.onError(e.getMessage() == null ? "Google login failed" : e.getMessage())
                 );
     }
 
+    // =========================
+    // Snapshot parsing
+    // =========================
+
     /**
-     * Validates role and status from Firestore snapshot.
-     * Ensures role is valid and employee accounts are approved.
+     * Extracts role and status from Firestore snapshot.
+     * Performs enum validation to prevent invalid values.
      */
-    private void validateSnapshotAndReturnRole(@NonNull DocumentSnapshot snapshot,
-                                               @NonNull GoogleLoginCallback callback) {
+    private void validateSnapshotAndReturnRoleAndStatus(@NonNull DocumentSnapshot snapshot,
+                                                        @NonNull GoogleLoginCallback callback) {
 
         String roleStr = snapshot.getString("role");
         String statusStr = snapshot.getString("status");
 
         Roles role;
+        RegisterStatus status = null;
 
-        // Parse role safely
         try {
-            if (roleStr == null || roleStr.trim().isEmpty())
+            // Validate role existence and enum compatibility
+            if (roleStr == null || roleStr.trim().isEmpty()) {
                 throw new IllegalArgumentException("Missing role");
-
+            }
             role = Roles.valueOf(roleStr.trim().toUpperCase());
-
         } catch (IllegalArgumentException e) {
-            mAuth.signOut();
+            mAuth.signOut(); // Prevent inconsistent session
             callback.onError("Invalid user role");
             return;
         }
 
-        RegisterStatus status;
-
-        // Parse register status safely
         try {
-            if (statusStr == null || statusStr.trim().isEmpty()) {
-                status = null;
-            } else {
+            // Status may be null (e.g., managers without approval flow)
+            if (statusStr != null && !statusStr.trim().isEmpty()) {
                 status = RegisterStatus.valueOf(statusStr.trim().toUpperCase());
             }
         } catch (IllegalArgumentException e) {
@@ -196,14 +192,14 @@ public class AuthRepository {
             return;
         }
 
-        // Business rule: Employees must be approved before login
-        if (role == Roles.EMPLOYEE && status != RegisterStatus.APPROVED) {
-            mAuth.signOut();
-            callback.onError("User account is not approved yet");
-            return;
-        }
+        // Default to false if field is missing
+        Boolean pc = snapshot.getBoolean("profileCompleted");
+        boolean profileCompleted = pc != null && pc;
 
-        // Everything valid → return role
-        callback.onExistingUserSuccess(role.name());
+        callback.onExistingUserSuccess(
+                role.name(),
+                status == null ? null : status.name(),
+                profileCompleted
+        );
     }
 }

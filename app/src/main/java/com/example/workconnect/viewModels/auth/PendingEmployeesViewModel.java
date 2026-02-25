@@ -47,7 +47,6 @@ public class PendingEmployeesViewModel extends ViewModel {
 
     /**
      * Teams list for the approval dialog spinner.
-     * NOTE: this expects TeamRepository.listenTeamsForCompany(companyId) to exist.
      */
     public LiveData<List<Team>> getTeamsForCompany(String companyId) {
         if (teamsLiveData == null) {
@@ -84,8 +83,7 @@ public class PendingEmployeesViewModel extends ViewModel {
     }
 
     /**
-     * Approve employee with full details – role, manager, vacation accrual etc.
-     * team is REMOVED; we now pass optional selectedTeamId + employmentType.
+     * Approve employee with full details.
      */
     public void approveEmployee(
             String uid,

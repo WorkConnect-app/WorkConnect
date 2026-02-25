@@ -19,6 +19,11 @@ import com.example.workconnect.ui.chat.ChatListActivity;
 import com.example.workconnect.ui.vacations.PendingVacationRequestsActivity;
 import com.example.workconnect.ui.vacations.VacationRequestsActivity;
 import com.google.firebase.auth.FirebaseAuth;
+import com.example.workconnect.ui.shifts.MyShiftsActivity;
+import com.example.workconnect.ui.shifts.ShiftReplacementActivity;
+import com.example.workconnect.ui.shifts.SwapApprovalsActivity;
+import com.example.workconnect.ui.attendance.AttendanceActivity;
+import com.example.workconnect.ui.home.HomeActivity;
 
 /**
  * Displays the current user's in-app notifications.
@@ -118,21 +123,44 @@ public class NotificationsActivity extends AppCompatActivity {
                 return;
             }
 
-            
-            // Chat / Call / Group notifications
+            // =========================================
+            // Shift notifications
+            // =========================================
+            if ("SHIFT_ASSIGNED".equals(type)
+                    || "SHIFT_CHANGED".equals(type)
+                    || "SHIFT_REMOVED".equals(type)) {
+
+                String companyId = null;
+                if (n.getData() != null) {
+                    Object v = n.getData().get("companyId");
+                    if (v != null) companyId = String.valueOf(v);
+                }
+
+                Intent i = new Intent(this, MyShiftsActivity.class);
+                if (companyId != null) {
+                    i.putExtra("companyId", companyId);
+                }
+                startActivity(i);
+
+                if (n.getId() != null) {
+                    repo.deleteNotification(uid, n.getId());
+                }
+                return;
+            }
+
+            // =========================================
+            // Chat notifications
+            // =========================================
             if ("CHAT_NEW_MESSAGE".equals(type)
                     || "CHAT_GROUP_MESSAGE".equals(type)
                     || "GROUP_CALL_STARTED".equals(type)
                     || "MISSED_CALL".equals(type)
                     || "ADDED_TO_GROUP".equals(type)) {
 
-                String conversationId = null;
-                if (n.getData() != null) {
-                    Object v = n.getData().get("conversationId");
-                    if (v != null) conversationId = String.valueOf(v);
-                }
-
-                if (conversationId != null && !conversationId.trim().isEmpty()) {
+                // Open the relevant conversation directly
+                String conversationId = n.getData() != null
+                        ? (String) n.getData().get("conversationId") : null;
+                if (conversationId != null) {
                     Intent i = new Intent(this, ChatActivity.class);
                     i.putExtra("conversationId", conversationId);
                     startActivity(i);
@@ -146,7 +174,93 @@ public class NotificationsActivity extends AppCompatActivity {
                 return;
             }
 
+            // =========================================
+            // Swap notifications
+            // =========================================
+            if ("SWAP_OFFER_RECEIVED".equals(type)
+                    || "SWAP_APPROVED".equals(type)
+                    || "SWAP_REJECTED".equals(type)) {
+
+                String companyId = null;
+                if (n.getData() != null) {
+                    Object v = n.getData().get("companyId");
+                    if (v != null) companyId = String.valueOf(v);
+                }
+
+                Intent i = new Intent(this, ShiftReplacementActivity.class);
+                if (companyId != null) {
+                    i.putExtra("companyId", companyId);
+                }
+                startActivity(i);
+
+                if (n.getId() != null) {
+                    repo.deleteNotification(uid, n.getId());
+                }
+                return;
+            }
+
+            if ("SWAP_SENT_FOR_APPROVAL".equals(type)) {
+
+                String companyId = null;
+                if (n.getData() != null) {
+                    Object v = n.getData().get("companyId");
+                    if (v != null) companyId = String.valueOf(v);
+                }
+
+                Intent i = new Intent(this, SwapApprovalsActivity.class);
+                if (companyId != null) {
+                    i.putExtra("companyId", companyId);
+                }
+                startActivity(i);
+
+                if (n.getId() != null) {
+                    repo.deleteNotification(uid, n.getId());
+                }
+                return;
+            }
+
+            // =========================================
+            // Attendance notifications
+            // =========================================
+            if ("ATTENDANCE_AUTO_ENDED".equals(type)) {
+
+                String companyId = null;
+                if (n.getData() != null) {
+                    Object v = n.getData().get("companyId");
+                    if (v != null) companyId = String.valueOf(v);
+                }
+
+                Intent i = new Intent(this, AttendanceActivity.class);
+                if (companyId != null) {
+                    i.putExtra("companyId", companyId);
+                }
+                startActivity(i);
+
+                if (n.getId() != null) {
+                    repo.deleteNotification(uid, n.getId());
+                }
+                return;
+            }
+
+            // =========================================
+            // Payslip notifications
+            // =========================================
+            if ("PAYSLIP_UPLOADED".equals(type)
+                    || "PAYSLIP_DELETED".equals(type)) {
+
+                startActivity(new Intent(this, HomeActivity.class));
+
+                if (n.getId() != null) {
+                    repo.deleteNotification(uid, n.getId());
+                }
+                return;
+            }
+
+            // =========================================
+            // Removed from group
+            // =========================================
             if ("REMOVED_FROM_GROUP".equals(type)) {
+                // User is no longer a member — open chat list instead
                 startActivity(new Intent(this, ChatListActivity.class));
 
                 if (n.getId() != null) {

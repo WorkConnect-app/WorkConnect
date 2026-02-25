@@ -20,7 +20,13 @@ import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
 import com.google.android.gms.auth.api.signin.GoogleSignInClient;
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
 import com.google.android.gms.common.api.ApiException;
+import com.google.firebase.auth.FirebaseAuth;
 
+/**
+ * Login screen:
+ * - Email/password login
+ * - Google login
+ */
 public class LoginActivity extends AppCompatActivity {
 
     private EditText etEmail, etPassword;
@@ -28,9 +34,9 @@ public class LoginActivity extends AppCompatActivity {
     private Button btnGoogleLogin;
 
     private LoginViewModel viewModel;
-
     private GoogleSignInClient googleClient;
 
+    // Handles Google sign-in result
     private final ActivityResultLauncher<Intent> googleLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
                 if (result.getData() == null) {
@@ -54,6 +60,7 @@ public class LoginActivity extends AppCompatActivity {
                         return;
                     }
 
+                    // Delegate actual login logic to ViewModel
                     viewModel.loginWithGoogleIdToken(idToken);
 
                 } catch (ApiException e) {
@@ -66,22 +73,23 @@ public class LoginActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.login_activity);
 
+        // Bind UI elements
         etEmail = findViewById(R.id.Email);
         etPassword = findViewById(R.id.password);
         btnLogin = findViewById(R.id.log_in);
         btnRegister = findViewById(R.id.Register);
-
-        // add this id in XML
         btnGoogleLogin = findViewById(R.id.btn_google_login);
 
         viewModel = new ViewModelProvider(this).get(LoginViewModel.class);
 
         setupGoogleClient();
 
+        // Email/password login
         btnLogin.setOnClickListener(v -> {
             String email = etEmail.getText().toString().trim();
             String password = etPassword.getText().toString().trim();
 
+            // Basic client-side validation
             if (TextUtils.isEmpty(email)) {
                 etEmail.setError("Email is required");
                 etEmail.requestFocus();
@@ -96,11 +104,12 @@ public class LoginActivity extends AppCompatActivity {
             viewModel.login(email, password);
         });
 
+        // Google login (force account chooser)
         btnGoogleLogin.setOnClickListener(v -> {
-            Intent signInIntent = googleClient.getSignInIntent();
-            googleLauncher.launch(signInIntent);
+            fullSignOutGoogleThenLaunch();
         });
 
+        // Navigate to registration type selection
         btnRegister.setOnClickListener(v ->
                 startActivity(new Intent(this, RegisterTypeActivity.class))
         );
@@ -108,8 +117,8 @@ public class LoginActivity extends AppCompatActivity {
         observeViewModel();
     }
 
+    // Configure GoogleSignIn client
     private void setupGoogleClient() {
-        // IMPORTANT: default_web_client_id comes from google-services.json
         GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
                 .requestIdToken(getString(R.string.default_web_client_id))
                 .requestEmail()
@@ -118,7 +127,38 @@ public class LoginActivity extends AppCompatActivity {
         googleClient = GoogleSignIn.getClient(this, gso);
     }
 
+    /**
+     * Full sign out: Firebase + Google.
+     * Ensures account chooser appears instead of auto-login.
+     */
+    private void fullSignOutGoogleThenLaunch() {
+        FirebaseAuth.getInstance().signOut();
+
+        if (googleClient == null) {
+            setupGoogleClient();
+        }
+
+        googleClient.revokeAccess().addOnCompleteListener(task ->
+                googleClient.signOut().addOnCompleteListener(task2 -> {
+                    Intent signInIntent = googleClient.getSignInIntent();
+                    googleLauncher.launch(signInIntent);
+                })
+        );
+    }
+
+    // Used when we only need to clear session silently
+    private void fullSignOutOnly() {
+        FirebaseAuth.getInstance().signOut();
+        if (googleClient != null) {
+            googleClient.revokeAccess();
+            googleClient.signOut();
+        }
+    }
+
+    // Observe ViewModel state (loading, errors, navigation)
     private void observeViewModel() {
+
+        // Disable buttons while loading
         viewModel.getIsLoading().observe(this, isLoading -> {
             boolean loading = isLoading != null && isLoading;
             btnLogin.setEnabled(!loading);
@@ -126,33 +166,50 @@ public class LoginActivity extends AppCompatActivity {
             btnGoogleLogin.setEnabled(!loading);
         });
 
+        // Show error messages
         viewModel.getErrorMessage().observe(this, msg -> {
             if (!TextUtils.isEmpty(msg)) {
                 Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+
+                // If user is pending/rejected - force full logout
+                if ("Waiting for manager approval".equals(msg)
+                        || "Your registration was rejected by the manager".equals(msg)) {
+                    fullSignOutOnly();
+                }
+
+                viewModel.clearError();
             }
         });
 
+        // Google user exists but no Firestore profile yet
         viewModel.getNeedsRegistration().observe(this, needs -> {
             if (needs != null && needs) {
                 Toast.makeText(this, "Signed in with Google. Please complete registration.", Toast.LENGTH_LONG).show();
                 startActivity(new Intent(this, CompleteGoogleProfileActivity.class));
+                viewModel.clearNeedsRegistration();
                 finish();
             }
         });
 
+        // Navigation decisions handled centrally by ViewModel
+        viewModel.getNavigationTarget().observe(this, target -> {
+            if (TextUtils.isEmpty(target)) return;
 
-        viewModel.getLoginRole().observe(this, role -> {
-            if (TextUtils.isEmpty(role)) return;
+            switch (target) {
+                case "COMPLETE_GOOGLE":
+                    startActivity(new Intent(this, CompleteGoogleProfileActivity.class));
+                    break;
 
+                case "MANAGER_COMPLETE":
+                    startActivity(new Intent(this, CompleteManagerProfileActivity.class));
+                    break;
 
-            Toast.makeText(this, "Login success, role=" + role, Toast.LENGTH_SHORT).show();
+                case "HOME":
+                    startActivity(new Intent(this, HomeActivity.class));
+                    break;
+            }
 
-            // זמנית תעשי return כדי לא לנווט:
-            // return;
-
-            // everyone to same home
-            Intent intent = new Intent(LoginActivity.this, HomeActivity.class);
-            startActivity(intent);
+            viewModel.clearNavigation();
             finish();
         });
     }

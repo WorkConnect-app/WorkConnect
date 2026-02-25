@@ -52,7 +52,7 @@ public class VacationRequestsAdapter extends RecyclerView.Adapter<VacationReques
         // Get current request
         VacationRequest r = items.get(position);
 
-        // Store id as tag (optional use)
+        // Store id as tag
         h.itemView.setTag(r.getId());
 
         // Format start and end dates

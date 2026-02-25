@@ -1,31 +1,59 @@
 package com.example.workconnect.viewModels.chat;
 
 /**
- * Data class representing the state of the call banner shown in ChatActivity.
+ * Data class representing the state of the call banner displayed in ChatActivity.
+ * Encapsulates whether the banner is visible, and the text/action to display.
  */
 public class CallBannerState {
 
+    /** Whether the banner should be visible. */
     private final boolean visible;
-    private final String statusText;
-    private final boolean canJoin;
-    private final boolean canEnd;
-    private final String callId;
-    private final String callType;
 
-    public CallBannerState(boolean visible, String statusText, boolean canJoin, boolean canEnd,
-                           String callId, String callType) {
+    /** Status text to display on the banner (e.g. "Video call - 01:23"). */
+    private final String statusText;
+
+    /** True if the current user is actively in this call (minimized). */
+    private final boolean isCurrentUserInCall;
+
+    /** Call ID for joining (non-null if a joinable group call exists). */
+    private final String joinableCallId;
+
+    /** Call type of the joinable call ("audio" or "video"). */
+    private final String joinableCallType;
+
+    /** Hidden banner (default state). */
+    public static final CallBannerState HIDDEN = new CallBannerState(false, null, false, null, null);
+
+    public CallBannerState(boolean visible, String statusText, boolean isCurrentUserInCall,
+                           String joinableCallId, String joinableCallType) {
         this.visible = visible;
         this.statusText = statusText;
-        this.canJoin = canJoin;
-        this.canEnd = canEnd;
-        this.callId = callId;
-        this.callType = callType;
+        this.isCurrentUserInCall = isCurrentUserInCall;
+        this.joinableCallId = joinableCallId;
+        this.joinableCallType = joinableCallType;
     }
 
+    // ===== Factory methods =====
+
+    /** Banner for a call the current user has minimized. */
+    public static CallBannerState minimized(String statusText) {
+        return new CallBannerState(true, statusText, true, null, null);
+    }
+
+    /** Banner for a joinable group call (user is not in the call). */
+    public static CallBannerState joinable(String statusText, String callId, String callType) {
+        return new CallBannerState(true, statusText, false, callId, callType);
+    }
+
+    // ===== Getters =====
+
     public boolean isVisible() { return visible; }
+
     public String getStatusText() { return statusText; }
-    public boolean canJoin() { return canJoin; }
-    public boolean canEnd() { return canEnd; }
-    public String getCallId() { return callId; }
-    public String getCallType() { return callType; }
+
+    public boolean isCurrentUserInCall() { return isCurrentUserInCall; }
+
+    public String getJoinableCallId() { return joinableCallId; }
+
+    public String getJoinableCallType() { return joinableCallType; }
 }

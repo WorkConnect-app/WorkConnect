@@ -7,6 +7,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import com.example.workconnect.services.NotificationService;
 
 public class AttendanceRepository {
 
@@ -369,6 +370,13 @@ public class AttendanceRepository {
                             "periods", periods,
                             "updatedAt", safeEnd,
                             "expiresAt", expiresAt
+                    );
+
+                    NotificationService.addAttendanceAutoEnded(
+                            transaction,
+                            userId,
+                            companyId,
+                            attendanceDocId.substring(attendanceDocId.indexOf("_") + 1)
                     );
 
                     transaction.update(userRef, "activeAttendance", FieldValue.delete());

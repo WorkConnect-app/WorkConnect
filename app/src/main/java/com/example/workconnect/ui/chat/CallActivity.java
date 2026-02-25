@@ -33,6 +33,7 @@ import com.example.workconnect.utils.AgoraErrorHandler;
 import com.example.workconnect.viewModels.chat.CallViewModel;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -53,13 +54,13 @@ public class CallActivity extends AppCompatActivity {
             Manifest.permission.RECORD_AUDIO
     };
 
-    // ViewModel
-    private CallViewModel viewModel;
+    // ── ViewModel ──
+    private CallViewModel vm;
 
     // Agora RTC
     private RtcEngine agoraEngine;
     private String channelName;
-    private int localUid = 0; // Will be assigned by Agora
+    private int localUid = 0;
 
     // UI Components
     private FrameLayout localVideoContainer;
@@ -76,16 +77,24 @@ public class CallActivity extends AppCompatActivity {
     private TextView tvCallStatus;
     private TextView tvRemoteUserName;
     private LinearLayout avatarContainer;
-    private android.widget.ImageView ivLocalAvatar;
+    private ImageView ivLocalAvatar;
 
-    // Call state (Activity-level, Agora-bound)
+    // Call state (UI-only)
     private boolean isFinishing = false;
     private boolean channelLeft = false;
+    private boolean isMinimizing = false;
 
-    /** Global flag: true while ANY call is active (checked by BaseDrawerActivity to block new calls). */
+    /** Global flag: true while ANY call is active (checked by BaseDrawerActivity). */
     public static volatile boolean isInCall = false;
 
-    // Group call management (Agora-bound)
+    /** Static references to current call info (for banner display when minimized). */
+    public static volatile String currentCallConversationId = null;
+    public static volatile String currentCallId = null;
+    public static volatile String currentCallType = null;
+    public static volatile boolean currentIsGroupCall = false;
+    public static volatile Date currentCallStartTime = null;
+
+    // Group call UI
     private final Map<Integer, Boolean> remoteAudioStates = new HashMap<>();
     private final java.util.Set<Integer> connectedRemoteUids = new java.util.HashSet<>();
     private boolean isGroupCall = false;
@@ -120,7 +129,15 @@ public class CallActivity extends AppCompatActivity {
     // Foreground service
     private android.content.BroadcastReceiver callActionReceiver;
 
-    // Agora-level state (not in ViewModel because Agora SDK needs them)
+    // State
+    private boolean isMuted = false;
+    private boolean isCameraEnabled = true;
+    private boolean isSpeakerEnabled = true;
+    private boolean isCaller;
+    private String callId;
+    private String conversationId;
+    private String currentUserId;
+
     private boolean isRemoteUserJoined = false;
 
     @Override
@@ -128,14 +145,11 @@ public class CallActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_call);
 
-        // Initialize ViewModel
-        viewModel = new ViewModelProvider(this).get(CallViewModel.class);
-
         // Get intent extras
-        String callId = getIntent().getStringExtra("callId");
-        String conversationId = getIntent().getStringExtra("conversationId");
+        callId = getIntent().getStringExtra("callId");
+        conversationId = getIntent().getStringExtra("conversationId");
         String callType = getIntent().getStringExtra("callType");
-        boolean isCaller = getIntent().getBooleanExtra("isCaller", true);
+        isCaller = getIntent().getBooleanExtra("isCaller", true);
         isGroupCall = getIntent().getBooleanExtra("isGroupCall", false);
 
         if (callId == null || conversationId == null || callType == null) {
@@ -144,7 +158,9 @@ public class CallActivity extends AppCompatActivity {
             return;
         }
 
-        String currentUserId = com.google.firebase.auth.FirebaseAuth.getInstance().getCurrentUser() != null ?
+        isCameraEnabled = "video".equals(callType);
+
+        currentUserId = com.google.firebase.auth.FirebaseAuth.getInstance().getCurrentUser() != null ?
                 com.google.firebase.auth.FirebaseAuth.getInstance().getCurrentUser().getUid() : null;
 
         if (currentUserId == null) {
@@ -155,14 +171,17 @@ public class CallActivity extends AppCompatActivity {
 
         // Mark that we are now in a call
         isInCall = true;
+        currentCallConversationId = conversationId;
+        currentCallId = callId;
+        currentCallType = callType;
+        currentIsGroupCall = isGroupCall;
 
-        // Initialize ViewModel
-        viewModel.init(callId, conversationId, currentUserId, isCaller, isGroupCall, callType);
+        // ── ViewModel ──
+        vm = new ViewModelProvider(this).get(CallViewModel.class);
+        vm.init(callId, conversationId, currentUserId, callType, isCaller, isGroupCall);
 
         // Initialize UI
         initializeViews();
-
-        // Observe ViewModel LiveData
         observeViewModel();
 
         // Check permissions
@@ -173,143 +192,83 @@ public class CallActivity extends AppCompatActivity {
         }
     }
 
-    //  
-    // LIVEDATA OBSERVERS
-
+    // ════════════════════════════════════════════════════════════════════════
+    // Observe ViewModel
+    // ════════════════════════════════════════════════════════════════════════
 
     private void observeViewModel() {
-        // Current call state
-        String[] lastObservedStatus = {null};
-        viewModel.getCurrentCall().observe(this, call -> {
-            if (call == null || isFinishing || isDestroyed()) return;
+        // Call state → update UI
+        vm.getCurrentCall().observe(this, call -> {
+            if (isFinishing || isDestroyed()) return;
+            if (call == null) return;
 
-            String status = call.getStatus();
-            boolean statusChanged = !java.util.Objects.equals(status, lastObservedStatus[0]);
-            lastObservedStatus[0] = status;
-
-            // Confirm group call from participant count
-            if (call.getParticipants() != null && call.getParticipants().size() > 2 && !isGroupCall) {
-                isGroupCall = true;
-                setupGroupCallUI();
+            try {
+                updateCallUI(call);
+            } catch (Exception e) {
+                Log.e(TAG, "Error updating call UI", e);
             }
 
-            if (statusChanged) {
-                if ("active".equals(status)) {
-                    stopRingingAnimation();
-                    stopVibration();
-                    if (isGroupCall) {
-                        setupGroupCallActiveUI();
-                    }
-                    updateVideoUI();
-                } else if ("ringing".equals(status)) {
-                    updateRingingUI();
-                } else if ("ended".equals(status) || "missed".equals(status)) {
-                    stopRingingAnimation();
-                    stopVibration();
+            // Join channel when call becomes active
+            if ("active".equals(call.getStatus()) && agoraEngine != null) {
+                if (channelName == null) {
+                    channelName = call.getChannelName();
+                    joinChannel();
                 }
             }
         });
 
-        // Channel to join (fires once when call becomes active)
-        viewModel.getChannelToJoin().observe(this, channel -> {
-            if (channel != null && channelName == null && agoraEngine != null) {
-                channelName = channel;
-                joinChannel();
-            }
-        });
-
-        // Duration text
-        viewModel.getDurationText().observe(this, text -> {
-            if (text != null && tvCallStatus != null) {
+        // Duration text → update status
+        vm.getDurationText().observe(this, text -> {
+            if (tvCallStatus != null && vm.getCurrentCall().getValue() != null
+                    && "active".equals(vm.getCurrentCall().getValue().getStatus())) {
                 tvCallStatus.setText(text);
             }
         });
 
-        // Remote user name
-        viewModel.getRemoteUserName().observe(this, name -> {
-            if (name != null && tvRemoteUserName != null) {
+        // Status text → update during ringing/connecting
+        vm.getStatusText().observe(this, text -> {
+            Call call = vm.getCurrentCall().getValue();
+            if (tvCallStatus != null && (call == null || !"active".equals(call.getStatus()))) {
+                tvCallStatus.setText(text);
+            }
+        });
+
+        // Remote display name
+        vm.getRemoteDisplayName().observe(this, name -> {
+            if (tvRemoteUserName != null && name != null) {
                 tvRemoteUserName.setText(name);
             }
         });
 
-        // UID-to-name mapping (group calls)
-        viewModel.getUidToNameMap().observe(this, map -> {
-            if (map == null) return;
-            for (Map.Entry<Integer, String> entry : map.entrySet()) {
+        // Participant names (group calls)
+        vm.getParticipantNames().observe(this, names -> {
+            if (names == null) return;
+            for (Map.Entry<Integer, String> entry : names.entrySet()) {
                 int uid = entry.getKey();
                 String name = entry.getValue();
-                if (thumbnailAdapter != null) {
-                    thumbnailAdapter.updateParticipantName(uid, name);
-                }
+                if (thumbnailAdapter != null) thumbnailAdapter.updateParticipantName(uid, name);
                 if (uid == currentActiveSpeakerUid && tvSpeakerName != null) {
                     tvSpeakerName.setText(name);
                 }
             }
         });
 
-        // Mute state
-        viewModel.getIsMuted().observe(this, muted -> {
-            if (muted == null) return;
-            if (agoraEngine != null) {
-                agoraEngine.muteLocalAudioStream(muted);
-            }
-            if (btnMute != null) {
-                btnMute.setImageResource(muted ? R.drawable.ic_mic_off : R.drawable.ic_mic_on);
-            }
-            Log.d(TAG, "Mute toggled: " + muted);
-        });
-
-        // Camera state
-        viewModel.getIsCameraEnabled().observe(this, cameraEnabled -> {
-            if (cameraEnabled == null) return;
-            if (agoraEngine != null) {
-                agoraEngine.enableLocalVideo(cameraEnabled);
-            }
-            if (btnCamera != null) {
-                btnCamera.setImageResource(cameraEnabled ?
-                        R.drawable.ic_camera_on : R.drawable.ic_camera_off);
-            }
-            updateSwitchCameraVisibility(cameraEnabled);
-            updateCameraUI(cameraEnabled);
-            Log.d(TAG, "Camera toggled: " + cameraEnabled);
-        });
-
-        // Speaker state
-        viewModel.getIsSpeakerEnabled().observe(this, speakerEnabled -> {
-            if (speakerEnabled == null) return;
-            if (agoraEngine != null) {
-                agoraEngine.setEnableSpeakerphone(speakerEnabled);
-            }
-            if (btnSpeaker != null) {
-                btnSpeaker.setImageResource(speakerEnabled ?
-                        R.drawable.ic_speaker_on : R.drawable.ic_speaker_off);
-            }
-            Log.d(TAG, "Speaker toggled: " + speakerEnabled);
-        });
-
-        // Should finish
-        viewModel.getShouldFinish().observe(this, shouldFinish -> {
-            if (shouldFinish != null && shouldFinish && !isFinishing) {
-                isFinishing = true;
-                leaveChannel();
-                stopRingingAnimation();
-                stopVibration();
-                stopCallForegroundService();
-                unregisterCallActionReceiver();
-                isInCall = false;
-                finish();
-            }
-        });
-
         // Network quality
-        viewModel.getNetworkQuality().observe(this, quality -> {
-            if (quality != null) {
-                updateNetworkQualityIndicator(quality);
+        vm.getNetworkQuality().observe(this, quality -> {
+            if (quality != null) updateNetworkQualityIndicator(quality);
+        });
+
+        // Call terminated
+        vm.getCallTerminated().observe(this, terminated -> {
+            if (terminated != null && terminated && !isFinishing) {
+                isFinishing = true;
+                cleanupCallSession();
+                finish();
             }
         });
     }
 
-    // UI Initialization
+    // UI Initialisation
 
     private void initializeViews() {
         localVideoContainer = findViewById(R.id.local_video_container);
@@ -326,7 +285,6 @@ public class CallActivity extends AppCompatActivity {
         btnMinimize = findViewById(R.id.btn_minimize);
         tvCallStatus = findViewById(R.id.tv_call_status);
 
-        // Active Speaker View components
         activeSpeakerContainer = findViewById(R.id.active_speaker_container);
         mainSpeakerVideoContainer = findViewById(R.id.main_speaker_video_container);
         tvSpeakerName = findViewById(R.id.tv_speaker_name);
@@ -334,76 +292,55 @@ public class CallActivity extends AppCompatActivity {
         ivNetworkQuality = findViewById(R.id.iv_network_quality);
         tvRemoteUserName = findViewById(R.id.tv_remote_user_name);
 
-        // Initialize vibrator for incoming calls
         vibrator = (android.os.Vibrator) getSystemService(VIBRATOR_SERVICE);
 
-        // avatarContainer
         if (singleRemoteVideoContainer != null) {
             avatarContainer = singleRemoteVideoContainer.findViewById(R.id.avatar_container);
         } else {
             avatarContainer = findViewById(R.id.avatar_container);
         }
 
-        // Setup button listeners (delegate to ViewModel)
-        btnMute.setOnClickListener(v -> viewModel.toggleMute());
-        btnCamera.setOnClickListener(v -> viewModel.toggleCamera());
+        // Setup button listeners
+        btnMute.setOnClickListener(v -> toggleMute());
+        btnCamera.setOnClickListener(v -> toggleCamera());
         if (btnSwitchCamera != null) {
             btnSwitchCamera.setOnClickListener(v -> switchCamera());
         }
-        btnSpeaker.setOnClickListener(v -> viewModel.toggleSpeaker());
+        btnSpeaker.setOnClickListener(v -> toggleSpeaker());
         btnParticipants.setOnClickListener(v -> showParticipantsList());
-        btnEndCall.setOnClickListener(v -> viewModel.endCall());
+        btnEndCall.setOnClickListener(v -> endCall());
         btnMinimize.setOnClickListener(v -> minimizeCall());
 
-        // Configure buttons visibility based on call type
         if (isGroupCall) {
             setupGroupCallUI();
         } else {
             btnParticipants.setVisibility(View.GONE);
         }
 
-        // Switch camera button visibility
-        Boolean cameraEnabled = viewModel.getIsCameraEnabled().getValue();
-        boolean isCameraOn = cameraEnabled != null && cameraEnabled;
-        updateSwitchCameraVisibility(isCameraOn);
-
-        // Resize buttons based on screen size
+        updateSwitchCameraVisibility();
         resizeCallButtons();
 
-        // Always show camera button
         btnCamera.setVisibility(View.VISIBLE);
-
-        // Set initial camera button icon
-        btnCamera.setImageResource(isCameraOn ?
+        btnCamera.setImageResource(isCameraEnabled ?
                 R.drawable.ic_camera_on : R.drawable.ic_camera_off);
 
-        // Set initial status
-        tvCallStatus.setText(viewModel.isCaller() ? "Calling..." : "Incoming call...");
+        tvCallStatus.setText(isCaller ? "Calling..." : "Incoming call...");
 
-        // Show initial ringing UI
         updateRingingUI();
     }
+
+    // Group call UI setup
 
     private void setupGroupCallActiveUI() {
         if (!isGroupCall) return;
 
-        if (activeSpeakerContainer != null) {
-            activeSpeakerContainer.setVisibility(View.VISIBLE);
-        }
-        if (recyclerRemoteVideos != null) {
-            recyclerRemoteVideos.setVisibility(View.GONE);
-        }
-        if (singleRemoteVideoContainer != null) {
-            singleRemoteVideoContainer.setVisibility(View.GONE);
-        }
-        if (localVideoContainer != null) {
-            localVideoContainer.setVisibility(View.GONE);
-        }
+        if (activeSpeakerContainer != null) activeSpeakerContainer.setVisibility(View.VISIBLE);
+        if (recyclerRemoteVideos != null) recyclerRemoteVideos.setVisibility(View.GONE);
+        if (singleRemoteVideoContainer != null) singleRemoteVideoContainer.setVisibility(View.GONE);
+        if (localVideoContainer != null) localVideoContainer.setVisibility(View.GONE);
 
-        Boolean cameraEnabled = viewModel.getIsCameraEnabled().getValue();
-        boolean isCameraOn = cameraEnabled != null && cameraEnabled;
         if (thumbnailAdapter != null) {
-            thumbnailAdapter.addVideo(0, true, isCameraOn);
+            thumbnailAdapter.addVideo(0, true, isCameraEnabled);
         }
 
         Log.d(TAG, "Group call active UI set up");
@@ -462,13 +399,11 @@ public class CallActivity extends AppCompatActivity {
 
     private void resizeButton(ImageButton button, int size, int padding, int rightMargin) {
         if (button == null) return;
-
         ViewGroup.LayoutParams params = button.getLayoutParams();
         params.width = size;
         params.height = size;
         button.setLayoutParams(params);
         button.setPadding(padding, padding, padding, padding);
-
         if (params instanceof ViewGroup.MarginLayoutParams) {
             ((ViewGroup.MarginLayoutParams) params).setMargins(0, 0, rightMargin, 0);
         }
@@ -509,7 +444,7 @@ public class CallActivity extends AppCompatActivity {
         }
     }
 
-    // Agora Initialization & Channel
+    // Agora Engine
 
     private void initializeCall() {
         try {
@@ -519,24 +454,62 @@ public class CallActivity extends AppCompatActivity {
             config.mEventHandler = agoraEventHandler;
 
             agoraEngine = RtcEngine.create(config);
-
             agoraEngine.enableVideo();
             agoraEngine.startPreview();
             setupLocalVideo();
 
-            Boolean cameraEnabled = viewModel.getIsCameraEnabled().getValue();
-            boolean isCameraOn = cameraEnabled != null && cameraEnabled;
-            agoraEngine.enableLocalVideo(isCameraOn);
+            agoraEngine.enableLocalVideo(isCameraEnabled);
 
             Log.d(TAG, "Camera preview initialized");
-
-            // Listen to call state from Firestore via ViewModel
-            viewModel.listenToCall();
-
         } catch (Exception e) {
             Log.e(TAG, "Failed to initialize Agora", e);
             Toast.makeText(this, "Failed to initialize call", Toast.LENGTH_SHORT).show();
             finish();
+        }
+    }
+
+    private void updateCallUI(Call call) {
+        if (isFinishing || isDestroyed() || tvCallStatus == null) return;
+
+        // Confirm group call
+        if (call.getParticipants() != null) {
+            boolean callIsGroup = call.getParticipants().size() > 2;
+            if (callIsGroup && !isGroupCall) {
+                isGroupCall = true;
+                setupGroupCallUI();
+            }
+        }
+
+        // Load remote user name for 1-1 calls
+        if (!isGroupCall && call.getParticipants() != null && !call.getParticipants().isEmpty()) {
+            String remoteUserId = null;
+            for (String participantId : call.getParticipants()) {
+                if (!participantId.equals(currentUserId)) {
+                    remoteUserId = participantId;
+                    break;
+                }
+            }
+            if (remoteUserId != null) {
+                vm.loadRemoteUserName(remoteUserId);
+            }
+        }
+
+        if ("active".equals(call.getStatus())) {
+            stopRingingAnimation();
+            stopVibration();
+
+            if (currentCallStartTime == null) {
+                currentCallStartTime = vm.getCallStartTime();
+                if (isGroupCall) {
+                    setupGroupCallActiveUI();
+                }
+            }
+            updateVideoUI();
+        } else if ("ringing".equals(call.getStatus())) {
+            updateRingingUI();
+        } else if ("ended".equals(call.getStatus()) || "missed".equals(call.getStatus())) {
+            stopRingingAnimation();
+            stopVibration();
         }
     }
 
@@ -547,10 +520,7 @@ public class CallActivity extends AppCompatActivity {
         }
 
         try {
-            Boolean cameraEnabled = viewModel.getIsCameraEnabled().getValue();
-            boolean isCameraOn = cameraEnabled != null && cameraEnabled;
-            agoraEngine.enableLocalVideo(isCameraOn);
-
+            agoraEngine.enableLocalVideo(isCameraEnabled);
             agoraEngine.enableAudio();
 
             ChannelMediaOptions options = new ChannelMediaOptions();
@@ -563,9 +533,9 @@ public class CallActivity extends AppCompatActivity {
 
             if (result == 0) {
                 Log.d(TAG, "Joining channel: " + channelName);
-
-                // Update call status to active if we're the caller
-                viewModel.updateCallStatusIfRinging();
+                if (isCaller) {
+                    vm.setCallActive();
+                }
             } else {
                 Log.e(TAG, "Failed to join channel. Error code: " + result);
                 Toast.makeText(this, "Failed to join call", Toast.LENGTH_SHORT).show();
@@ -576,17 +546,14 @@ public class CallActivity extends AppCompatActivity {
         }
     }
 
-    // Video Setup (Agora-bound)
+    // Local & Remote Video
 
     private void setupLocalVideo() {
         if (agoraEngine == null) return;
-
         try {
             if (isGroupCall) {
                 if (thumbnailAdapter != null) {
-                    Boolean cameraEnabled = viewModel.getIsCameraEnabled().getValue();
-                    boolean isCameraOn = cameraEnabled != null && cameraEnabled;
-                    thumbnailAdapter.addVideo(0, true, isCameraOn);
+                    thumbnailAdapter.addVideo(0, true, isCameraEnabled);
                 } else {
                     setupLocalVideoInContainer();
                 }
@@ -624,7 +591,6 @@ public class CallActivity extends AppCompatActivity {
     private void setupRemoteVideo(int uid) {
         runOnUiThread(() -> {
             if (agoraEngine == null || remoteVideoContainer == null) return;
-
             try {
                 if (isGroupCall) {
                     if (currentActiveSpeakerUid == 0) {
@@ -660,9 +626,7 @@ public class CallActivity extends AppCompatActivity {
         VideoCanvas remoteVideoCanvas = new VideoCanvas(surfaceView, VideoCanvas.RENDER_MODE_FIT, uid);
         agoraEngine.setupRemoteVideo(remoteVideoCanvas);
 
-        if (avatarContainer != null) {
-            avatarContainer.setVisibility(View.VISIBLE);
-        }
+        if (avatarContainer != null) avatarContainer.setVisibility(View.VISIBLE);
         singleRemoteVideoContainer.setVisibility(View.VISIBLE);
     }
 
@@ -687,7 +651,6 @@ public class CallActivity extends AppCompatActivity {
                     audioIndicator.setPadding(8, 8, 8, 8);
                     singleRemoteVideoContainer.addView(audioIndicator);
                 }
-
                 audioIndicator.setImageResource(isAudioEnabled ?
                         R.drawable.ic_mic_on : R.drawable.ic_mic_off);
                 audioIndicator.setVisibility(View.VISIBLE);
@@ -704,6 +667,7 @@ public class CallActivity extends AppCompatActivity {
                 localUid = uid;
                 Log.d(TAG, "Joined channel successfully. Local UID: " + uid);
                 tvCallStatus.setText("Connected");
+                vm.addActiveParticipant();
             });
         }
 
@@ -712,17 +676,11 @@ public class CallActivity extends AppCompatActivity {
             runOnUiThread(() -> {
                 Log.d(TAG, "Remote user joined: " + uid);
                 isRemoteUserJoined = true;
-
                 remoteAudioStates.put(uid, true);
                 connectedRemoteUids.add(uid);
-
-                // Track in ViewModel for name assignment
-                viewModel.onParticipantJoined(uid);
-
+                vm.onParticipantJoined(uid);
                 setupRemoteVideo(uid);
-
-                // Update call status via ViewModel
-                viewModel.updateCallStatusIfRinging();
+                vm.setCallActive();
             });
         }
 
@@ -734,7 +692,7 @@ public class CallActivity extends AppCompatActivity {
                 if (isGroupCall) {
                     connectedRemoteUids.remove(uid);
                     remoteAudioStates.remove(uid);
-                    viewModel.onParticipantLeft(uid);
+                    vm.onParticipantLeft(uid);
                     if (thumbnailAdapter != null) thumbnailAdapter.removeVideo(uid);
                     if (uid == currentActiveSpeakerUid) {
                         currentActiveSpeakerUid = 0;
@@ -744,7 +702,7 @@ public class CallActivity extends AppCompatActivity {
                     }
                 } else {
                     isRemoteUserJoined = false;
-                    viewModel.endCall();
+                    Log.d(TAG, "Remote user left 1-1 call — waiting for Firestore status update");
                 }
             });
         }
@@ -758,12 +716,7 @@ public class CallActivity extends AppCompatActivity {
                         state == Constants.REMOTE_VIDEO_STATE_FROZEN);
 
                 if (isGroupCall) {
-                    Log.d(TAG, "Group remote video " + (videoOn ? "ON" : "OFF") + " for uid: " + uid);
-
-                    if (thumbnailAdapter != null) {
-                        thumbnailAdapter.updateVideoState(uid, videoOn);
-                    }
-
+                    if (thumbnailAdapter != null) thumbnailAdapter.updateVideoState(uid, videoOn);
                     if (uid == currentActiveSpeakerUid && mainSpeakerVideoContainer != null) {
                         for (int i = 0; i < mainSpeakerVideoContainer.getChildCount(); i++) {
                             View child = mainSpeakerVideoContainer.getChildAt(i);
@@ -774,7 +727,6 @@ public class CallActivity extends AppCompatActivity {
                     }
                 } else {
                     if (videoOn) {
-                        Log.d(TAG, "Remote video ON - hide name, show camera");
                         if (avatarContainer != null) avatarContainer.setVisibility(View.GONE);
                         if (singleRemoteVideoContainer != null) {
                             for (int i = 0; i < singleRemoteVideoContainer.getChildCount(); i++) {
@@ -785,7 +737,6 @@ public class CallActivity extends AppCompatActivity {
                             }
                         }
                     } else if (videoOff) {
-                        Log.d(TAG, "Remote video OFF - hide camera, show name");
                         if (singleRemoteVideoContainer != null) {
                             for (int i = 0; i < singleRemoteVideoContainer.getChildCount(); i++) {
                                 View child = singleRemoteVideoContainer.getChildAt(i);
@@ -806,8 +757,6 @@ public class CallActivity extends AppCompatActivity {
                 boolean isAudioEnabled = (state == Constants.REMOTE_AUDIO_STATE_STARTING ||
                         state == Constants.REMOTE_AUDIO_STATE_DECODING);
                 remoteAudioStates.put(uid, isAudioEnabled);
-
-                Log.d(TAG, "Remote audio state changed for uid: " + uid + ", enabled: " + isAudioEnabled);
                 updateRemoteAudioIndicator(uid, isAudioEnabled);
             });
         }
@@ -817,9 +766,7 @@ public class CallActivity extends AppCompatActivity {
             runOnUiThread(() -> {
                 if (uid == 0) {
                     int quality = Math.max(txQuality, rxQuality);
-                    viewModel.setNetworkQuality(quality);
-                } else {
-                    Log.d(TAG, "Remote network quality for uid " + uid + ": tx=" + txQuality + ", rx=" + rxQuality);
+                    vm.setNetworkQuality(quality);
                 }
             });
         }
@@ -828,30 +775,24 @@ public class CallActivity extends AppCompatActivity {
         public void onConnectionStateChanged(int state, int reason) {
             runOnUiThread(() -> {
                 Log.d(TAG, "Connection state changed: " + state + ", reason: " + reason);
-
                 switch (state) {
                     case Constants.CONNECTION_STATE_DISCONNECTED:
-                        Log.w(TAG, "Connection disconnected");
                         handleNetworkError("Connection lost", false);
                         break;
                     case Constants.CONNECTION_STATE_CONNECTING:
-                        Log.d(TAG, "Connecting...");
                         tvCallStatus.setText("Connecting...");
                         break;
                     case Constants.CONNECTION_STATE_CONNECTED:
-                        Log.d(TAG, "Connection established");
                         reconnectAttempts = 0;
-                        Call call = viewModel.getCurrentCall().getValue();
+                        Call call = vm.getCurrentCall().getValue();
                         if (call != null && "active".equals(call.getStatus())) {
                             tvCallStatus.setText("Connected");
                         }
                         break;
                     case Constants.CONNECTION_STATE_RECONNECTING:
-                        Log.w(TAG, "Reconnecting...");
                         tvCallStatus.setText("Reconnecting...");
                         break;
                     case Constants.CONNECTION_STATE_FAILED:
-                        Log.e(TAG, "Connection failed");
                         handleNetworkError("Connection failed", true);
                         break;
                 }
@@ -862,7 +803,6 @@ public class CallActivity extends AppCompatActivity {
         public void onError(int err) {
             runOnUiThread(() -> {
                 Log.e(TAG, "Agora error: " + err);
-
                 String errorMessage = AgoraErrorHandler.getErrorMessage(err);
                 boolean shouldReconnect = AgoraErrorHandler.shouldReconnect(err);
 
@@ -881,16 +821,47 @@ public class CallActivity extends AppCompatActivity {
         }
     };
 
-    // Camera Switch 
+    // Toggle controls
+
+    private void toggleMute() {
+        if (agoraEngine == null) return;
+        isMuted = !isMuted;
+        agoraEngine.muteLocalAudioStream(isMuted);
+        btnMute.setImageResource(isMuted ? R.drawable.ic_mic_off : R.drawable.ic_mic_on);
+        vm.updateAudioEnabled(!isMuted);
+        Log.d(TAG, "Mute toggled: " + isMuted);
+    }
+
+    private void toggleCamera() {
+        if (agoraEngine == null) return;
+        isCameraEnabled = !isCameraEnabled;
+        agoraEngine.enableLocalVideo(isCameraEnabled);
+        updateCameraUI();
+        btnCamera.setImageResource(isCameraEnabled ? R.drawable.ic_camera_on : R.drawable.ic_camera_off);
+        updateSwitchCameraVisibility();
+        vm.updateVideoEnabled(isCameraEnabled);
+        Log.d(TAG, "Local camera toggled: " + isCameraEnabled);
+    }
+
+    private void updateSwitchCameraVisibility() {
+        if (btnSwitchCamera != null) {
+            btnSwitchCamera.setVisibility(isCameraEnabled ? View.VISIBLE : View.GONE);
+        }
+    }
+
+    private void updateCameraUI() {
+        if (isGroupCall) {
+            if (thumbnailAdapter != null) thumbnailAdapter.updateVideoState(0, isCameraEnabled);
+        } else {
+            updateVideoUI();
+        }
+    }
 
     private void switchCamera() {
         if (agoraEngine == null) return;
-
         try {
             int result = agoraEngine.switchCamera();
-            if (result == 0) {
-                Log.d(TAG, "Camera switched successfully");
-            } else {
+            if (result != 0) {
                 Log.e(TAG, "Failed to switch camera. Error code: " + result);
                 Toast.makeText(this, "Failed to switch camera", Toast.LENGTH_SHORT).show();
             }
@@ -900,115 +871,234 @@ public class CallActivity extends AppCompatActivity {
         }
     }
 
-    private void updateSwitchCameraVisibility(boolean isCameraEnabled) {
-        if (btnSwitchCamera != null) {
-            btnSwitchCamera.setVisibility(isCameraEnabled ? View.VISIBLE : View.GONE);
-        }
+    private void toggleSpeaker() {
+        if (agoraEngine == null) return;
+        isSpeakerEnabled = !isSpeakerEnabled;
+        agoraEngine.setEnableSpeakerphone(isSpeakerEnabled);
+        btnSpeaker.setImageResource(isSpeakerEnabled ? R.drawable.ic_speaker_on : R.drawable.ic_speaker_off);
+        Log.d(TAG, "Speaker toggled: " + isSpeakerEnabled);
     }
 
-    private void updateCameraUI(boolean isCameraEnabled) {
-        if (isGroupCall) {
-            if (thumbnailAdapter != null) {
-                thumbnailAdapter.updateVideoState(0, isCameraEnabled);
+    // End call
+
+    private void endCall() {
+        Log.d(TAG, "Ending call");
+        if (isFinishing) return;
+        isFinishing = true;
+
+        vm.endCall();
+        cleanupCallSession();
+        finish();
+    }
+
+    private void cleanupCallSession() {
+        leaveChannel();
+        stopRingingAnimation();
+        stopVibration();
+        stopCallForegroundService();
+        unregisterCallActionReceiver();
+
+        isInCall = false;
+        currentCallConversationId = null;
+        currentCallId = null;
+        currentCallType = null;
+        currentIsGroupCall = false;
+        currentCallStartTime = null;
+    }
+
+    // Active speaker & thumbnails
+
+    private void switchToActiveSpeaker(int speakerUid) {
+        if (speakerUid == 0) return;
+        if (mainSpeakerVideoContainer == null) return;
+
+        currentActiveSpeakerUid = speakerUid;
+
+        boolean isLocalSpeaker = (speakerUid == 0 || speakerUid == localUid);
+        String speakerName = isLocalSpeaker ? "You" : vm.getParticipantName(speakerUid);
+        if (tvSpeakerName != null) tvSpeakerName.setText(speakerName);
+
+        if (activeSpeakerContainer != null) activeSpeakerContainer.setVisibility(View.VISIBLE);
+        if (singleRemoteVideoContainer != null) singleRemoteVideoContainer.setVisibility(View.GONE);
+        if (localVideoContainer != null) localVideoContainer.setVisibility(View.GONE);
+
+        mainSpeakerVideoContainer.removeAllViews();
+
+        if (agoraEngine != null) {
+            android.view.SurfaceView surfaceView = new android.view.SurfaceView(this);
+            surfaceView.setZOrderMediaOverlay(false);
+            mainSpeakerVideoContainer.addView(surfaceView);
+
+            if (isLocalSpeaker) {
+                VideoCanvas videoCanvas = new VideoCanvas(surfaceView, VideoCanvas.RENDER_MODE_HIDDEN, 0);
+                agoraEngine.setupLocalVideo(videoCanvas);
+            } else {
+                VideoCanvas videoCanvas = new VideoCanvas(surfaceView, VideoCanvas.RENDER_MODE_HIDDEN, speakerUid);
+                agoraEngine.setupRemoteVideo(videoCanvas);
             }
-        } else {
-            updateVideoUI();
         }
+
+        updateThumbnails();
+        Log.d(TAG, "Switched to active speaker: " + speakerName + " (UID: " + speakerUid + ")");
     }
 
-    // =====================================================================
-    // NETWORK ERROR HANDLING (Agora-bound)
-    // =====================================================================
+    private void updateThumbnails() {
+        if (thumbnailAdapter == null) return;
+        thumbnailAdapter.clear();
+        thumbnailAdapter.addVideo(0, true, isCameraEnabled);
 
-    private void handleNetworkError(String message, boolean shouldReconnect) {
-        Log.w(TAG, "Network error: " + message);
-
-        if (shouldReconnect && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-            scheduleReconnect();
-        } else if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-            Toast.makeText(this,
-                    "Connection lost. Please check your network.",
-                    Toast.LENGTH_LONG).show();
-        }
-    }
-
-    private void scheduleReconnect() {
-        if (reconnectHandler == null) {
-            reconnectHandler = new Handler(getMainLooper());
-        }
-
-        if (reconnectRunnable != null) {
-            reconnectHandler.removeCallbacks(reconnectRunnable);
-        }
-
-        reconnectAttempts++;
-        Log.d(TAG, "Scheduling reconnect attempt " + reconnectAttempts + "/" + MAX_RECONNECT_ATTEMPTS);
-
-        reconnectRunnable = () -> {
-            if (agoraEngine != null && channelName != null) {
-                Log.d(TAG, "Attempting to reconnect...");
-                joinChannel();
+        for (Integer uid : connectedRemoteUids) {
+            if (uid != currentActiveSpeakerUid) {
+                thumbnailAdapter.addVideo(uid, false, true);
+                String name = vm.getParticipantName(uid);
+                thumbnailAdapter.updateParticipantName(uid, name);
             }
-        };
-
-        reconnectHandler.postDelayed(reconnectRunnable, RECONNECT_DELAY_MS);
-    }
-
-    private void updateNetworkQualityIndicator(int quality) {
-        if (ivNetworkQuality == null) return;
-
-        int drawableRes;
-        switch (quality) {
-            case 0:
-                drawableRes = R.drawable.ic_signal_0;
-                break;
-            case 1:
-                drawableRes = R.drawable.ic_signal_4;
-                break;
-            case 2:
-                drawableRes = R.drawable.ic_signal_3;
-                break;
-            case 3:
-                drawableRes = R.drawable.ic_signal_2;
-                break;
-            case 4:
-                drawableRes = R.drawable.ic_signal_1;
-                break;
-            case 5:
-            case 6:
-            default:
-                drawableRes = R.drawable.ic_signal_0;
-                break;
         }
 
-        ivNetworkQuality.setImageResource(drawableRes);
+        Log.d(TAG, "Thumbnails updated: " + thumbnailAdapter.getItemCount() + " items");
     }
 
-    // =====================================================================
-    // VIDEO UI (Agora-bound)
-    // =====================================================================
-
-    private void updateVideoUI() {
-        Boolean cameraEnabled = viewModel.getIsCameraEnabled().getValue();
-        boolean isCameraEnabled = cameraEnabled != null && cameraEnabled;
-
-        if (isGroupCall) {
-            if (localVideoContainer != null) {
-                localVideoContainer.setVisibility(View.GONE);
-            }
-            if (thumbnailAdapter != null) {
-                thumbnailAdapter.updateVideoState(0, isCameraEnabled);
-            }
+    private void showParticipantsList() {
+        if (participantsBottomSheet != null && participantsBottomSheet.isShowing()) {
+            participantsBottomSheet.dismiss();
             return;
         }
 
-        // 1-1 call
+        participantsBottomSheet = new BottomSheetDialog(this);
+        View view = getLayoutInflater().inflate(R.layout.bottom_sheet_participants, null);
+        participantsBottomSheet.setContentView(view);
+
+        RecyclerView recyclerParticipants = view.findViewById(R.id.recycler_participants);
+        recyclerParticipants.setLayoutManager(new LinearLayoutManager(this));
+        participantListAdapter = new ParticipantListAdapter();
+        recyclerParticipants.setAdapter(participantListAdapter);
+
+        TextView tvCount = view.findViewById(R.id.tv_participant_count);
+
+        List<ParticipantListAdapter.ParticipantItem> participants = new ArrayList<>();
+        participants.add(new ParticipantListAdapter.ParticipantItem(
+                localUid, "You", isCameraEnabled, !isMuted));
+
+        Map<Integer, String> names = vm.getParticipantNames().getValue();
+        if (names != null) {
+            for (Map.Entry<Integer, String> entry : names.entrySet()) {
+                int uid = entry.getKey();
+                String name = entry.getValue();
+                boolean hasAudio = remoteAudioStates.getOrDefault(uid, true);
+                participants.add(new ParticipantListAdapter.ParticipantItem(uid, name, true, hasAudio));
+            }
+        }
+
+        participantListAdapter.setParticipants(participants);
+        tvCount.setText(String.valueOf(participants.size()));
+        participantsBottomSheet.show();
+    }
+
+    // Minimize
+
+    private void minimizeCall() {
+        if (isFinishing) return;
+        if (conversationId == null) {
+            Log.e(TAG, "Cannot minimize: conversationId is null");
+            return;
+        }
+
+        isMinimizing = true;
+
+        Intent intent = new Intent(this, ChatActivity.class);
+        intent.putExtra("conversationId", conversationId);
+        intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+        startActivity(intent);
+        Log.d(TAG, "Call minimized - opening chat for conversation " + conversationId);
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+
+        String newCallId = intent.getStringExtra("callId");
+
+        if (newCallId == null || newCallId.equals(callId)) {
+            Log.d(TAG, "onNewIntent: resuming same call " + callId);
+            return;
+        }
+
+        Log.w(TAG, "onNewIntent: new call " + newCallId + " received, cleaning up old call " + callId);
+
+        isFinishing = true;
+
+        // Leave Agora channel for old call
+        leaveChannel();
+        stopRingingAnimation();
+        stopVibration();
+        stopCallForegroundService();
+        unregisterCallActionReceiver();
+
+        // Reset instance state
+        localUid = 0;
+        isRemoteUserJoined = false;
+        currentActiveSpeakerUid = 0;
+        isGroupCallUIInitialized = false;
+        isFinishing = false;
+        channelLeft = false;
+        reconnectAttempts = 0;
+        connectedRemoteUids.clear();
+        remoteAudioStates.clear();
+        if (thumbnailAdapter != null) thumbnailAdapter.clear();
+        channelName = null;
+
+        // Load new call params
+        callId = newCallId;
+        conversationId = intent.getStringExtra("conversationId");
+        isCaller = intent.getBooleanExtra("isCaller", true);
+        isGroupCall = intent.getBooleanExtra("isGroupCall", false);
+        String callType = intent.getStringExtra("callType");
+        isCameraEnabled = "video".equals(callType);
+
+        // Update static fields
+        currentCallConversationId = conversationId;
+        currentCallId = callId;
+        currentCallType = callType;
+        currentIsGroupCall = isGroupCall;
+
+        if (tvCallStatus != null) {
+            tvCallStatus.setText(isCaller ? "Calling..." : "Incoming call...");
+        }
+
+        // Re-init ViewModel for new call
+        vm.reinit(callId, conversationId, currentUserId, callType, isCaller, isGroupCall);
+
+        if (checkPermissions()) {
+            initializeCall();
+        } else {
+            requestPermissions();
+        }
+    }
+
+    @Override
+    public void onBackPressed() {
+        Call call = vm.getCurrentCall().getValue();
+        if (call != null && ("active".equals(call.getStatus()) || "ringing".equals(call.getStatus()))) {
+            minimizeCall();
+        } else {
+            finish();
+        }
+    }
+
+    // Video UI helpers
+
+    private void updateVideoUI() {
+        if (isGroupCall) {
+            if (localVideoContainer != null) localVideoContainer.setVisibility(View.GONE);
+            if (thumbnailAdapter != null) thumbnailAdapter.updateVideoState(0, isCameraEnabled);
+            return;
+        }
+
         if (isCameraEnabled) {
             if (localVideoContainer != null) {
                 localVideoContainer.setVisibility(View.VISIBLE);
-                if (ivLocalAvatar != null) {
-                    ivLocalAvatar.setVisibility(View.GONE);
-                }
+                if (ivLocalAvatar != null) ivLocalAvatar.setVisibility(View.GONE);
                 View videoView = localVideoContainer.getChildAt(0);
                 if (videoView == null || !(videoView instanceof android.view.SurfaceView)) {
                     setupLocalVideo();
@@ -1017,18 +1107,14 @@ public class CallActivity extends AppCompatActivity {
                 }
             }
         } else {
-            if (localVideoContainer != null) {
-                localVideoContainer.setVisibility(View.GONE);
-            }
+            if (localVideoContainer != null) localVideoContainer.setVisibility(View.GONE);
         }
 
-        if (singleRemoteVideoContainer != null) {
-            singleRemoteVideoContainer.setVisibility(View.VISIBLE);
-        }
+        if (singleRemoteVideoContainer != null) singleRemoteVideoContainer.setVisibility(View.VISIBLE);
     }
 
     private void updateRingingUI() {
-        if (!viewModel.isCaller()) {
+        if (!isCaller) {
             startRingingAnimation();
             startVibration();
         } else {
@@ -1039,18 +1125,13 @@ public class CallActivity extends AppCompatActivity {
             singleRemoteVideoContainer.setVisibility(View.VISIBLE);
         }
 
-        Boolean cameraEnabled = viewModel.getIsCameraEnabled().getValue();
-        boolean isCameraOn = cameraEnabled != null && cameraEnabled;
-
-        if (isCameraOn) {
+        if (isCameraEnabled) {
             showLocalVideoPreview();
         } else {
             hideLocalVideo();
         }
 
-        if (avatarContainer != null) {
-            avatarContainer.setVisibility(View.VISIBLE);
-        }
+        if (avatarContainer != null) avatarContainer.setVisibility(View.VISIBLE);
 
         if (isGroupCall && recyclerRemoteVideos != null) {
             recyclerRemoteVideos.setVisibility(View.GONE);
@@ -1059,9 +1140,7 @@ public class CallActivity extends AppCompatActivity {
 
     private void showLocalVideoPreview() {
         if (localVideoContainer == null) return;
-
         localVideoContainer.setVisibility(View.VISIBLE);
-
         View videoView = localVideoContainer.getChildAt(0);
         if (videoView == null || !(videoView instanceof android.view.SurfaceView)) {
             setupLocalVideo();
@@ -1071,18 +1150,13 @@ public class CallActivity extends AppCompatActivity {
     }
 
     private void hideLocalVideo() {
-        if (localVideoContainer != null) {
-            localVideoContainer.setVisibility(View.GONE);
-        }
+        if (localVideoContainer != null) localVideoContainer.setVisibility(View.GONE);
     }
 
-    // =====================================================================
-    // RINGING ANIMATION
-    // =====================================================================
+    // Ringing animations
 
     private void startRingingAnimation() {
         if (avatarContainer == null) return;
-
         stopRingingAnimation();
 
         android.animation.ObjectAnimator scaleX = android.animation.ObjectAnimator.ofFloat(
@@ -1118,23 +1192,19 @@ public class CallActivity extends AppCompatActivity {
 
     private void animateRingingStatus() {
         if (tvCallStatus == null) return;
-
         Handler handler = new Handler(getMainLooper());
         Runnable animateDots = new Runnable() {
             private int dotCount = 0;
             @Override
             public void run() {
-                Call call = viewModel.getCurrentCall().getValue();
+                Call call = vm.getCurrentCall().getValue();
                 if (tvCallStatus != null && call != null && "ringing".equals(call.getStatus())) {
                     String baseText = "Calling";
                     int numDots = (dotCount % 4);
                     StringBuilder dots = new StringBuilder();
                     for (int i = 0; i < 3; i++) {
-                        if (i < numDots) {
-                            dots.append(".");
-                        } else {
-                            dots.append(" ");
-                        }
+                        if (i < numDots) dots.append(".");
+                        else dots.append(" ");
                     }
                     tvCallStatus.setText(baseText + dots.toString());
                     dotCount++;
@@ -1145,16 +1215,12 @@ public class CallActivity extends AppCompatActivity {
         handler.post(animateDots);
     }
 
-    // Vibration
-
     private void startVibration() {
         if (vibrator == null) return;
-
         try {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                 long[] pattern = {0, 500, 500, 500, 500, 500};
-                android.os.VibrationEffect effect = android.os.VibrationEffect.createWaveform(
-                        pattern, 0);
+                android.os.VibrationEffect effect = android.os.VibrationEffect.createWaveform(pattern, 0);
                 vibrator.vibrate(effect);
             } else {
                 long[] pattern = {0, 500, 500, 500, 500, 500};
@@ -1167,216 +1233,50 @@ public class CallActivity extends AppCompatActivity {
 
     private void stopVibration() {
         if (vibrator != null) {
-            try {
-                vibrator.cancel();
-            } catch (Exception e) {
-                Log.e(TAG, "Error stopping vibration", e);
+            try { vibrator.cancel(); } catch (Exception e) { Log.e(TAG, "Error stopping vibration", e); }
+        }
+    }
+
+    // Network error handling
+
+    private void handleNetworkError(String message, boolean shouldReconnect) {
+        Log.w(TAG, "Network error: " + message);
+        if (shouldReconnect && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+            scheduleReconnect();
+        } else if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            Toast.makeText(this, "Connection lost. Please check your network.", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void scheduleReconnect() {
+        if (reconnectHandler == null) reconnectHandler = new Handler(getMainLooper());
+        if (reconnectRunnable != null) reconnectHandler.removeCallbacks(reconnectRunnable);
+
+        reconnectAttempts++;
+        Log.d(TAG, "Scheduling reconnect attempt " + reconnectAttempts + "/" + MAX_RECONNECT_ATTEMPTS);
+
+        reconnectRunnable = () -> {
+            if (agoraEngine != null && channelName != null) {
+                Log.d(TAG, "Attempting to reconnect...");
+                joinChannel();
             }
-        }
+        };
+        reconnectHandler.postDelayed(reconnectRunnable, RECONNECT_DELAY_MS);
     }
 
-    
-    // Active Speaker & Participants (UI-bound)
-
-    private void switchToActiveSpeaker(int speakerUid) {
-        if (speakerUid == 0) return;
-
-        if (mainSpeakerVideoContainer == null) return;
-
-        currentActiveSpeakerUid = speakerUid;
-
-        boolean isLocalSpeaker = (speakerUid == 0 || speakerUid == localUid);
-
-        String speakerName = isLocalSpeaker ? "You"
-                : viewModel.getNameForUid(speakerUid);
-        if (tvSpeakerName != null) tvSpeakerName.setText(speakerName);
-
-        if (activeSpeakerContainer != null) {
-            activeSpeakerContainer.setVisibility(View.VISIBLE);
+    private void updateNetworkQualityIndicator(int quality) {
+        if (ivNetworkQuality == null) return;
+        int drawableRes;
+        switch (quality) {
+            case 0:  drawableRes = R.drawable.ic_signal_0; break;
+            case 1:  drawableRes = R.drawable.ic_signal_4; break;
+            case 2:  drawableRes = R.drawable.ic_signal_3; break;
+            case 3:  drawableRes = R.drawable.ic_signal_2; break;
+            case 4:  drawableRes = R.drawable.ic_signal_1; break;
+            default: drawableRes = R.drawable.ic_signal_0; break;
         }
-        if (singleRemoteVideoContainer != null) {
-            singleRemoteVideoContainer.setVisibility(View.GONE);
-        }
-        if (localVideoContainer != null) {
-            localVideoContainer.setVisibility(View.GONE);
-        }
-
-        mainSpeakerVideoContainer.removeAllViews();
-
-        if (agoraEngine != null) {
-            android.view.SurfaceView surfaceView = new android.view.SurfaceView(this);
-            surfaceView.setZOrderMediaOverlay(false);
-            mainSpeakerVideoContainer.addView(surfaceView);
-
-            if (isLocalSpeaker) {
-                VideoCanvas videoCanvas = new VideoCanvas(surfaceView, VideoCanvas.RENDER_MODE_HIDDEN, 0);
-                agoraEngine.setupLocalVideo(videoCanvas);
-            } else {
-                VideoCanvas videoCanvas = new VideoCanvas(surfaceView, VideoCanvas.RENDER_MODE_HIDDEN, speakerUid);
-                agoraEngine.setupRemoteVideo(videoCanvas);
-            }
-        }
-
-        updateThumbnails();
-
-        Log.d(TAG, "Switched to active speaker: " + speakerName + " (UID: " + speakerUid + ")");
+        ivNetworkQuality.setImageResource(drawableRes);
     }
-
-    private void updateThumbnails() {
-        if (thumbnailAdapter == null) return;
-
-        thumbnailAdapter.clear();
-
-        Boolean cameraEnabled = viewModel.getIsCameraEnabled().getValue();
-        boolean isCameraOn = cameraEnabled != null && cameraEnabled;
-        thumbnailAdapter.addVideo(0, true, isCameraOn);
-
-        for (Integer uid : connectedRemoteUids) {
-            if (uid != currentActiveSpeakerUid) {
-                thumbnailAdapter.addVideo(uid, false, true);
-                String name = viewModel.getNameForUid(uid);
-                thumbnailAdapter.updateParticipantName(uid, name);
-            }
-        }
-
-        Log.d(TAG, "Thumbnails updated: " + thumbnailAdapter.getItemCount() + " items");
-    }
-
-    private void showParticipantsList() {
-        if (participantsBottomSheet != null && participantsBottomSheet.isShowing()) {
-            participantsBottomSheet.dismiss();
-            return;
-        }
-
-        participantsBottomSheet = new BottomSheetDialog(this);
-        View view = getLayoutInflater().inflate(R.layout.bottom_sheet_participants, null);
-        participantsBottomSheet.setContentView(view);
-
-        RecyclerView recyclerParticipants = view.findViewById(R.id.recycler_participants);
-        recyclerParticipants.setLayoutManager(new LinearLayoutManager(this));
-        participantListAdapter = new ParticipantListAdapter();
-        recyclerParticipants.setAdapter(participantListAdapter);
-
-        TextView tvCount = view.findViewById(R.id.tv_participant_count);
-
-        List<ParticipantListAdapter.ParticipantItem> participants = new ArrayList<>();
-
-        Boolean mutedVal = viewModel.getIsMuted().getValue();
-        boolean isMuted = mutedVal != null && mutedVal;
-        Boolean cameraVal = viewModel.getIsCameraEnabled().getValue();
-        boolean isCameraEnabled = cameraVal != null && cameraVal;
-
-        participants.add(new ParticipantListAdapter.ParticipantItem(
-                localUid, "You", isCameraEnabled, !isMuted
-        ));
-
-        Map<Integer, String> uidToNameMap = viewModel.getUidToNameMap().getValue();
-        if (uidToNameMap != null) {
-            for (Map.Entry<Integer, String> entry : uidToNameMap.entrySet()) {
-                int uid = entry.getKey();
-                String name = entry.getValue();
-                boolean hasVideo = remoteAudioStates.containsKey(uid);
-                boolean hasAudio = remoteAudioStates.getOrDefault(uid, true);
-
-                participants.add(new ParticipantListAdapter.ParticipantItem(
-                        uid, name, hasVideo, hasAudio
-                ));
-            }
-        }
-
-        participantListAdapter.setParticipants(participants);
-        tvCount.setText(String.valueOf(participants.size()));
-
-        participantsBottomSheet.show();
-    }
-
-    // Minimize & Navigation
-
-    private void minimizeCall() {
-        if (isFinishing) return;
-
-        Call call = viewModel.getCurrentCall().getValue();
-        if (call == null || (!"active".equals(call.getStatus()) && !"ringing".equals(call.getStatus()))) {
-            Log.w(TAG, "Cannot minimize: call is not active or ringing");
-            return;
-        }
-
-        Intent intent = new Intent(this, ChatActivity.class);
-        intent.putExtra("conversationId", viewModel.getConversationId());
-        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        startActivity(intent);
-        Log.d(TAG, "Call minimized - opening chat for conversation " + viewModel.getConversationId());
-    }
-
-    @Override
-    protected void onNewIntent(Intent intent) {
-        super.onNewIntent(intent);
-        setIntent(intent);
-
-        String newCallId = intent.getStringExtra("callId");
-
-        if (newCallId == null || newCallId.equals(viewModel.getCallId())) {
-            Log.d(TAG, "onNewIntent: resuming same call " + viewModel.getCallId());
-            return;
-        }
-
-        Log.w(TAG, "onNewIntent: new call " + newCallId + " received, cleaning up old call " + viewModel.getCallId());
-
-        // Stop old call
-        isFinishing = true;
-        stopRingingAnimation();
-        stopVibration();
-        stopCallForegroundService();
-        unregisterCallActionReceiver();
-        leaveChannel();
-
-        // Reset Activity-level state
-        localUid = 0;
-        isRemoteUserJoined = false;
-        currentActiveSpeakerUid = 0;
-        isGroupCallUIInitialized = false;
-        isFinishing = false;
-        channelLeft = false;
-        channelName = null;
-        reconnectAttempts = 0;
-        connectedRemoteUids.clear();
-        remoteAudioStates.clear();
-        if (thumbnailAdapter != null) thumbnailAdapter.clear();
-
-        // Load new call params
-        String conversationId = intent.getStringExtra("conversationId");
-        boolean isCaller = intent.getBooleanExtra("isCaller", true);
-        isGroupCall = intent.getBooleanExtra("isGroupCall", false);
-        String callType = intent.getStringExtra("callType");
-
-        // Reinit ViewModel
-        viewModel.reinit(newCallId, conversationId, viewModel.getCurrentUserId(),
-                isCaller, isGroupCall, callType);
-
-        if (tvCallStatus != null) {
-            tvCallStatus.setText(isCaller ? "Calling..." : "Incoming call...");
-        }
-
-        // Re-initialize Agora
-        if (checkPermissions()) {
-            initializeCall();
-        } else {
-            requestPermissions();
-        }
-    }
-
-    @Override
-    public void onBackPressed() {
-        Call call = viewModel.getCurrentCall().getValue();
-        if (call != null &&
-                ("active".equals(call.getStatus()) || "ringing".equals(call.getStatus()))) {
-            minimizeCall();
-        } else {
-            finish();
-        }
-    }
-
-    // Channel & Lifecycle
 
     private void leaveChannel() {
         if (agoraEngine != null && !channelLeft) {
@@ -1387,30 +1287,23 @@ public class CallActivity extends AppCompatActivity {
         }
     }
 
+    // Lifecycle
+
     @Override
     protected void onPause() {
         super.onPause();
-
         if (isFinishing || isDestroyed()) return;
 
-        Call call = viewModel.getCurrentCall().getValue();
-
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+        if (!isMinimizing && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            Call call = vm.getCurrentCall().getValue();
             if (call != null && "active".equals(call.getStatus())) {
-                try {
-                    enterPiPMode();
-                } catch (Exception e) {
-                    Log.e(TAG, "Error entering PiP mode", e);
-                }
+                try { enterPiPMode(); } catch (Exception e) { Log.e(TAG, "Error entering PiP mode", e); }
             }
         }
 
+        Call call = vm.getCurrentCall().getValue();
         if (call != null && "active".equals(call.getStatus())) {
-            try {
-                startCallForegroundService();
-            } catch (Exception e) {
-                Log.e(TAG, "Error starting foreground service", e);
-            }
+            try { startCallForegroundService(); } catch (Exception e) { Log.e(TAG, "Error starting foreground service", e); }
         }
 
         Log.d(TAG, "CallActivity paused - call continues in background");
@@ -1420,17 +1313,10 @@ public class CallActivity extends AppCompatActivity {
     public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode,
                                                android.content.res.Configuration newConfig) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
-
         if (isInPictureInPictureMode) {
-            Log.d(TAG, "Entered Picture-in-Picture mode");
-            if (btnMinimize != null) {
-                btnMinimize.setVisibility(View.GONE);
-            }
+            if (btnMinimize != null) btnMinimize.setVisibility(View.GONE);
         } else {
-            Log.d(TAG, "Exited Picture-in-Picture mode");
-            if (btnMinimize != null) {
-                btnMinimize.setVisibility(View.VISIBLE);
-            }
+            if (btnMinimize != null) btnMinimize.setVisibility(View.VISIBLE);
         }
     }
 
@@ -1441,9 +1327,7 @@ public class CallActivity extends AppCompatActivity {
                         new android.app.PictureInPictureParams.Builder();
                 android.util.Rational aspectRatio = new android.util.Rational(16, 9);
                 pipBuilder.setAspectRatio(aspectRatio);
-                android.app.PictureInPictureParams pipParams = pipBuilder.build();
-                enterPictureInPictureMode(pipParams);
-                Log.d(TAG, "Entered Picture-in-Picture mode");
+                enterPictureInPictureMode(pipBuilder.build());
             } catch (IllegalStateException e) {
                 Log.e(TAG, "Cannot enter Picture-in-Picture mode", e);
             }
@@ -1453,50 +1337,32 @@ public class CallActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-
+        isMinimizing = false;
         if (isFinishing) return;
-
-        try {
-            stopCallForegroundService();
-        } catch (Exception e) {
-            Log.e(TAG, "Error stopping foreground service", e);
-        }
-
-        try {
-            registerCallActionReceiver();
-        } catch (Exception e) {
-            Log.e(TAG, "Error registering call action receiver", e);
-        }
-
+        try { stopCallForegroundService(); } catch (Exception e) { Log.e(TAG, "Error stopping foreground service", e); }
+        try { registerCallActionReceiver(); } catch (Exception e) { Log.e(TAG, "Error registering call action receiver", e); }
         Log.d(TAG, "CallActivity resumed");
     }
 
-    // Foreground Service
+    // Foreground service
 
     private void startCallForegroundService() {
-        if (viewModel.getCallId() == null) return;
-
+        if (callId == null) return;
         Intent serviceIntent = new Intent(this, com.example.workconnect.services.CallForegroundService.class);
-        serviceIntent.putExtra("call_id", viewModel.getCallId());
+        serviceIntent.putExtra("call_id", callId);
         serviceIntent.putExtra("remote_user_name", tvRemoteUserName != null ? tvRemoteUserName.getText().toString() : null);
-
-        Boolean mutedVal = viewModel.getIsMuted().getValue();
-        Boolean speakerVal = viewModel.getIsSpeakerEnabled().getValue();
-        serviceIntent.putExtra("is_muted", mutedVal != null && mutedVal);
-        serviceIntent.putExtra("is_speaker_enabled", speakerVal == null || speakerVal);
+        serviceIntent.putExtra("is_muted", isMuted);
+        serviceIntent.putExtra("is_speaker_enabled", isSpeakerEnabled);
 
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
             startForegroundService(serviceIntent);
         } else {
             startService(serviceIntent);
         }
-
-        Log.d(TAG, "CallForegroundService started");
     }
 
     private void stopCallForegroundService() {
         com.example.workconnect.services.CallForegroundService.stopService(this);
-        Log.d(TAG, "CallForegroundService stopped");
     }
 
     private void registerCallActionReceiver() {
@@ -1508,31 +1374,21 @@ public class CallActivity extends AppCompatActivity {
                     boolean value = intent.getBooleanExtra("value", false);
                     String intentCallId = intent.getStringExtra("call_id");
 
-                    if (intentCallId != null && intentCallId.equals(viewModel.getCallId())) {
-                        Boolean mutedVal = viewModel.getIsMuted().getValue();
-                        Boolean speakerVal = viewModel.getIsSpeakerEnabled().getValue();
-                        boolean isMuted = mutedVal != null && mutedVal;
-                        boolean isSpeakerEnabled = speakerVal == null || speakerVal;
-
+                    if (intentCallId != null && intentCallId.equals(callId)) {
                         switch (action) {
                             case "TOGGLE_MUTE":
-                                if (isMuted != value) {
-                                    viewModel.toggleMute();
-                                }
+                                if (isMuted != value) toggleMute();
                                 break;
                             case "TOGGLE_SPEAKER":
-                                if (isSpeakerEnabled != value) {
-                                    viewModel.toggleSpeaker();
-                                }
+                                if (isSpeakerEnabled != value) toggleSpeaker();
                                 break;
                             case "END_CALL":
-                                viewModel.endCall();
+                                endCall();
                                 break;
                         }
                     }
                 }
             };
-
             android.content.IntentFilter filter = new android.content.IntentFilter("com.example.workconnect.CALL_ACTION");
             registerReceiver(callActionReceiver, filter);
         }
@@ -1540,11 +1396,7 @@ public class CallActivity extends AppCompatActivity {
 
     private void unregisterCallActionReceiver() {
         if (callActionReceiver != null) {
-            try {
-                unregisterReceiver(callActionReceiver);
-            } catch (Exception e) {
-                Log.e(TAG, "Error unregistering receiver", e);
-            }
+            try { unregisterReceiver(callActionReceiver); } catch (Exception e) { Log.e(TAG, "Error unregistering receiver", e); }
             callActionReceiver = null;
         }
     }
@@ -1552,7 +1404,6 @@ public class CallActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-
         stopRingingAnimation();
         stopVibration();
         stopCallForegroundService();
@@ -1568,6 +1419,11 @@ public class CallActivity extends AppCompatActivity {
         agoraEngine = null;
 
         isInCall = false;
+        currentCallConversationId = null;
+        currentCallId = null;
+        currentCallType = null;
+        currentIsGroupCall = false;
+        currentCallStartTime = null;
 
         Log.d(TAG, "CallActivity destroyed");
     }

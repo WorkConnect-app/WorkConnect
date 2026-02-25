@@ -6,28 +6,6 @@ import java.time.YearMonth;
 
 public class VacationAccrualCalculatorHelper {
 
-    public double calculateMonthlyVacationAccrual(
-            double monthlyVacationDays,
-            LocalDate startDate,
-            YearMonth month
-    ) {
-        int workingDaysInMonth = getWorkingDaysInMonth(month);
-        if (workingDaysInMonth == 0) return 0.0;
-
-        double perWorkday = monthlyVacationDays / workingDaysInMonth;
-
-        LocalDate from = startDate.isAfter(month.atDay(1)) ? startDate : month.atDay(1);
-        LocalDate to = month.atEndOfMonth();
-
-        double earned = 0.0;
-        for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
-            DayOfWeek day = d.getDayOfWeek();
-            if (day != DayOfWeek.FRIDAY && day != DayOfWeek.SATURDAY) {
-                earned += perWorkday;
-            }
-        }
-        return earned;
-    }
 
     // Daily accrual based on workdays (Sun–Thu). Friday/Saturday are excluded.
     public double calculateDailyVacationAccrual(

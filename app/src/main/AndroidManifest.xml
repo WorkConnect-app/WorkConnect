@@ -35,7 +35,10 @@
 
         <!-- Chat -->
         <activity android:name=".ui.chat.ChatListActivity" android:exported="false" />
-        <activity android:name=".ui.chat.ChatActivity" android:exported="false" />
+        <activity
+            android:name=".ui.chat.ChatActivity"
+            android:exported="false"
+            android:launchMode="singleTop" />
         <activity
             android:name=".ui.chat.CallActivity"
             android:exported="false"

@@ -14,6 +14,7 @@ import com.example.workconnect.R;
 import com.example.workconnect.adapters.chats.GroupMemberAdapter;
 import com.example.workconnect.models.ChatMessage;
 import com.example.workconnect.models.User;
+import com.example.workconnect.services.NotificationService;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
@@ -154,12 +155,12 @@ public class CreateGroupActivity extends AppCompatActivity {
 
                                 String systemText = creatorName + " created this group";
 
-                                writeSystemMessageAndUpdateConversation(convRef, systemText, unread);
+                                writeSystemMessageAndUpdateConversation(convRef, systemText, unread, creatorName, title);
                             })
                             .addOnFailureListener(e -> {
                                 // fallback if name fetch fails
                                 String systemText = "Someone created this group";
-                                writeSystemMessageAndUpdateConversation(convRef, systemText, unread);
+                                writeSystemMessageAndUpdateConversation(convRef, systemText, unread, "Someone", title);
                             });
                 })
                 .addOnFailureListener(e -> {
@@ -172,6 +173,16 @@ public class CreateGroupActivity extends AppCompatActivity {
             DocumentReference convRef,
             String systemText,
             Map<String, Object> unread
+    ) {
+        writeSystemMessageAndUpdateConversation(convRef, systemText, unread, null, null);
+    }
+
+    private void writeSystemMessageAndUpdateConversation(
+            DocumentReference convRef,
+            String systemText,
+            Map<String, Object> unread,
+            String creatorName,
+            String groupTitle
     ) {
         // Message doc in subcollection
         DocumentReference msgRef = convRef.collection("messages").document();
@@ -202,6 +213,17 @@ public class CreateGroupActivity extends AppCompatActivity {
 
         batch.commit()
                 .addOnSuccessListener(v -> {
+                    // Send ADDED_TO_GROUP notification to every member except the creator
+                    if (creatorName != null && groupTitle != null) {
+                        String conversationId = convRef.getId();
+                        WriteBatch notifBatch = db.batch();
+                        for (String uid : selectedUids) {
+                            if (uid == null || uid.equals(currentUserId)) continue;
+                            NotificationService.addAddedToGroup(
+                                    notifBatch, uid, creatorName, groupTitle, conversationId);
+                        }
+                        notifBatch.commit();
+                    }
                     Toast.makeText(this, "Group created", Toast.LENGTH_SHORT).show();
                     finish();
                 })

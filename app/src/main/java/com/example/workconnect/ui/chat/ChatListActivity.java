@@ -4,7 +4,8 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
-import android.widget.Button;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.widget.EditText;
 
 import androidx.annotation.Nullable;
@@ -124,6 +125,22 @@ public class ChatListActivity extends BaseDrawerActivity {
 
     }
 
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.chat_list_menu, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == R.id.action_new_group) {
+            Intent i = new Intent(ChatListActivity.this, CreateGroupActivity.class);
+            startActivity(i);
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
     // Attach listener when screen is visible
     @Override
     protected void onStart() {
@@ -146,9 +163,7 @@ public class ChatListActivity extends BaseDrawerActivity {
         stopConversationsListener();
     }
 
-    // =========================
     // Load data
-    // =========================
 
     private void loadCompanyId() {
         db.collection("users").document(currentUserId)
@@ -245,9 +260,7 @@ public class ChatListActivity extends BaseDrawerActivity {
                 .addOnFailureListener(e -> Log.e(TAG, "searchEmployees() failed", e));
     }
 
-    // =========================
     // Create or open direct conversation (fixed ID)
-    // =========================
 
     private void createOrOpenDirectConversation(String otherUserId) {
         if (currentUserId == null || otherUserId == null) return;

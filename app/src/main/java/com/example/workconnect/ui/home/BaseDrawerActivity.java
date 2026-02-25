@@ -20,6 +20,7 @@ import androidx.core.content.ContextCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 
 import com.example.workconnect.R;
+import com.example.workconnect.services.NotificationService;
 import com.example.workconnect.ui.attendance.AttendanceActivity;
 import com.example.workconnect.models.Call;
 import com.example.workconnect.repository.chat.CallRepository;
@@ -44,11 +45,9 @@ import com.google.android.material.badge.BadgeUtils;
 import com.google.android.material.navigation.NavigationView;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.ListenerRegistration;
 
+import java.util.List;
 import java.util.Locale;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
 
@@ -56,7 +55,15 @@ import androidx.annotation.Nullable;
 
 import com.google.android.material.badge.BadgeDrawable;
 import com.google.android.material.badge.BadgeUtils;
-import com.google.firebase.firestore.ListenerRegistration;
+
+/**
+ * Base activity that provides:
+ * - Navigation drawer
+ * - Top toolbar with notifications badge
+ * - Incoming call listener (global)
+ *
+ * All main screens inherit from this class.
+ */
 
 public abstract class BaseDrawerActivity extends AppCompatActivity {
 
@@ -67,6 +74,7 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
     protected FirebaseAuth mAuth;
     protected FirebaseFirestore db;
 
+    // Cached user state (loaded once for drawer configuration)
     protected String cachedCompanyId = null;
     protected boolean cachedIsManager = false;
     protected String cachedEmploymentType = "";
@@ -77,6 +85,7 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
     private CallRepository callRepository;
     private ListenerRegistration incomingCallListener;
     private BottomSheetDialog currentIncomingCallDialog;
+    private String currentShowingCallId = null; // guard against dialog recreation on snapshot updates
 
     // 🔔 Notifications badge
     @Nullable private BadgeDrawable notifBadge;
@@ -86,11 +95,12 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
     private boolean firstBadgeLoad = true;
 
 
+    // Child layouts must include drawerLayout, navView and toolbar
+    // This enforces a consistent layout structure across all screens
     @Override
     public void setContentView(@LayoutRes int layoutResID) {
         super.setContentView(layoutResID);
 
-        // NOTE: Child layout must include these IDs: drawerLayout, navView, toolbar
         drawerLayout = findViewById(R.id.drawerLayout);
         navView = findViewById(R.id.navView);
         toolbar = findViewById(R.id.toolbar);
@@ -99,17 +109,18 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
         db = FirebaseFirestore.getInstance();
         callRepository = new CallRepository();
 
-        // NOTE: Prevent crashes if a screen forgot to include drawer views
+        // Prevent crashes if a screen forgot to include drawer views
         if (drawerLayout == null || navView == null || toolbar == null) {
             throw new IllegalStateException("Layout must include drawerLayout, navView, and toolbar");
         }
 
         setSupportActionBar(toolbar);
-        
-        // Start listening for incoming calls
+
+        // Client-side status handling to avoid composite index
+        // Calls are auto-cleaned after ending, so stale docs are not an issue
         setupIncomingCallListener();
 
-        // NOTE: Connect DrawerLayout with Toolbar to show hamburger icon
+        // Connect DrawerLayout with Toolbar to show hamburger icon
         toggle = new ActionBarDrawerToggle(
                 this,
                 drawerLayout,
@@ -125,7 +136,7 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
         drawerLayout.addDrawerListener(toggle);
         toggle.syncState();
 
-        // NOTE: Hide management until role is loaded
+        // Hide management until role is loaded
         navView.getMenu().setGroupVisible(R.id.group_management, false);
 
         setupDrawerMenu();
@@ -158,6 +169,7 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
         return super.onOptionsItemSelected(item);
     }
 
+    // Realtime listener for unread notifications count (badge update)
     private void startUnreadBadgeListener() {
         if (mAuth.getCurrentUser() == null) return;
 
@@ -177,7 +189,7 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
                     if (notifBadge == null) return;
 
                     if (e != null || snap == null) {
-                        notifBadge.clearNumber();   // ✅ חשוב
+                        notifBadge.clearNumber();
                         notifBadge.setVisible(false);
                         return;
                     }
@@ -202,6 +214,7 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
                 });
     }
 
+    // Small animation when unread count increases
     private void animateBell() {
         if (toolbar == null) return;
 
@@ -231,6 +244,8 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
         });
     }
 
+    // Centralized navigation handling for drawer items
+    // Uses cached role/company state to control access
     private void handleMenuClick(int id) {
 
         // Profile
@@ -345,6 +360,7 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
 
         // Logout
         if (id == R.id.nav_logout) {
+            stopAllListeners();
             FirebaseAuth.getInstance().signOut();
             Intent i = new Intent(this, LoginActivity.class);
             i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -372,6 +388,9 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
         }
     }
 
+
+    // Loads user role + company info once to configure drawer UI
+    // Avoids repeated Firestore calls when navigating
     private void loadRoleAndCompanyStateForDrawer() {
         if (mAuth.getCurrentUser() == null) return;
 
@@ -396,11 +415,11 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
                     // show management
                     navView.getMenu().setGroupVisible(R.id.group_management, cachedIsManager);
 
-                    // ✅ header: set name immediately
+                    // header set name immediately
                     String fullName = doc.getString("fullName");
                     updateDrawerHeader(fullName, "-");
 
-                    // ✅ fetch company name by companyId
+                    // fetch company name by companyId
                     if (cachedCompanyId != null) {
                         db.collection("companies")
                                 .document(cachedCompanyId)
@@ -434,11 +453,8 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
         if (tvName != null) tvName.setText(fullName == null || fullName.trim().isEmpty() ? "-" : fullName.trim());
         if (tvCompany != null) tvCompany.setText(companyName == null || companyName.trim().isEmpty() ? "-" : companyName.trim());
     }
-    
-    /**
-     * Setup listener for incoming calls (available in all activities)
-     * Also handles call cancellation/ending to close dialogs
-     */
+
+    // Start global incoming-call listener
     private void setupIncomingCallListener() {
         if (mAuth.getCurrentUser() == null) return;
         
@@ -471,14 +487,11 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
 
                     if ("ringing".equals(status)) {
                         // New incoming call: show dialog only if we are NOT already in a call.
-                        // CallActivity.isInCall is a static volatile flag set by CallActivity itself —
-                        // it is true even when the call is minimized (user is in ChatActivity etc.).
                         if (!com.example.workconnect.ui.chat.CallActivity.isInCall) {
                             runOnUiThread(() -> showIncomingCallDialog(call));
                         }
                         // If already in a call, silently ignore — the caller's dialog will eventually
-                        // time out or they can cancel. We do NOT auto-reject here because in a group call
-                        // it is normal to receive a "ringing" event even if we are the caller.
+                        // time out or they can cancel.
                     } else if ("cancelled".equals(status) || "ended".equals(status) || "missed".equals(status)) {
                         // Call terminated: close dialog if open
                         runOnUiThread(() -> {
@@ -488,29 +501,35 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
                             }
                         });
                     }
-                    // "active" → group call already answered by someone else; keep the dialog open
-                    // so the current user can still join
+
                 }
             });
     }
     
     /**
-     * Show incoming call dialog.
-     * Guards are already applied upstream (CallActivity.isInCall check in the listener).
+     * BottomSheet dialog for incoming calls
+     * Guarded by CallActivity.isInCall to prevent duplicate UI
      */
     private void showIncomingCallDialog(Call call) {
-        // Double-check with the static flag (guards against very fast concurrent calls)
+        // Double-check with the static flag
         if (com.example.workconnect.ui.chat.CallActivity.isInCall) {
             android.util.Log.d("BaseDrawerActivity", "Ignoring incoming call — already in a call");
             return;
         }
 
+        // Dialog already showing for this exact call — don't recreate it on every snapshot update
+        if (currentIncomingCallDialog != null && currentIncomingCallDialog.isShowing()
+                && call.getCallId().equals(currentShowingCallId)) {
+            return;
+        }
+
         {
-            // Close any existing incoming call dialog
+            // Close any existing incoming call dialog (different call)
             if (currentIncomingCallDialog != null && currentIncomingCallDialog.isShowing()) {
                 currentIncomingCallDialog.dismiss();
                 currentIncomingCallDialog = null;
             }
+            currentShowingCallId = call.getCallId();
             
             // Create a dialog for incoming call
             BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
@@ -551,29 +570,51 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
             bottomSheet.dismiss();
             // Update call status to active when accepting
             callRepository.updateCallStatus(call.getCallId(), "active");
+            boolean isGroupCall = call.getParticipants() != null && call.getParticipants().size() > 2;
+            // Notify remaining group members that a call is now active
+            if (isGroupCall) {
+                notifyGroupCallStarted(call);
+            }
             Intent intent = new Intent(this, CallActivity.class);
             intent.putExtra("callId", call.getCallId());
             intent.putExtra("conversationId", call.getConversationId());
             intent.putExtra("callType", call.getType());
             intent.putExtra("isCaller", false);
-            boolean isGroupCall = call.getParticipants() != null && call.getParticipants().size() > 2;
             intent.putExtra("isGroupCall", isGroupCall);
             startActivity(intent);
         });
         
         btnDecline.setOnClickListener(v -> {
             bottomSheet.dismiss();
-            // Mark call as missed
-            callRepository.updateCallStatus(call.getCallId(), "missed");
+            String currentUserId = mAuth.getCurrentUser() != null ? mAuth.getCurrentUser().getUid() : null;
+            if (currentUserId == null) return;
+
+            boolean isGroupCall = call.getParticipants() != null && call.getParticipants().size() > 2;
+            if (isGroupCall) {
+                // Group call: remove this participant from the list (others can still continue)
+                callRepository.removeParticipantFromCall(call.getCallId(), currentUserId);
+            } else {
+                // Direct call: use endCall so that:
+                //   1. A "Missed call" message is created in the chat
+                //   2. A missed-call notification is sent to the callee
+                callRepository.endCall(
+                        call.getCallId(),
+                        call.getConversationId(),
+                        false,           // not a group call
+                        call.getType(),
+                        0,               // duration = 0 (call was never answered)
+                        true,            // wasMissed = true
+                        currentUserId    // endedBy = the callee who declined
+                );
+            }
         });
         
         // Dismiss dialog only on terminal states (ended/cancelled/missed) or document deletion.
-        // "active" means someone else in a group call answered — keep the dialog so this user can still join.
         ListenerRegistration callStatusListener = callRepository.listenToCall(call.getCallId(), updatedCall -> {
             runOnUiThread(() -> {
                 if (!bottomSheet.isShowing()) return;
                 if (updatedCall == null) {
-                    // Document deleted → call is fully over
+                    // Document deleted - call is fully over
                     bottomSheet.dismiss();
                     return;
                 }
@@ -581,7 +622,7 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
                 if ("ended".equals(s) || "cancelled".equals(s) || "missed".equals(s)) {
                     bottomSheet.dismiss();
                 }
-                // "ringing" or "active" → keep dialog open
+                // "ringing" or "active" - keep dialog open
             });
         });
         
@@ -591,10 +632,76 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
                 callStatusListener.remove();
             }
             currentIncomingCallDialog = null;
+            currentShowingCallId = null;
         });
         
         bottomSheet.show();
         }
+    }
+
+    // Clean up all active Firestore listeners to prevent leaks
+
+    /**
+     * When a group call is accepted, notify all other participants so they see an
+     * in-app notification even if they missed the ringing dialog.
+     * Recipients: everyone in the call except the accepter (currentUserId) and the caller.
+     */
+    private void notifyGroupCallStarted(Call call) {
+        if (mAuth.getCurrentUser() == null) return;
+        String accepterId = mAuth.getCurrentUser().getUid();
+        String callerId   = call.getCallerId();
+        List<String> participants = call.getParticipants();
+        if (participants == null || participants.isEmpty()) return;
+
+        // 1) Fetch accepter (= currentUser) name
+        db.collection("users").document(accepterId).get()
+                .addOnSuccessListener(userDoc -> {
+                    String firstName = userDoc.getString("firstName");
+                    String lastName  = userDoc.getString("lastName");
+                    String full      = userDoc.getString("fullName");
+                    String accepterName;
+                    if (firstName != null && !firstName.trim().isEmpty()) {
+                        accepterName = (firstName.trim() + " " + (lastName != null ? lastName.trim() : "")).trim();
+                    } else if (full != null && !full.trim().isEmpty()) {
+                        accepterName = full.trim();
+                    } else {
+                        accepterName = "Someone";
+                    }
+
+                    // 2) Fetch conversation to get ALL group members (not just call participants)
+                    String conversationId = call.getConversationId();
+                    db.collection("conversations").document(conversationId).get()
+                            .addOnSuccessListener(convDoc -> {
+                                String groupTitle = convDoc.getString("title");
+                                if (groupTitle == null || groupTitle.trim().isEmpty()) groupTitle = "Group";
+
+                                String callType = call.getType() != null ? call.getType() : "audio";
+
+                                // 3) Send notification to ALL group members except accepter and caller
+                                // This allows those who declined to still receive the notification
+                                @SuppressWarnings("unchecked")
+                                List<String> allGroupMembers = (List<String>) convDoc.get("participantIds");
+                                if (allGroupMembers == null) allGroupMembers = participants; // Fallback to call participants
+                                
+                                com.google.firebase.firestore.WriteBatch batch = db.batch();
+                                for (String uid : allGroupMembers) {
+                                    if (uid == null) continue;
+                                    if (uid.equals(accepterId) || uid.equals(callerId)) continue;
+                                    NotificationService.addGroupCallStarted(
+                                            batch, uid, accepterName, groupTitle, conversationId, callType);
+                                }
+                                batch.commit()
+                                        .addOnFailureListener(e ->
+                                                android.util.Log.e("BaseDrawerActivity",
+                                                        "Failed to send group call notifications", e));
+                            })
+                            .addOnFailureListener(e ->
+                                    android.util.Log.e("BaseDrawerActivity",
+                                            "Failed to fetch conversation for group call notif", e));
+                })
+                .addOnFailureListener(e ->
+                        android.util.Log.e("BaseDrawerActivity",
+                                "Failed to fetch user for group call notif", e));
     }
 
     @Override
@@ -617,6 +724,17 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
         if (notifBadgeListener != null) {
             notifBadgeListener.remove();
             notifBadgeListener = null;
+        }
+    }
+
+    private void stopAllListeners() {
+        if (notifBadgeListener != null) {
+            notifBadgeListener.remove();
+            notifBadgeListener = null;
+        }
+        if (incomingCallListener != null) {
+            incomingCallListener.remove();
+            incomingCallListener = null;
         }
     }
 }

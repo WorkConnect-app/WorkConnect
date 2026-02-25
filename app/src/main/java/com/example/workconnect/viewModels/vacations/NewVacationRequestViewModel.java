@@ -18,23 +18,18 @@ import java.util.concurrent.TimeUnit;
  *
  * Mandatory responsibilities:
  * - Validate input (dates + reason) before sending
- * - Prevent duplicate submissions (loading state)
  * - Load current user data needed for the request (manager id, balance, name/email)
  * - Create and save the request via repository
  * - Expose UI events via LiveData (toast message + close screen)
  */
 public class NewVacationRequestViewModel extends ViewModel {
-
-    // Repository that abstracts Firebase/Auth/Firestore access
     private final VacationRepository repository;
-
-    // UI one-way messages (shown as Toast in the Activity)
     private final MutableLiveData<String> toastMessage = new MutableLiveData<>();
 
     // UI signal to close screen after success
     private final MutableLiveData<Boolean> closeScreen = new MutableLiveData<>(false);
 
-    // Mandatory: used to disable the Send button and prevent double-click submissions
+    // used to disable the Send button and prevent double-click submissions
     private final MutableLiveData<Boolean> isLoading = new MutableLiveData<>(false);
 
     public NewVacationRequestViewModel() {
@@ -100,7 +95,7 @@ public class NewVacationRequestViewModel extends ViewModel {
             return;
         }
 
-        // Load current user document (needed for manager id + balance + display info)
+        // Load current user document
         Task<DocumentSnapshot> userTask = repository.getCurrentUserTask();
         if (userTask == null) {
             toastMessage.setValue("Error loading user data.");
@@ -137,7 +132,7 @@ public class NewVacationRequestViewModel extends ViewModel {
                 fullName = fullName.trim();
             }
 
-            // Mandatory safety: don't allow requests that exceed balance
+            // don't allow requests that exceed balance
             if (daysRequested > vacationBalance) {
                 toastMessage.setValue("Not enough vacation balance.");
                 isLoading.postValue(false);

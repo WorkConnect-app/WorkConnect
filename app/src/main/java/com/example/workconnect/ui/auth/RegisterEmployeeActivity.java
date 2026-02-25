@@ -42,7 +42,7 @@ public class RegisterEmployeeActivity extends AppCompatActivity {
         btnBack = findViewById(R.id.btn_back_login);
         btnBack.setOnClickListener(v -> finish());
 
-        // Create ViewModel instance (survives configuration changes like rotation)
+        // Create ViewModel instance
         viewModel = new ViewModelProvider(this).get(RegisterEmployeeViewModel.class);
 
         // Register button click
@@ -83,7 +83,7 @@ public class RegisterEmployeeActivity extends AppCompatActivity {
                 return;
             }
 
-            // Password length rule (Firebase email/password minimum)
+            // Password length rule
             if (password.length() < 6) {
                 etPassword.setError("Password must be at least 6 characters");
                 etPassword.requestFocus();
@@ -104,7 +104,7 @@ public class RegisterEmployeeActivity extends AppCompatActivity {
                 return;
             }
 
-            // Split full name into first name + last name (last name keeps everything after first space)
+            // Split full name into first name + last name
             String[] parts = fullName.trim().split("\\s+", 2);
             String firstName = parts[0];
             String lastName = parts[1];
@@ -123,7 +123,6 @@ public class RegisterEmployeeActivity extends AppCompatActivity {
     private void observeViewModel() {
 
         // Loading state: disable buttons while the request is in progress
-        // Prevents double clicks and prevents leaving the screen mid-request.
         viewModel.getIsLoading().observe(this, isLoading -> {
             boolean loading = isLoading != null && isLoading;
             btnRegisterEmployee.setEnabled(!loading);

@@ -320,11 +320,9 @@ public class MessageRepository {
     }
 
     /**
-     * Send in-app notifications to all other participants when a message is sent.
-     * Fetches sender name and conversation metadata, then creates notification
-     * documents for each recipient.
+     * After a message is successfully sent, notify all other participants.
+     * Uses two chained Firestore reads (sender name + conversation doc) then a WriteBatch.
      */
-    @SuppressWarnings("unchecked")
     private void notifyParticipants(String conversationId, String senderId, String messageText) {
         if (conversationId == null || senderId == null || messageText == null) return;
 
@@ -351,8 +349,9 @@ public class MessageRepository {
                             .addOnSuccessListener(convDoc -> {
                                 if (!convDoc.exists()) return;
 
-                                String convType = convDoc.getString("type");
+                                String convType = convDoc.getString("type");        // "direct" or "group"
                                 String groupTitle = convDoc.getString("title");
+                                @SuppressWarnings("unchecked")
                                 List<String> participants = (List<String>) convDoc.get("participantIds");
                                 if (participants == null || participants.isEmpty()) return;
 

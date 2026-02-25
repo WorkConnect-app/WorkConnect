@@ -8,7 +8,6 @@ import java.util.function.Consumer;
 
 /**
  * Repository for user-related Firestore operations
- * Centralizes user data loading to avoid duplication
  */
 public class UserRepository {
     private static final FirebaseFirestore db = FirebaseFirestore.getInstance();
@@ -16,8 +15,6 @@ public class UserRepository {
     
     /**
      * Load user name from Firestore
-     * @param userId User ID
-     * @param callback Callback with formatted name or null if not found/error
      */
     public static void loadUserName(String userId, Consumer<String> callback) {
         if (userId == null || userId.trim().isEmpty()) {

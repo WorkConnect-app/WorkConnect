@@ -10,248 +10,167 @@ import androidx.lifecycle.ViewModel;
 
 import com.example.workconnect.models.Call;
 import com.example.workconnect.repository.chat.CallRepository;
-import com.example.workconnect.repository.chat.MessageRepository;
 import com.example.workconnect.repository.authAndUsers.UserRepository;
+import com.example.workconnect.repository.chat.MessageRepository;
+import com.example.workconnect.utils.FormatUtils;
 import com.google.firebase.firestore.ListenerRegistration;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * ViewModel for CallActivity.
- * Manages call state (Firestore), duration timer, participant name mapping,
- * and toggle states (mute / camera / speaker).
- * Agora RTC operations remain in CallActivity because they depend on the
- * Android lifecycle (SurfaceView, Context).
+ * Manages call state from Firestore, call duration timer, participant display names,
+ * and call termination logic. The Activity keeps Agora SDK, video rendering,
+ * animations, PiP, foreground service, and permissions.
  */
 public class CallViewModel extends ViewModel {
 
     private static final String TAG = "CallViewModel";
 
+    // ── Repository ──
     private final CallRepository callRepository = new CallRepository();
 
-    // Parameters 
+    // ── LiveData exposed to View ──
+    private final MutableLiveData<Call> currentCall = new MutableLiveData<>();
+    private final MutableLiveData<String> statusText = new MutableLiveData<>();
+    private final MutableLiveData<Long> callDuration = new MutableLiveData<>(0L);
+    private final MutableLiveData<String> durationText = new MutableLiveData<>("00:00");
+    private final MutableLiveData<String> remoteDisplayName = new MutableLiveData<>();
+    private final MutableLiveData<Map<Integer, String>> participantNames = new MutableLiveData<>(new HashMap<>());
+    private final MutableLiveData<Integer> networkQuality = new MutableLiveData<>(0);
+    private final MutableLiveData<Boolean> callTerminated = new MutableLiveData<>(false);
+
+    // ── Internal state ──
     private String callId;
     private String conversationId;
     private String currentUserId;
+    private String callType;
     private boolean isCaller;
     private boolean isGroupCall;
 
-    // Call state 
-    private final MutableLiveData<Call> currentCall = new MutableLiveData<>();
-    private final MutableLiveData<Boolean> shouldFinish = new MutableLiveData<>(false);
-    private final MutableLiveData<String> channelToJoin = new MutableLiveData<>();
-
-    // Duration 
-    private final MutableLiveData<String> durationText = new MutableLiveData<>();
+    private ListenerRegistration callListener;
     private Handler durationHandler;
     private Runnable durationRunnable;
-    private java.util.Date callStartTime;
+    private Date callStartTime;
     private long callDurationMs = 0;
 
-    // Participant names 
-    private final MutableLiveData<String> remoteUserName = new MutableLiveData<>();
-    private final MutableLiveData<Map<Integer, String>> uidToNameMap =
-            new MutableLiveData<>(new HashMap<>());
+    // Participant name mapping for group calls
     private final Map<Integer, String> uidToName = new HashMap<>();
-    private final Set<Integer> connectedRemoteUids = new HashSet<>();
     private final List<String> participantNameQueue = new ArrayList<>();
+    private final java.util.Set<Integer> connectedRemoteUids = new java.util.HashSet<>();
 
-    // Toggle states 
-    private final MutableLiveData<Boolean> isMuted = new MutableLiveData<>(false);
-    private final MutableLiveData<Boolean> isCameraEnabled = new MutableLiveData<>(true);
-    private final MutableLiveData<Boolean> isSpeakerEnabled = new MutableLiveData<>(true);
-
-    // Network quality 
-    private final MutableLiveData<Integer> networkQuality = new MutableLiveData<>(0);
-
-    // Internal 
-    private ListenerRegistration callListener;
-    private boolean channelJoined = false;
-    private boolean isEnding = false;
-    private boolean initialized = false;
-
-    // LiveData getters 
-    public LiveData<Call> getCurrentCall() { return currentCall; }
-    public LiveData<Boolean> getShouldFinish() { return shouldFinish; }
-    public LiveData<String> getChannelToJoin() { return channelToJoin; }
-    public LiveData<String> getDurationText() { return durationText; }
-    public LiveData<String> getRemoteUserName() { return remoteUserName; }
-    public LiveData<Map<Integer, String>> getUidToNameMap() { return uidToNameMap; }
-    public LiveData<Boolean> getIsMuted() { return isMuted; }
-    public LiveData<Boolean> getIsCameraEnabled() { return isCameraEnabled; }
-    public LiveData<Boolean> getIsSpeakerEnabled() { return isSpeakerEnabled; }
-    public LiveData<Integer> getNetworkQuality() { return networkQuality; }
-
-    // Plain getters 
-    public boolean isCaller() { return isCaller; }
-    public boolean isGroupCall() { return isGroupCall; }
-    public String getCallId() { return callId; }
-    public String getConversationId() { return conversationId; }
-    public String getCurrentUserId() { return currentUserId; }
-
-    // Initialization 
+    // Initialisation
 
     public void init(String callId, String conversationId, String currentUserId,
-                     boolean isCaller, boolean isGroupCall, String callType) {
-        if (initialized) return;
+                     String callType, boolean isCaller, boolean isGroupCall) {
+        // Already initialised for this call
+        if (callId != null && callId.equals(this.callId)) return;
+
         this.callId = callId;
         this.conversationId = conversationId;
         this.currentUserId = currentUserId;
+        this.callType = callType;
         this.isCaller = isCaller;
         this.isGroupCall = isGroupCall;
-        this.isCameraEnabled.setValue("video".equals(callType));
-        this.initialized = true;
 
+        statusText.setValue(isCaller ? "Calling..." : "Incoming call...");
+
+        // Load display name
         if (isGroupCall) {
             loadGroupName();
         }
+
+        // Start Firestore listener
+        listenToCall();
     }
 
     /**
-     * Re-initialize for a new call (used by onNewIntent in CallActivity).
+     * Re-init for a new call (when CallActivity receives onNewIntent with a different callId).
+     * Cleans up old state completely, then inits fresh.
      */
     public void reinit(String callId, String conversationId, String currentUserId,
-                       boolean isCaller, boolean isGroupCall, String callType) {
-        // Stop old timer
-        if (durationHandler != null && durationRunnable != null) {
-            durationHandler.removeCallbacks(durationRunnable);
-        }
-        if (callListener != null) {
-            callListener.remove();
-            callListener = null;
-        }
+                       String callType, boolean isCaller, boolean isGroupCall) {
+        // End old call properly in Firestore
+        endOldCallSilently();
+        cleanupInternal();
 
-        // Reset state
         this.callId = callId;
         this.conversationId = conversationId;
         this.currentUserId = currentUserId;
+        this.callType = callType;
         this.isCaller = isCaller;
         this.isGroupCall = isGroupCall;
-        this.isCameraEnabled.setValue("video".equals(callType));
-        this.isMuted.setValue(false);
-        this.isSpeakerEnabled.setValue(true);
-        this.callStartTime = null;
-        this.callDurationMs = 0;
-        this.channelJoined = false;
-        this.isEnding = false;
-        this.shouldFinish.setValue(false);
-        this.channelToJoin.setValue(null);
-        this.currentCall.setValue(null);
-        this.durationText.setValue(null);
-        this.connectedRemoteUids.clear();
-        this.uidToName.clear();
-        this.participantNameQueue.clear();
-        this.uidToNameMap.setValue(new HashMap<>());
+
+        callStartTime = null;
+        callDurationMs = 0;
+        callDuration.setValue(0L);
+        durationText.setValue("00:00");
+        callTerminated.setValue(false);
+        uidToName.clear();
+        participantNameQueue.clear();
+        connectedRemoteUids.clear();
+        participantNames.setValue(new HashMap<>());
+
+        statusText.setValue(isCaller ? "Calling..." : "Incoming call...");
 
         if (isGroupCall) {
             loadGroupName();
         }
+
+        listenToCall();
     }
 
-    // Call State (Firestore listener)
+    // Firestore listener
 
-    public void listenToCall() {
+    private void listenToCall() {
+        if (callId == null) return;
+
         callListener = callRepository.listenToCall(callId, call -> {
-            if (isEnding) return;
+            currentCall.postValue(call);
 
             if (call == null) {
                 Log.e(TAG, "Call not found");
-                shouldFinish.postValue(true);
+                callTerminated.postValue(true);
                 return;
             }
 
-            currentCall.postValue(call);
-
-            // Confirm group call from participant count
-            if (call.getParticipants() != null && call.getParticipants().size() > 2 && !isGroupCall) {
+            // Confirm group status from actual participant count
+            if (call.getParticipants() != null && call.getParticipants().size() > 2) {
                 isGroupCall = true;
             }
 
-            // Load remote user name for 1-1 calls
-            if (!isGroupCall && call.getParticipants() != null) {
-                for (String participantId : call.getParticipants()) {
-                    if (!participantId.equals(currentUserId)) {
-                        loadRemoteUserName(participantId);
-                        break;
+            // Update status
+            if ("active".equals(call.getStatus())) {
+                if (callStartTime == null) {
+                    callStartTime = new Date();
+                    startDurationTimer();
+                    if (isGroupCall) {
+                        loadAllParticipantNames(call);
                     }
                 }
+                statusText.postValue("Connected");
+            } else if ("ringing".equals(call.getStatus())) {
+                statusText.postValue(isCaller ? "Calling..." : "Incoming call...");
             }
 
-            // Join channel when call becomes active
-            if ("active".equals(call.getStatus()) && !channelJoined) {
-                channelJoined = true;
-                channelToJoin.postValue(call.getChannelName());
-
-                if (callStartTime == null) {
-                    callStartTime = new java.util.Date();
-                    startDurationTimer();
-                }
-
-                if (isGroupCall) {
-                    loadAllParticipantNamesForGroup(call);
-                }
-            }
-
-            // Handle terminal states
-            if (("ended".equals(call.getStatus()) || "missed".equals(call.getStatus())
-                    || "cancelled".equals(call.getStatus())) && !isEnding) {
-                isEnding = true;
-
-                if (durationHandler != null && durationRunnable != null) {
-                    durationHandler.removeCallbacks(durationRunnable);
-                }
-                if (callListener != null) {
-                    callListener.remove();
-                    callListener = null;
-                }
-
-                shouldFinish.postValue(true);
+            // Terminal states
+            if ("ended".equals(call.getStatus()) || "missed".equals(call.getStatus())
+                    || "cancelled".equals(call.getStatus())) {
+                callTerminated.postValue(true);
             }
         });
     }
 
-    // Duration Timer
+    // Display names
 
-    private void startDurationTimer() {
-        durationHandler = new Handler(Looper.getMainLooper());
-
-        durationRunnable = new Runnable() {
-            @Override
-            public void run() {
-                if (callStartTime != null) {
-                    long duration = new java.util.Date().getTime() - callStartTime.getTime();
-                    callDurationMs = duration;
-
-                    long seconds = (duration / 1000) % 60;
-                    long minutes = (duration / (1000 * 60)) % 60;
-                    long hours = duration / (1000 * 60 * 60);
-
-                    String text;
-                    if (hours > 0) {
-                        text = String.format("%02d:%02d:%02d", hours, minutes, seconds);
-                    } else {
-                        text = String.format("%02d:%02d", minutes, seconds);
-                    }
-                    durationText.postValue(text);
-                    durationHandler.postDelayed(this, 1000);
-                }
-            }
-        };
-
-        durationHandler.post(durationRunnable);
-    }
-
-    // Participant Names
-
-    private void loadRemoteUserName(String userId) {
+    public void loadRemoteUserName(String userId) {
         UserRepository.loadUserName(userId, name -> {
             if (name != null) {
-                remoteUserName.postValue(name);
+                remoteDisplayName.postValue(name);
             }
         });
     }
@@ -260,12 +179,12 @@ public class CallViewModel extends ViewModel {
         if (conversationId == null) return;
         MessageRepository.loadConversationTitle(conversationId, title -> {
             if (title != null) {
-                remoteUserName.postValue(title);
+                remoteDisplayName.postValue(title);
             }
         });
     }
 
-    private void loadAllParticipantNamesForGroup(Call call) {
+    private void loadAllParticipantNames(Call call) {
         if (call == null || call.getParticipants() == null) return;
         participantNameQueue.clear();
 
@@ -274,7 +193,6 @@ public class CallViewModel extends ViewModel {
                 UserRepository.loadUserName(participantId, name -> {
                     if (name != null && !name.trim().isEmpty()) {
                         participantNameQueue.add(name);
-                        Log.d(TAG, "Loaded participant name: " + name);
                         assignNamesToConnectedUids();
                     }
                 });
@@ -282,15 +200,21 @@ public class CallViewModel extends ViewModel {
         }
     }
 
+    /**
+     * Called by the Activity when a remote user joins the Agora channel.
+     */
     public void onParticipantJoined(int uid) {
         connectedRemoteUids.add(uid);
         assignNamesToConnectedUids();
     }
 
+    /**
+     * Called by the Activity when a remote user leaves.
+     */
     public void onParticipantLeft(int uid) {
         connectedRemoteUids.remove(uid);
         uidToName.remove(uid);
-        uidToNameMap.postValue(new HashMap<>(uidToName));
+        participantNames.postValue(new HashMap<>(uidToName));
     }
 
     private void assignNamesToConnectedUids() {
@@ -318,109 +242,158 @@ public class CallViewModel extends ViewModel {
         }
 
         if (count > 0) {
-            uidToNameMap.postValue(new HashMap<>(uidToName));
+            participantNames.postValue(new HashMap<>(uidToName));
         }
     }
 
-    public String getNameForUid(int uid) {
+    public String getParticipantName(int uid) {
         return uidToName.getOrDefault(uid, "Participant");
     }
 
-    // Toggle States
+    // Duration timer
 
-    public void toggleMute() {
-        Boolean current = isMuted.getValue();
-        boolean newValue = current == null || !current;
-        isMuted.setValue(newValue);
-        if (callId != null && currentUserId != null) {
-            callRepository.updateAudioEnabled(callId, currentUserId, !newValue);
+    private void startDurationTimer() {
+        if (durationHandler == null) {
+            durationHandler = new Handler(Looper.getMainLooper());
         }
+
+        durationRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (callStartTime != null) {
+                    long ms = new Date().getTime() - callStartTime.getTime();
+                    callDuration.setValue(ms);
+                    durationText.setValue(FormatUtils.formatCallBannerDuration(ms));
+                    durationHandler.postDelayed(this, 1000);
+                }
+            }
+        };
+
+        durationHandler.post(durationRunnable);
     }
 
-    public void toggleCamera() {
-        Boolean current = isCameraEnabled.getValue();
-        boolean newValue = current == null || !current;
-        isCameraEnabled.setValue(newValue);
-        if (callId != null && currentUserId != null) {
-            callRepository.updateVideoEnabled(callId, currentUserId, newValue);
-        }
-    }
-
-    public void toggleSpeaker() {
-        Boolean current = isSpeakerEnabled.getValue();
-        boolean newValue = current == null || !current;
-        isSpeakerEnabled.setValue(newValue);
-    }
+    // Network quality
 
     public void setNetworkQuality(int quality) {
         networkQuality.postValue(quality);
     }
 
+    // End call / leave
+
     /**
-     * If caller and call is still ringing, update status to active.
-     * Called by CallActivity when remote user joins Agora channel.
+     * End the call. The Activity should call this, then do Agora/UI cleanup and finish().
+     *
+     * @return duration in ms (for the Activity to use if needed)
      */
-    public void updateCallStatusIfRinging() {
-        Call call = currentCall.getValue();
-        if (call != null && "ringing".equals(call.getStatus())) {
-            callRepository.updateCallStatus(callId, "active");
-        }
-    }
-
-    // End Call
-
-    public void endCall() {
-        if (isEnding) return;
-        isEnding = true;
-
-        Call call = currentCall.getValue();
-
+    public long endCall() {
         if (callStartTime != null) {
-            callDurationMs = new java.util.Date().getTime() - callStartTime.getTime();
+            callDurationMs = new Date().getTime() - callStartTime.getTime();
         }
 
-        if (durationHandler != null && durationRunnable != null) {
-            durationHandler.removeCallbacks(durationRunnable);
-        }
-
-        if (callListener != null) {
-            callListener.remove();
-            callListener = null;
-        }
-
+        Call call = currentCall.getValue();
         if (call != null) {
             boolean isStillRinging = "ringing".equals(call.getStatus());
 
             if (isGroupCall && !isStillRinging) {
                 callRepository.leaveGroupCall(
                         callId, currentUserId, conversationId,
-                        call.getType(), callDurationMs, null
-                );
+                        call.getType(), callDurationMs, null);
             } else {
-                if (isStillRinging && isCaller) {
-                    callRepository.updateCallStatus(callId, "cancelled");
-                }
                 callRepository.endCall(
                         callId, conversationId, isGroupCall,
-                        call.getType(), callDurationMs,
-                        isStillRinging, currentUserId
-                );
+                        call.getType(), callDurationMs, isStillRinging, currentUserId);
             }
         }
 
-        shouldFinish.setValue(true);
+        cleanupInternal();
+        return callDurationMs;
     }
 
+    /**
+     * Silently end the old call when receiving a new intent.
+     * Does NOT cleanup the ViewModel - just updates Firestore.
+     */
+    private void endOldCallSilently() {
+        Call call = currentCall.getValue();
+        if (call != null && callId != null && conversationId != null) {
+            boolean isStillRinging = "ringing".equals(call.getStatus());
+            long duration = callStartTime != null ? new Date().getTime() - callStartTime.getTime() : 0;
+            if (isGroupCall && !isStillRinging) {
+                callRepository.leaveGroupCall(callId, currentUserId, conversationId,
+                        call.getType(), duration, null);
+            } else {
+                callRepository.endCall(callId, conversationId, isGroupCall,
+                        call.getType(), duration, isStillRinging, currentUserId);
+            }
+        }
+    }
+
+    /**
+     * Mark this user as an active participant when they join the Agora channel.
+     */
+    public void addActiveParticipant() {
+        if (callId != null && currentUserId != null) {
+            callRepository.addActiveParticipant(callId, currentUserId);
+        }
+    }
+
+    /**
+     * Update call status to active (when caller's side connects first).
+     */
+    public void setCallActive() {
+        Call call = currentCall.getValue();
+        if (call != null && "ringing".equals(call.getStatus())) {
+            callRepository.updateCallStatus(callId, "active");
+        }
+    }
+
+    // Agora state updates (called by Activity)
+
+    public void updateAudioEnabled(boolean enabled) {
+        if (callId != null && currentUserId != null) {
+            callRepository.updateAudioEnabled(callId, currentUserId, enabled);
+        }
+    }
+
+    public void updateVideoEnabled(boolean enabled) {
+        if (callId != null && currentUserId != null) {
+            callRepository.updateVideoEnabled(callId, currentUserId, enabled);
+        }
+    }
+
+    // Getters
+
+    public LiveData<Call> getCurrentCall() { return currentCall; }
+    public LiveData<String> getStatusText() { return statusText; }
+    public LiveData<Long> getCallDuration() { return callDuration; }
+    public LiveData<String> getDurationText() { return durationText; }
+    public LiveData<String> getRemoteDisplayName() { return remoteDisplayName; }
+    public LiveData<Map<Integer, String>> getParticipantNames() { return participantNames; }
+    public LiveData<Integer> getNetworkQuality() { return networkQuality; }
+    public LiveData<Boolean> getCallTerminated() { return callTerminated; }
+
+    public String getCallId() { return callId; }
+    public String getConversationId() { return conversationId; }
+    public String getCurrentUserId() { return currentUserId; }
+    public String getCallType() { return callType; }
+    public boolean isCaller() { return isCaller; }
+    public boolean isGroupCall() { return isGroupCall; }
+    public Date getCallStartTime() { return callStartTime; }
+
+    public CallRepository getCallRepository() { return callRepository; }
+
     // Cleanup
+
+    private void cleanupInternal() {
+        if (callListener != null) { callListener.remove(); callListener = null; }
+        if (durationHandler != null && durationRunnable != null) {
+            durationHandler.removeCallbacks(durationRunnable);
+        }
+    }
 
     @Override
     protected void onCleared() {
         super.onCleared();
-        if (durationHandler != null && durationRunnable != null) {
-            durationHandler.removeCallbacks(durationRunnable);
-        }
-        if (callListener != null) {
-            callListener.remove();
-        }
+        cleanupInternal();
     }
 }

@@ -15,6 +15,7 @@ import com.example.workconnect.R;
 import com.example.workconnect.adapters.chats.GroupInfoMemberAdapter;
 import com.example.workconnect.models.ChatMessage;
 import com.example.workconnect.models.User;
+import com.example.workconnect.services.NotificationService;
 import com.example.workconnect.utils.SystemMessageHelper;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.FieldValue;
@@ -121,9 +122,7 @@ public class GroupInfoActivity extends AppCompatActivity {
         }
     }
 
-    // =========================
     // Live group info
-    // =========================
 
     private void attachGroupListener() {
         if (groupListener != null) {
@@ -167,9 +166,7 @@ public class GroupInfoActivity extends AppCompatActivity {
         }
     }
 
-    // =========================
     // Remove members
-    // =========================
 
     private void removeMembers(Set<String> uids) {
         Map<String, Object> updates = new HashMap<>();
@@ -194,6 +191,18 @@ public class GroupInfoActivity extends AppCompatActivity {
                                 null
                         );
                     }
+
+                    // Send REMOVED_FROM_GROUP notifications
+                    String groupTitle = tvTitle.getText() != null ? tvTitle.getText().toString().trim() : "Group";
+                    if (groupTitle.isEmpty() || groupTitle.equals("Group info")) groupTitle = "Group";
+
+                    com.google.firebase.firestore.WriteBatch notifBatch = db.batch();
+                    for (String uid : uids) {
+                        if (uid == null) continue;
+                        NotificationService.addRemovedFromGroup(notifBatch, uid, groupTitle, conversationId);
+                    }
+                    notifBatch.commit();
+
                     Toast.makeText(this, "Member(s) removed", Toast.LENGTH_SHORT).show();
                 })
                 .addOnFailureListener(err ->
@@ -214,9 +223,7 @@ public class GroupInfoActivity extends AppCompatActivity {
                 .update(updates);
     }
 
-    // =========================
     // Quit group
-    // =========================
 
     private void quitGroup() {
         Map<String, Object> updates = new HashMap<>();

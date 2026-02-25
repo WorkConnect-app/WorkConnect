@@ -27,9 +27,9 @@ import android.widget.Toast;
 
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.lifecycle.ViewModelProvider;
 
 import androidx.annotation.NonNull;
-import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -40,9 +40,13 @@ import com.example.workconnect.adapters.chats.ChatMessageAdapter;
 import com.example.workconnect.adapters.chats.MessageInfoAdapter;
 import com.example.workconnect.adapters.chats.ReactionsDetailAdapter;
 import com.example.workconnect.models.ChatMessage;
+import com.example.workconnect.repository.chat.CallRepository;
 import com.example.workconnect.ui.home.BaseDrawerActivity;
 import com.example.workconnect.viewModels.chat.CallBannerState;
 import com.example.workconnect.viewModels.chat.ChatViewModel;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -58,42 +62,39 @@ public class ChatActivity extends BaseDrawerActivity {
     private TextView textCharCount;
     private TextView typingIndicator;
     private ProgressBar progressBarPagination;
+
     private ChatMessageAdapter adapter;
 
-    // Network
+    private String conversationId;
+    private String currentUserId;
+
     private LinearLayout offlineIndicator;
     private BroadcastReceiver networkStateReceiver;
 
-    // Call banner UI
+    private static final int MAX_MESSAGE_LENGTH = 2000;
+    private static final int WARNING_THRESHOLD = 1800;
+
+    // Context menu and group info
+    private boolean isGroup = false;
+    private List<String> participantIds;
+
+    // Call functionality
     private ImageButton btnCallAudio;
     private ImageButton btnCallVideo;
     private LinearLayout callBanner;
     private TextView tvCallStatus;
     private Button btnReturnToCall;
-    private Button btnEndCallFromBanner;
 
-    // Constants
-    private static final int MAX_MESSAGE_LENGTH = 2000;
-    private static final int WARNING_THRESHOLD = 1800;
     private static final int PERMISSION_REQUEST_AUDIO = 100;
     private static final int PERMISSION_REQUEST_VIDEO = 101;
 
     // ViewModel
-    private ChatViewModel viewModel;
-
-    // State
-    private String conversationId;
-    private String currentUserId;
-    private boolean justSentMessage = false;
-    private int savedScrollPosition = -1;
+    private ChatViewModel vm;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_chat);
-
-        // Initialize ViewModel
-        viewModel = new ViewModelProvider(this).get(ChatViewModel.class);
 
         // UI setup
         recyclerMessages = findViewById(R.id.recyclerMessages);
@@ -117,19 +118,23 @@ public class ChatActivity extends BaseDrawerActivity {
         callBanner = findViewById(R.id.call_banner_container);
         tvCallStatus = callBanner.findViewById(R.id.tv_call_status);
         btnReturnToCall = callBanner.findViewById(R.id.btn_return_to_call);
-        btnEndCallFromBanner = callBanner.findViewById(R.id.btn_end_call_from_banner);
         setupCallBanner();
 
         // db and mAuth are already initialized in BaseDrawerActivity
         currentUserId = mAuth.getCurrentUser() != null ? mAuth.getCurrentUser().getUid() : null;
+
         conversationId = getIntent().getStringExtra("conversationId");
         if (conversationId == null || currentUserId == null) return;
 
+        // ViewModel
+        vm = new ViewModelProvider(this).get(ChatViewModel.class);
+        vm.init(conversationId, currentUserId);
+
         // Adapter
         adapter = new ChatMessageAdapter(currentUserId);
-        adapter.setOnRetryClickListener(message -> viewModel.retryMessage(message));
+        adapter.setOnRetryClickListener(message -> vm.retryMessage(message));
         adapter.setOnMessageLongClickListener((message, view) -> showMessageContextMenu(message, view));
-        adapter.setOnReactionsClickListener(message -> showReactionsDetails(message));
+        adapter.setOnReactionsClickListener(this::showReactionsDetails);
 
         LinearLayoutManager layoutManager = new LinearLayoutManager(this);
         recyclerMessages.setLayoutManager(layoutManager);
@@ -140,36 +145,32 @@ public class ChatActivity extends BaseDrawerActivity {
             @Override
             public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
                 super.onScrolled(recyclerView, dx, dy);
-
-                Boolean hasMore = viewModel.getHasMoreMessages().getValue();
-                Boolean loading = viewModel.getIsLoadingOlder().getValue();
-                if (layoutManager.findFirstVisibleItemPosition() == 0 &&
-                        (loading == null || !loading) &&
-                        (hasMore == null || hasMore)) {
-                    savedScrollPosition = layoutManager.findFirstVisibleItemPosition();
-                    viewModel.loadOlderMessages();
+                if (layoutManager.findFirstVisibleItemPosition() == 0) {
+                    vm.loadOlderMessages();
                 }
             }
         });
 
-        // Send button
-        buttonSend.setOnClickListener(v -> {
-            String text = inputMessage.getText().toString().trim();
-            if (!text.isEmpty()) {
-                justSentMessage = true;
-                viewModel.sendMessage(text);
-                inputMessage.setText("");
-            }
-        });
-
-        // Initialize ViewModel data
-        viewModel.init(conversationId, currentUserId);
-
-        // Mark messages as read after delay
-        recyclerMessages.postDelayed(() -> viewModel.markMessagesAsRead(), 500);
+        // Group info button
+        Button btnGroupInfo = findViewById(R.id.btn_group_info);
 
         // Observe LiveData
-        observeViewModel();
+        observeViewModel(btnGroupInfo);
+
+        // Send button
+        buttonSend.setOnClickListener(v -> {
+            String text = inputMessage.getText().toString();
+            vm.sendMessage(text);
+            inputMessage.setText("");
+            scrollToBottom(true);
+        });
+
+        // Mark messages as read after a short delay
+        recyclerMessages.postDelayed(() -> {
+            if (!isFinishing()) {
+                vm.markMessagesAsRead();
+            }
+        }, 500);
 
         // Network monitoring
         setupNetworkMonitoring();
@@ -177,74 +178,29 @@ public class ChatActivity extends BaseDrawerActivity {
 
         // Message validation
         setupMessageValidation();
-
-        // Listen to active calls
-        viewModel.startListeningActiveCalls();
     }
 
-    // Livedata Observers
+    // Observe ViewModel
 
-    private void observeViewModel() {
+    private void observeViewModel(Button btnGroupInfo) {
         // Messages
-        viewModel.getMessages().observe(this, messageList -> {
+        vm.getMessages().observe(this, list -> {
             int oldSize = adapter.getItemCount();
-            boolean isInitialLoad = oldSize == 0 && !messageList.isEmpty();
-            boolean isNewMessage  = messageList.size() > oldSize;
-
-            // Capture flag now – it will be reset before the callback fires
-            boolean forceScroll = isInitialLoad || justSentMessage;
-            if (justSentMessage) justSentMessage = false;
-
-            // Use the submitList callback: fires on main thread AFTER the diff is
-            // committed, so adapter.getItemCount() is already up-to-date.
-            adapter.submitList(new ArrayList<>(messageList), () -> {
-                int count = adapter.getItemCount();
-                if (count <= 0) return;
-
-                if (forceScroll) {
-                    recyclerMessages.scrollToPosition(count - 1);
-                } else if (isNewMessage) {
-                    // Soft scroll only if user is already near the bottom
-                    LinearLayoutManager lm =
-                            (LinearLayoutManager) recyclerMessages.getLayoutManager();
-                    if (lm != null && lm.findLastVisibleItemPosition() >= count - 5) {
-                        recyclerMessages.smoothScrollToPosition(count - 1);
-                    }
-                }
-            });
-        });
-
-        // Loading older messages
-        viewModel.getIsLoadingOlder().observe(this, loading -> {
-            progressBarPagination.setVisibility(
-                    loading != null && loading ? View.VISIBLE : View.GONE);
-        });
-
-        // Older messages loaded (scroll adjustment)
-        viewModel.getOlderMessagesLoaded().observe(this, count -> {
-            if (count != null && count > 0 && savedScrollPosition >= 0) {
-                recyclerMessages.post(() -> {
-                    recyclerMessages.scrollToPosition(savedScrollPosition + count);
-                });
-                savedScrollPosition = -1;
+            adapter.submitList(new ArrayList<>(list));
+            // Scroll to bottom if new message added
+            if (list.size() > oldSize && oldSize > 0) {
+                scrollToBottom(false);
+            } else if (oldSize == 0 && !list.isEmpty()) {
+                scrollToBottom(true);
             }
         });
 
-        // Typing indicator
-        viewModel.getTypingText().observe(this, text -> {
-            if (text != null && !text.isEmpty()) {
-                typingIndicator.setText(text);
-                typingIndicator.setVisibility(View.VISIBLE);
-            } else {
-                typingIndicator.setVisibility(View.GONE);
-            }
-        });
+        // Group / participants
+        vm.getIsGroup().observe(this, group -> {
+            isGroup = group;
+            adapter.setGroup(group);
 
-        // Conversation type
-        viewModel.getIsGroup().observe(this, group -> {
-            adapter.setGroup(group != null && group);
-            Button btnGroupInfo = findViewById(R.id.btn_group_info);
-            if (group != null && group) {
+            if (group) {
                 btnGroupInfo.setText("Group");
                 btnGroupInfo.setOnClickListener(v -> {
                     Intent i = new Intent(ChatActivity.this, GroupInfoActivity.class);
@@ -257,88 +213,100 @@ public class ChatActivity extends BaseDrawerActivity {
             }
         });
 
-        // Participant IDs
-        viewModel.getParticipantIds().observe(this, ids -> {
-            if (ids != null) {
-                adapter.setParticipantIds(ids);
+        vm.getParticipantIds().observe(this, ids -> {
+            participantIds = ids;
+            adapter.setParticipantIds(ids);
+        });
+
+        // Typing
+        vm.getTypingText().observe(this, text -> {
+            if (text != null && !text.isEmpty()) {
+                typingIndicator.setText(text);
+                typingIndicator.setVisibility(View.VISIBLE);
+            } else {
+                typingIndicator.setVisibility(View.GONE);
             }
         });
 
         // Call banner
-        viewModel.getCallBannerState().observe(this, state -> {
-            if (state != null && state.isVisible()) {
+        vm.getCallBanner().observe(this, state -> {
+            if (state == null || !state.isVisible()) {
+                callBanner.setVisibility(View.GONE);
+            } else {
                 tvCallStatus.setText(state.getStatusText());
                 callBanner.setVisibility(View.VISIBLE);
-            } else {
-                callBanner.setVisibility(View.GONE);
             }
+        });
+
+        // Pagination loading
+        vm.getIsLoadingOlder().observe(this, loading -> {
+            progressBarPagination.setVisibility(loading ? View.VISIBLE : View.GONE);
         });
     }
 
-    // Call Banner Buttons
+    // Call buttons & banner (UI-only, business logic in ViewModel/Repository)
 
     private void setupCallBanner() {
         btnReturnToCall.setOnClickListener(v -> {
-            CallBannerState state = viewModel.getCallBannerState().getValue();
-            if (state != null && state.getCallId() != null) {
-                Boolean isGroupVal = viewModel.getIsGroup().getValue();
-                boolean isGroup = isGroupVal != null && isGroupVal;
+            if (CallActivity.isInCall &&
+                    CallActivity.currentCallConversationId != null &&
+                    CallActivity.currentCallConversationId.equals(conversationId)) {
+                // Already in this call (minimized) → bring CallActivity back to front
                 Intent intent = new Intent(this, CallActivity.class);
-                intent.putExtra("callId", state.getCallId());
-                intent.putExtra("conversationId", conversationId);
-                intent.putExtra("callType", state.getCallType());
-                intent.putExtra("isGroupCall", isGroup);
+                intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
                 startActivity(intent);
+            } else {
+                com.example.workconnect.models.Call activeGroupCall = vm.getActiveGroupCall();
+                if (activeGroupCall != null) {
+                    // Active call in this conversation we're not in → join it
+                    Intent intent = new Intent(this, CallActivity.class);
+                    intent.putExtra("callId", activeGroupCall.getCallId());
+                    intent.putExtra("conversationId", conversationId);
+                    intent.putExtra("callType", activeGroupCall.getType());
+                    intent.putExtra("isCaller", false);
+                    intent.putExtra("isGroupCall", true);
+                    startActivity(intent);
+                }
             }
-        });
-
-        btnEndCallFromBanner.setOnClickListener(v -> {
-            viewModel.endCallFromBanner();
-            Log.d("ChatActivity", "Call ended from banner");
         });
     }
 
-    // Call Initiation
-
     private void initiateCall(String callType) {
-        // Check permissions
-        if ("video".equals(callType)) {
-            if (!checkVideoPermissions()) {
-                requestVideoPermissions();
-                return;
-            }
-        } else {
-            if (!checkAudioPermissions()) {
-                requestAudioPermissions();
-                return;
-            }
+        if (participantIds == null || participantIds.isEmpty()) {
+            Toast.makeText(this, "Cannot initiate call: no participants", Toast.LENGTH_SHORT).show();
+            return;
         }
 
-        // Check in-memory flag (set by CallActivity itself)
         if (CallActivity.isInCall) {
             Toast.makeText(this, "You are already in a call", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        viewModel.createCall(callType, new ChatViewModel.CreateCallCallback() {
-            @Override
-            public void onSuccess(String callId) {
-                Boolean isGroupVal = viewModel.getIsGroup().getValue();
-                boolean isGroup = isGroupVal != null && isGroupVal;
-                Intent intent = new Intent(ChatActivity.this, CallActivity.class);
-                intent.putExtra("callId", callId);
-                intent.putExtra("conversationId", conversationId);
-                intent.putExtra("callType", callType);
-                intent.putExtra("isCaller", true);
-                intent.putExtra("isGroupCall", isGroup);
-                startActivity(intent);
-            }
+        // Check permissions
+        if ("video".equals(callType)) {
+            if (!checkVideoPermissions()) { requestVideoPermissions(); return; }
+        } else {
+            if (!checkAudioPermissions()) { requestAudioPermissions(); return; }
+        }
 
-            @Override
-            public void onFailure(String error) {
-                Toast.makeText(ChatActivity.this, error, Toast.LENGTH_SHORT).show();
-            }
-        });
+        vm.getCallRepository().createCall(conversationId, currentUserId, participantIds, callType,
+                new CallRepository.CreateCallCallback() {
+                    @Override
+                    public void onSuccess(String callId) {
+                        Intent intent = new Intent(ChatActivity.this, CallActivity.class);
+                        intent.putExtra("callId", callId);
+                        intent.putExtra("conversationId", conversationId);
+                        intent.putExtra("callType", callType);
+                        intent.putExtra("isCaller", true);
+                        intent.putExtra("isGroupCall", isGroup);
+                        startActivity(intent);
+                    }
+
+                    @Override
+                    public void onFailure(String error) {
+                        Toast.makeText(ChatActivity.this, error, Toast.LENGTH_SHORT).show();
+                    }
+                });
     }
 
     private boolean checkAudioPermissions() {
@@ -371,41 +339,47 @@ public class ChatActivity extends BaseDrawerActivity {
 
         if (requestCode == PERMISSION_REQUEST_AUDIO || requestCode == PERMISSION_REQUEST_VIDEO) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                // Permission granted, but user needs to click button again
+                // Permission granted, user needs to click button again
             } else {
                 Toast.makeText(this, "Permissions required for calls", Toast.LENGTH_SHORT).show();
             }
         }
     }
 
-    // =====================================================================
-    // LIFECYCLE
-    // =====================================================================
+    // Lifecycle
 
     @Override
     protected void onResume() {
         super.onResume();
-        viewModel.startListeningActiveCalls();
+        if (vm != null) {
+            vm.refreshCallBanner();
+        }
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        viewModel.stopListeningActiveCalls();
+        if (vm != null) {
+            vm.stopActiveCallListener();
+        }
     }
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        setIntent(intent);
 
         String newConversationId = intent.getStringExtra("conversationId");
-        if (newConversationId != null && !newConversationId.equals(conversationId)) {
+        if (newConversationId == null) return;
+
+        if (!newConversationId.equals(conversationId)) {
             Log.d("ChatActivity", "Switching conversation from " + conversationId + " to " + newConversationId);
-            setIntent(intent);
             conversationId = newConversationId;
-            adapter.submitList(new ArrayList<>());
-            viewModel.switchConversation(newConversationId);
+            vm.switchConversation(newConversationId);
             Log.d("ChatActivity", "Conversation switched successfully");
+        } else {
+            // Same conversation — restart call listener
+            vm.startActiveCallListener();
         }
     }
 
@@ -419,21 +393,16 @@ public class ChatActivity extends BaseDrawerActivity {
                 // Receiver was not registered
             }
         }
-        viewModel.stopTyping();
     }
 
-    // =====================================================================
-    // MESSAGE VALIDATION (UI only)
-    // =====================================================================
+    // Message validation & input
 
     private void setupMessageValidation() {
-        // Set max length filter
         InputFilter[] filters = new InputFilter[]{
                 new InputFilter.LengthFilter(MAX_MESSAGE_LENGTH)
         };
         inputMessage.setFilters(filters);
 
-        // Setup character counter
         inputMessage.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -446,33 +415,27 @@ public class ChatActivity extends BaseDrawerActivity {
                 int length = s.length();
                 textCharCount.setText(length + "/" + MAX_MESSAGE_LENGTH);
 
-                // Change color based on length
                 if (length > WARNING_THRESHOLD) {
                     textCharCount.setTextColor(getResources().getColor(android.R.color.holo_red_dark, null));
                 } else {
                     textCharCount.setTextColor(getResources().getColor(android.R.color.darker_gray, null));
                 }
 
-                // Disable send button if over limit
                 buttonSend.setEnabled(length > 0 && length <= MAX_MESSAGE_LENGTH);
 
-                // Update typing status via ViewModel
                 if (length > 0) {
-                    viewModel.startTyping();
+                    vm.startTyping();
                 } else {
-                    viewModel.stopTyping();
+                    vm.stopTyping();
                 }
             }
         });
 
-        // Initial state
         textCharCount.setText("0/" + MAX_MESSAGE_LENGTH);
         buttonSend.setEnabled(false);
     }
 
-    // =====================================================================
-    // NETWORK MONITORING (UI only)
-    // =====================================================================
+    // Network monitoring (UI-specific)
 
     private void setupNetworkMonitoring() {
         networkStateReceiver = new BroadcastReceiver() {
@@ -496,12 +459,9 @@ public class ChatActivity extends BaseDrawerActivity {
         }
     }
 
-    // =====================================================================
-    // CONTEXT MENU (UI only)
-    // =====================================================================
+    // Context menu, reactions, message info (UI-only)
 
     private void showMessageContextMenu(ChatMessage message, View anchorView) {
-        // Skip for system messages
         if (message.isSystemMessage()) {
             return;
         }
@@ -514,21 +474,16 @@ public class ChatActivity extends BaseDrawerActivity {
         Button btnReact = view.findViewById(R.id.btnReact);
         Button btnInfo = view.findViewById(R.id.btnInfo);
 
-        // Copy - available for all text messages
         btnCopy.setOnClickListener(v -> {
             copyMessage(message);
             bottomSheet.dismiss();
         });
 
-        // React - available for all messages
         btnReact.setOnClickListener(v -> {
             showReactionPicker(message);
             bottomSheet.dismiss();
         });
 
-        // Info - only for our messages in groups
-        Boolean isGroupVal = viewModel.getIsGroup().getValue();
-        boolean isGroup = isGroupVal != null && isGroupVal;
         if (message.getSenderId().equals(currentUserId) && isGroup) {
             btnInfo.setVisibility(View.VISIBLE);
             btnInfo.setOnClickListener(v -> {
@@ -562,7 +517,6 @@ public class ChatActivity extends BaseDrawerActivity {
         View view = LayoutInflater.from(this).inflate(R.layout.bottom_sheet_reactions, null);
         bottomSheet.setContentView(view);
 
-        // Emoji buttons
         Button btnThumbsUp = view.findViewById(R.id.btnReactionThumbsUp);
         Button btnHeart = view.findViewById(R.id.btnReactionHeart);
         Button btnLaugh = view.findViewById(R.id.btnReactionLaugh);
@@ -572,16 +526,14 @@ public class ChatActivity extends BaseDrawerActivity {
         Button btnSmile = view.findViewById(R.id.btnReactionSmile);
         Button btnFire = view.findViewById(R.id.btnReactionFire);
 
-        // Emoji list
         String[] emojis = {"👍", "❤️", "😂", "😮", "😢", "👏", "😊", "🔥"};
         Button[] buttons = {btnThumbsUp, btnHeart, btnLaugh, btnWow, btnSad, btnClap, btnSmile, btnFire};
 
-        // Setup click listeners
         for (int i = 0; i < buttons.length; i++) {
             final String emoji = emojis[i];
             buttons[i].setOnClickListener(v -> {
                 boolean hasReacted = message.hasReactedWith(currentUserId, emoji);
-                viewModel.toggleReaction(message.getId(), emoji, hasReacted);
+                vm.toggleReaction(message, emoji);
                 bottomSheet.dismiss();
                 Toast.makeText(this, hasReacted ? "Reaction removed" : "Reaction added",
                         Toast.LENGTH_SHORT).show();
@@ -604,7 +556,6 @@ public class ChatActivity extends BaseDrawerActivity {
 
         RecyclerView recyclerReactions = view.findViewById(R.id.recyclerReactionsDetails);
 
-        // Create list of reaction details
         List<ReactionDetail> reactionDetails = new ArrayList<>();
         for (Map.Entry<String, List<String>> entry : reactions.entrySet()) {
             String emoji = entry.getKey();
@@ -614,7 +565,6 @@ public class ChatActivity extends BaseDrawerActivity {
             }
         }
 
-        // Sort by count (most reactions first)
         reactionDetails.sort((r1, r2) -> Integer.compare(r2.userIds.size(), r1.userIds.size()));
 
         ReactionsDetailAdapter reactionsDetailAdapter = new ReactionsDetailAdapter(reactionDetails, this, adapter);
@@ -636,16 +586,13 @@ public class ChatActivity extends BaseDrawerActivity {
     }
 
     private void showMessageInfo(ChatMessage message) {
-        List<String> participantIds = viewModel.getParticipantIds().getValue();
         if (message == null || participantIds == null || participantIds.isEmpty()) {
             return;
         }
 
-        // Get all participants except sender
         List<String> recipients = new ArrayList<>(participantIds);
         recipients.remove(message.getSenderId());
 
-        // Create list of participant info
         List<ParticipantReadStatus> statusList = new ArrayList<>();
         List<String> readBy = message.getReadBy() != null ? message.getReadBy() : new ArrayList<>();
 
@@ -654,7 +601,6 @@ public class ChatActivity extends BaseDrawerActivity {
             statusList.add(new ParticipantReadStatus(userId, isRead, null));
         }
 
-        // Show bottom sheet with info
         BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
         View view = LayoutInflater.from(this).inflate(R.layout.bottom_sheet_message_info, null);
         bottomSheet.setContentView(view);
@@ -682,13 +628,11 @@ public class ChatActivity extends BaseDrawerActivity {
 
     // Show user info for direct conversations (1-1)
     private void showUserInfo() {
-        List<String> participantIds = viewModel.getParticipantIds().getValue();
         if (participantIds == null || participantIds.isEmpty() || currentUserId == null) {
             Toast.makeText(this, "Unable to load user information", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        // Find the other participant (not the current user)
         String otherUserId = null;
         for (String uid : participantIds) {
             if (!uid.equals(currentUserId)) {
@@ -702,7 +646,6 @@ public class ChatActivity extends BaseDrawerActivity {
             return;
         }
 
-        // Load user data from Firestore
         db.collection("users").document(otherUserId)
                 .get()
                 .addOnSuccessListener(userDoc -> {
@@ -711,14 +654,12 @@ public class ChatActivity extends BaseDrawerActivity {
                         return;
                     }
 
-                    // Get user data
                     String firstName = userDoc.getString("firstName");
                     String lastName = userDoc.getString("lastName");
                     String fullName = userDoc.getString("fullName");
                     String email = userDoc.getString("email");
                     String department = userDoc.getString("department");
 
-                    // Build display name
                     String displayName = "";
                     if (fullName != null && !fullName.trim().isEmpty()) {
                         displayName = fullName.trim();
@@ -731,7 +672,6 @@ public class ChatActivity extends BaseDrawerActivity {
                         displayName = email != null ? email : "Unknown";
                     }
 
-                    // Show bottom sheet with user info
                     BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
                     View view = LayoutInflater.from(this).inflate(R.layout.bottom_sheet_user_info, null);
                     bottomSheet.setContentView(view);
@@ -751,30 +691,56 @@ public class ChatActivity extends BaseDrawerActivity {
                 });
     }
 
-    // =====================================================================
-    // SCROLL HELPERS (UI only)
-    // =====================================================================
+    // Scroll helpers
 
-    // Scroll to a specific message by ID
+    private void scrollToBottom() {
+        scrollToBottom(true);
+    }
+
+    private void scrollToBottom(boolean forceScroll) {
+        if (recyclerMessages == null || adapter == null) {
+            return;
+        }
+
+        int itemCount = adapter.getItemCount();
+        if (itemCount > 0) {
+            recyclerMessages.post(() -> {
+                LinearLayoutManager layoutManager = (LinearLayoutManager) recyclerMessages.getLayoutManager();
+                if (layoutManager != null) {
+                    int lastPosition = itemCount - 1;
+
+                    if (forceScroll) {
+                        layoutManager.scrollToPositionWithOffset(lastPosition, 0);
+                        recyclerMessages.postDelayed(() -> {
+                            recyclerMessages.smoothScrollToPosition(lastPosition);
+                        }, 50);
+                    } else {
+                        int lastVisible = layoutManager.findLastVisibleItemPosition();
+                        if (lastVisible >= itemCount - 5) {
+                            recyclerMessages.smoothScrollToPosition(lastPosition);
+                        }
+                    }
+                }
+            });
+        }
+    }
+
     private void scrollToMessage(String messageId) {
         if (messageId == null || adapter == null) {
             return;
         }
 
-        // Find the position of the message in the current list
         List<com.example.workconnect.models.ChatItem> items = adapter.getCurrentList();
         for (int i = 0; i < items.size(); i++) {
             com.example.workconnect.models.ChatItem item = items.get(i);
             if (item.isMessage()) {
                 ChatMessage msg = item.getMessage();
                 if (msg != null && messageId.equals(msg.getId())) {
-                    // Scroll to this position
                     LinearLayoutManager layoutManager = (LinearLayoutManager) recyclerMessages.getLayoutManager();
                     if (layoutManager != null) {
                         final int position = i;
                         layoutManager.scrollToPositionWithOffset(position, 0);
 
-                        // Highlight the message briefly
                         recyclerMessages.post(() -> {
                             RecyclerView.ViewHolder viewHolder = recyclerMessages.findViewHolderForAdapterPosition(position);
                             if (viewHolder != null && viewHolder.itemView != null) {
@@ -794,7 +760,6 @@ public class ChatActivity extends BaseDrawerActivity {
             }
         }
 
-        // Message not found in current list
         Toast.makeText(this, "Message not found in current view", Toast.LENGTH_SHORT).show();
     }
 }
