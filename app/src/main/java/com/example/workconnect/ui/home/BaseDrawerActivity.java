@@ -350,7 +350,7 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
         }
 
         // Placeholder items
-        if (id == R.id.nav_manage_attendance || id == R.id.nav_salary_slips) {
+        if (id == R.id.nav_salary_slips) {
             Toast.makeText(this, "TODO", Toast.LENGTH_SHORT).show();
         }
     }
