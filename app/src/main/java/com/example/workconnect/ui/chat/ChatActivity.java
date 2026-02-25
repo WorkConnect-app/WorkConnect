@@ -28,6 +28,7 @@ import android.widget.Toast;
 
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.lifecycle.ViewModelProvider;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -42,15 +43,12 @@ import com.example.workconnect.adapters.chats.ReactionsDetailAdapter;
 import com.example.workconnect.models.Call;
 import com.example.workconnect.models.ChatMessage;
 import com.example.workconnect.repository.CallRepository;
-import com.example.workconnect.repository.chat.MessageRepository;
 import com.example.workconnect.ui.home.BaseDrawerActivity;
+import com.example.workconnect.viewModels.chat.CallBannerState;
+import com.example.workconnect.viewModels.chat.ChatViewModel;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentSnapshot;
-import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.ListenerRegistration;
-import com.google.firebase.firestore.Query;
-import com.google.firebase.firestore.WriteBatch;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -66,28 +64,13 @@ public class ChatActivity extends BaseDrawerActivity {
     private TextView typingIndicator;
     private ProgressBar progressBarPagination;
 
-    private final List<ChatMessage> messages = new ArrayList<>();
     private ChatMessageAdapter adapter;
 
     private String conversationId;
     private String currentUserId;
 
-    private MessageRepository messageRepository;
-
     private LinearLayout offlineIndicator;
     private BroadcastReceiver networkStateReceiver;
-
-    // Pagination
-    private ListenerRegistration messagesListener;
-    private DocumentSnapshot lastDocument;
-    private boolean isLoadingOlderMessages = false;
-    private boolean hasMoreMessages = true;
-    private static final int MESSAGES_PER_PAGE = 50;
-
-    // Typing indicator
-    private ListenerRegistration typingListener;
-    private android.os.Handler typingHandler;
-    private static final long TYPING_TIMEOUT_MS = 3000; // 3 seconds
 
     private static final int MAX_MESSAGE_LENGTH = 2000;
     private static final int WARNING_THRESHOLD = 1800;
@@ -97,17 +80,16 @@ public class ChatActivity extends BaseDrawerActivity {
     private List<String> participantIds;
 
     // Call functionality
-    private CallRepository callRepository;
     private ImageButton btnCallAudio;
     private ImageButton btnCallVideo;
     private LinearLayout callBanner;
     private TextView tvCallStatus;
     private Button btnReturnToCall;
-    private Button btnEndCallFromBanner;
-    private ListenerRegistration activeCallListener;
-    private Call activeCall;
     private static final int PERMISSION_REQUEST_AUDIO = 100;
     private static final int PERMISSION_REQUEST_VIDEO = 101;
+
+    // ViewModel
+    private ChatViewModel vm;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -135,72 +117,56 @@ public class ChatActivity extends BaseDrawerActivity {
         callBanner = findViewById(R.id.call_banner_container);
         tvCallStatus = callBanner.findViewById(R.id.tv_call_status);
         btnReturnToCall = callBanner.findViewById(R.id.btn_return_to_call);
-        btnEndCallFromBanner = callBanner.findViewById(R.id.btn_end_call_from_banner);
         setupCallBanner();
+
         // db and mAuth are already initialized in BaseDrawerActivity
         currentUserId = mAuth.getCurrentUser() != null ? mAuth.getCurrentUser().getUid() : null;
-        messageRepository = new MessageRepository();
-        callRepository = new CallRepository();
 
         conversationId = getIntent().getStringExtra("conversationId");
         if (conversationId == null || currentUserId == null) return;
 
+        // ViewModel 
+        vm = new ViewModelProvider(this).get(ChatViewModel.class);
+        vm.init(conversationId, currentUserId);
+
+        // Adapter 
         adapter = new ChatMessageAdapter(currentUserId);
-        adapter.setOnRetryClickListener(message -> {
-            // Manual retry on click
-            messageRepository.retryMessageManually(message, conversationId, currentUserId, new MessageRepository.SendMessageCallback() {
-                @Override
-                public void onSuccess(String messageId) {
-                    // Message will be updated via real-time listener
-                }
+        adapter.setOnRetryClickListener(message -> vm.retryMessage(message));
+        adapter.setOnMessageLongClickListener((message, view) -> showMessageContextMenu(message, view));
+        adapter.setOnReactionsClickListener(this::showReactionsDetails);
 
-                @Override
-                public void onFailure(String error) {
-                    // Error already shown via status
-                }
-            });
-        });
-
-        // Setup long-press listener for context menu
-        adapter.setOnMessageLongClickListener((message, view) -> {
-            showMessageContextMenu(message, view);
-        });
-
-        // Setup reactions click listener
-        adapter.setOnReactionsClickListener((message) -> {
-            showReactionsDetails(message);
-        });
         LinearLayoutManager layoutManager = new LinearLayoutManager(this);
         recyclerMessages.setLayoutManager(layoutManager);
         recyclerMessages.setAdapter(adapter);
 
-        // Setup pagination scroll listener
+        // Pagination scroll listener
         recyclerMessages.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
             public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
                 super.onScrolled(recyclerView, dx, dy);
-
-                // Check if scrolled to top
-                if (layoutManager.findFirstVisibleItemPosition() == 0 &&
-                        !isLoadingOlderMessages &&
-                        hasMoreMessages) {
-                    loadOlderMessages();
+                if (layoutManager.findFirstVisibleItemPosition() == 0) {
+                    vm.loadOlderMessages();
                 }
             }
         });
 
-        // Set group/direct on adapter
-        loadConversationType();
+        // Observe LiveData 
+        observeViewModel(btnGroupInfo);
 
-        // Reset unread count when opening the chat
-        resetMyUnreadCount();
-
-        listenMessages();
+        // Send button
+        buttonSend.setOnClickListener(v -> {
+            String text = inputMessage.getText().toString();
+            vm.sendMessage(text);
+            inputMessage.setText("");
+            scrollToBottom(true);
+        });
 
         // Mark messages as read after a short delay
-        markMessagesAsRead();
-
-        buttonSend.setOnClickListener(v -> sendMessage());
+        recyclerMessages.postDelayed(() -> {
+            if (!isFinishing()) {
+                vm.markMessagesAsRead();
+            }
+        }, 500);
 
         // Setup network monitoring
         setupNetworkMonitoring();
@@ -208,13 +174,73 @@ public class ChatActivity extends BaseDrawerActivity {
 
         // Setup message validation
         setupMessageValidation();
-
-        // Setup typing indicator
-        setupTypingIndicator();
-
-        // Listen to active calls (to show banner)
-        listenToActiveCall();
     }
+
+    // Observe ViewModel
+
+    private void observeViewModel(Button btnGroupInfo) {
+        // Messages
+        vm.getMessages().observe(this, list -> {
+            int oldSize = adapter.getItemCount();
+            adapter.submitList(new ArrayList<>(list));
+            // Scroll to bottom if new message added
+            if (list.size() > oldSize && oldSize > 0) {
+                scrollToBottom(false);
+            } else if (oldSize == 0 && !list.isEmpty()) {
+                scrollToBottom(true);
+            }
+        });
+
+        // Group / participants
+        vm.getIsGroup().observe(this, group -> {
+            isGroup = group;
+            adapter.setGroup(group);
+
+            if (group) {
+                btnGroupInfo.setText("Group");
+                btnGroupInfo.setOnClickListener(v -> {
+                    Intent i = new Intent(ChatActivity.this, GroupInfoActivity.class);
+                    i.putExtra("conversationId", conversationId);
+                    startActivity(i);
+                });
+            } else {
+                btnGroupInfo.setText("Info");
+                btnGroupInfo.setOnClickListener(v -> showUserInfo());
+            }
+        });
+
+        vm.getParticipantIds().observe(this, ids -> {
+            participantIds = ids;
+            adapter.setParticipantIds(ids);
+        });
+
+        // Typing
+        vm.getTypingText().observe(this, text -> {
+            if (text != null && !text.isEmpty()) {
+                typingIndicator.setText(text);
+                typingIndicator.setVisibility(View.VISIBLE);
+            } else {
+                typingIndicator.setVisibility(View.GONE);
+            }
+        });
+
+        // Call banner
+        vm.getCallBanner().observe(this, state -> {
+            if (state == null || !state.isVisible()) {
+                callBanner.setVisibility(View.GONE);
+            } else {
+                tvCallStatus.setText(state.getStatusText());
+                callBanner.setVisibility(View.VISIBLE);
+            }
+        });
+
+        // Pagination loading
+        vm.getIsLoadingOlder().observe(this, loading -> {
+            progressBarPagination.setVisibility(loading ? View.VISIBLE : View.GONE);
+        });
+    }
+
+    // Call buttons & banner (UI-only, business logic in ViewModel/Repository)
 
     private void setupCallButtons() {
         btnCallAudio.setOnClickListener(v -> initiateCall("audio"));
@@ -223,47 +249,24 @@ public class ChatActivity extends BaseDrawerActivity {
 
     private void setupCallBanner() {
         btnReturnToCall.setOnClickListener(v -> {
-            if (activeCall != null) {
+            if (CallActivity.isInCall &&
+                    CallActivity.currentCallConversationId != null &&
+                    CallActivity.currentCallConversationId.equals(conversationId)) {
+                // Already in this call (minimized) → bring CallActivity back to front
                 Intent intent = new Intent(this, CallActivity.class);
-                intent.putExtra("callId", activeCall.getCallId());
-                intent.putExtra("conversationId", conversationId);
-                intent.putExtra("callType", activeCall.getType());
-                intent.putExtra("isGroupCall", isGroup);
+                intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
                 startActivity(intent);
-            }
-        });
-
-        btnEndCallFromBanner.setOnClickListener(v -> {
-            if (activeCall != null) {
-                // End call directly from banner
-                String callId = activeCall.getCallId();
-                if (callId != null) {
-                    // Calculate call duration
-                    long durationMs = 0;
-                    if (activeCall.getStartedAt() != null) {
-                        Date endTime = new Date();
-                        durationMs = endTime.getTime() - activeCall.getStartedAt().getTime();
-                    }
-
-                    // Determine if it's a group call
-                    boolean isGroupCall = isGroup;
-
-                    // End the call
-                    callRepository.endCall(
-                            callId,
-                            conversationId,
-                            isGroupCall,
-                            activeCall.getType(),
-                            durationMs,
-                            false, // not missed, user ended it
-                            currentUserId // who ended the call
-                    );
-
-                    // Hide banner immediately
-                    activeCall = null;
-                    hideCallBanner();
-
-                    Log.d("ChatActivity", "Call ended from banner");
+            } else {
+                Call activeGroupCall = vm.getActiveGroupCall();
+                if (activeGroupCall != null) {
+                    // Active call in this conversation we're not in → join it
+                    Intent intent = new Intent(this, CallActivity.class);
+                    intent.putExtra("callId", activeGroupCall.getCallId());
+                    intent.putExtra("conversationId", conversationId);
+                    intent.putExtra("callType", activeGroupCall.getType());
+                    intent.putExtra("isCaller", false);
+                    intent.putExtra("isGroupCall", true);
+                    startActivity(intent);
                 }
             }
         });
@@ -275,39 +278,19 @@ public class ChatActivity extends BaseDrawerActivity {
             return;
         }
 
-        // Check if already in an active call
-        if (activeCall != null && "active".equals(activeCall.getStatus())) {
-            Toast.makeText(this, "You are already in a call", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        // Check if already in ringing state
-        if (activeCall != null && "ringing".equals(activeCall.getStatus())) {
-            Toast.makeText(this, "A call is already in progress", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        // Check permissions
-        if ("video".equals(callType)) {
-            if (!checkVideoPermissions()) {
-                requestVideoPermissions();
-                return;
-            }
-        } else {
-            if (!checkAudioPermissions()) {
-                requestAudioPermissions();
-                return;
-            }
-        }
-
-        // Check in-memory flag (set by CallActivity itself — instant, no network call)
         if (CallActivity.isInCall) {
             Toast.makeText(this, "You are already in a call", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        // create call
-        callRepository.createCall(conversationId, currentUserId, participantIds, callType,
+        // Check permissions
+        if ("video".equals(callType)) {
+            if (!checkVideoPermissions()) { requestVideoPermissions(); return; }
+        } else {
+            if (!checkAudioPermissions()) { requestAudioPermissions(); return; }
+        }
+
+        vm.getCallRepository().createCall(conversationId, currentUserId, participantIds, callType,
                 new CallRepository.CreateCallCallback() {
                     @Override
                     public void onSuccess(String callId) {
@@ -358,163 +341,70 @@ public class ChatActivity extends BaseDrawerActivity {
 
         if (requestCode == PERMISSION_REQUEST_AUDIO || requestCode == PERMISSION_REQUEST_VIDEO) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                // Permission granted, but user needs to click button again
-                // Could auto-retry here if desired
+                // Permission granted, user needs to click button again
             } else {
                 Toast.makeText(this, "Permissions required for calls", Toast.LENGTH_SHORT).show();
             }
         }
     }
 
-    // Incoming call dialog is now handled by BaseDrawerActivity
-    // This ensures incoming calls are shown everywhere in the app
-
-    private void listenToActiveCall() {
-        if (activeCallListener != null) {
-            activeCallListener.remove();
-        }
-
-        // Listen to active or ringing calls for this conversation
-        // Show banner for active calls, or ringing calls if user is the caller
-        activeCallListener = db.collection("calls")
-                .whereEqualTo("conversationId", conversationId)
-                .whereArrayContains("participants", currentUserId)
-                .addSnapshotListener((snapshot, e) -> {
-                    if (e != null) {
-                        Log.e("ChatActivity", "Error listening to calls", e);
-                        return;
-                    }
-
-                    // Check if snapshot is empty (call was deleted/ended)
-                    if (snapshot == null || snapshot.isEmpty()) {
-                        Log.d("ChatActivity", "No active calls found, hiding banner");
-                        activeCall = null;
-                        hideCallBanner();
-                        return;
-                    }
-
-                    // Find the most recent active or ringing call
-                    Call foundCall = null;
-                    for (DocumentSnapshot doc : snapshot.getDocuments()) {
-                        Call call = doc.toObject(Call.class);
-                        if (call != null) {
-                            call.setCallId(doc.getId());
-                            String status = call.getStatus();
-
-                            Log.d("ChatActivity", "Found call with status: " + status);
-
-                            // Hide banner if call is ended or missed
-                            if ("ended".equals(status) || "missed".equals(status)) {
-                                Log.d("ChatActivity", "Call ended/missed, hiding banner");
-                                activeCall = null;
-                                hideCallBanner();
-                                return; // Exit early, no need to check other calls
-                            }
-
-                            // Show banner for active calls
-                            if ("active".equals(status)) {
-                                foundCall = call;
-                                Log.d("ChatActivity", "Found active call, showing banner");
-                                break;
-                            }
-                            // Show banner for ringing calls only if user is the caller
-                            else if ("ringing".equals(status) &&
-                                    currentUserId != null &&
-                                    currentUserId.equals(call.getCallerId())) {
-                                foundCall = call;
-                                Log.d("ChatActivity", "Found ringing call (user is caller), showing banner");
-                                // Don't break, continue to check for active calls
-                            }
-                        }
-                    }
-
-                    if (foundCall != null) {
-                        activeCall = foundCall;
-                        updateCallBanner();
-                    } else {
-                        Log.d("ChatActivity", "No valid call found, hiding banner");
-                        activeCall = null;
-                        hideCallBanner();
-                    }
-                });
-    }
-
-    private void updateCallBanner() {
-        if (activeCall == null) {
-            hideCallBanner();
-            return;
-        }
-
-        // Only show banner for active calls or ringing calls where user is caller
-        String status = activeCall.getStatus();
-        boolean isCaller = currentUserId != null && currentUserId.equals(activeCall.getCallerId());
-
-        if (!"active".equals(status) && !("ringing".equals(status) && isCaller)) {
-            hideCallBanner();
-            return;
-        }
-
-        // Calculate duration
-        long durationMs = 0;
-        if (activeCall.getStartedAt() != null) {
-            Date endTime = activeCall.getEndedAt() != null ?
-                    activeCall.getEndedAt() : new Date();
-            durationMs = endTime.getTime() - activeCall.getStartedAt().getTime();
-        }
-
-        String durationText = formatCallDuration(durationMs);
-        String callTypeText = activeCall.isVideoCall() ? "Video call" : "Audio call";
-
-        if ("ringing".equals(status)) {
-            tvCallStatus.setText(callTypeText + " - In progress...");
-        } else {
-            tvCallStatus.setText(callTypeText + " - " + durationText);
-        }
-
-        callBanner.setVisibility(View.VISIBLE);
-        Log.d("ChatActivity", "Call banner shown - Status: " + status + ", IsCaller: " + isCaller);
-    }
-
-    private void hideCallBanner() {
-        runOnUiThread(() -> {
-            if (callBanner != null) {
-                callBanner.setVisibility(View.GONE);
-                Log.d("ChatActivity", "Call banner hidden");
-            }
-        });
-    }
-
-    private String formatCallDuration(long durationMs) {
-        long totalSeconds = durationMs / 1000;
-        long minutes = totalSeconds / 60;
-        long seconds = totalSeconds % 60;
-        return String.format("%02d:%02d", minutes, seconds);
-    }
+    // Lifecycle
 
     @Override
     protected void onResume() {
         super.onResume();
-        // Check for active calls when returning to activity
-        listenToActiveCall();
+        if (vm != null) {
+            vm.refreshCallBanner();
+        }
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        if (activeCallListener != null) {
-            activeCallListener.remove();
-            activeCallListener = null;
+        if (vm != null) {
+            vm.stopActiveCallListener();
         }
     }
 
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+
+        String newConversationId = intent.getStringExtra("conversationId");
+        if (newConversationId == null) return;
+
+        if (!newConversationId.equals(conversationId)) {
+            Log.d("ChatActivity", "Switching conversation from " + conversationId + " to " + newConversationId);
+            conversationId = newConversationId;
+            vm.switchConversation(newConversationId);
+            Log.d("ChatActivity", "Conversation switched successfully");
+        } else {
+            // Same conversation — restart call listener
+            vm.startActiveCallListener();
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (networkStateReceiver != null) {
+            try {
+                unregisterReceiver(networkStateReceiver);
+            } catch (IllegalArgumentException e) {
+                // Receiver was not registered
+            }
+        }
+    }
+
+    // Message validation & input
+
     private void setupMessageValidation() {
-        // Set max length filter
         InputFilter[] filters = new InputFilter[]{
                 new InputFilter.LengthFilter(MAX_MESSAGE_LENGTH)
         };
         inputMessage.setFilters(filters);
 
-        // Setup character counter
         inputMessage.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -527,29 +417,27 @@ public class ChatActivity extends BaseDrawerActivity {
                 int length = s.length();
                 textCharCount.setText(length + "/" + MAX_MESSAGE_LENGTH);
 
-                // Change color based on length
                 if (length > WARNING_THRESHOLD) {
                     textCharCount.setTextColor(getResources().getColor(android.R.color.holo_red_dark, null));
                 } else {
                     textCharCount.setTextColor(getResources().getColor(android.R.color.darker_gray, null));
                 }
 
-                // Disable send button if over limit
                 buttonSend.setEnabled(length > 0 && length <= MAX_MESSAGE_LENGTH);
 
-                // Update typing status
                 if (length > 0) {
-                    startTyping();
+                    vm.startTyping();
                 } else {
-                    stopTyping();
+                    vm.stopTyping();
                 }
             }
         });
 
-        // Initial state
         textCharCount.setText("0/" + MAX_MESSAGE_LENGTH);
         buttonSend.setEnabled(false);
     }
+
+    // Network monitoring (UI-specific)
 
     private void setupNetworkMonitoring() {
         networkStateReceiver = new BroadcastReceiver() {
@@ -569,493 +457,13 @@ public class ChatActivity extends BaseDrawerActivity {
         boolean isConnected = activeNetwork != null && activeNetwork.isConnectedOrConnecting();
 
         if (offlineIndicator != null) {
-            offlineIndicator.setVisibility(isConnected ? android.view.View.GONE : android.view.View.VISIBLE);
+            offlineIndicator.setVisibility(isConnected ? View.GONE : View.VISIBLE);
         }
     }
 
-    @Override
-    protected void onNewIntent(Intent intent) {
-        super.onNewIntent(intent);
-
-        // Check if we need to switch to a different conversation
-        String newConversationId = intent.getStringExtra("conversationId");
-        if (newConversationId != null && !newConversationId.equals(conversationId)) {
-            Log.d("ChatActivity", "Switching conversation from " + conversationId + " to " + newConversationId);
-
-            // Update the intent
-            setIntent(intent);
-
-            // Clean up old listeners
-            if (messagesListener != null) {
-                messagesListener.remove();
-                messagesListener = null;
-            }
-            if (typingListener != null) {
-                typingListener.remove();
-                typingListener = null;
-            }
-            if (activeCallListener != null) {
-                activeCallListener.remove();
-                activeCallListener = null;
-            }
-
-            // Update conversation ID
-            conversationId = newConversationId;
-
-            // Clear messages
-            messages.clear();
-            adapter.submitList(new ArrayList<>());
-
-            // Reload conversation
-            loadConversationType();
-            listenMessages();
-            setupTypingIndicator();
-            listenToActiveCall();
-
-            Log.d("ChatActivity", "Conversation switched successfully");
-        }
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        if (networkStateReceiver != null) {
-            try {
-                unregisterReceiver(networkStateReceiver);
-            } catch (IllegalArgumentException e) {
-                // Receiver was not registered
-            }
-        }
-        if (messagesListener != null) {
-            messagesListener.remove();
-        }
-        if (typingListener != null) {
-            typingListener.remove();
-        }
-        stopTyping();
-        if (typingHandler != null) {
-            typingHandler.removeCallbacksAndMessages(null);
-        }
-        if (activeCallListener != null) {
-            activeCallListener.remove();
-        }
-        // Incoming call listener is now managed by BaseDrawerActivity
-    }
-
-    private void loadConversationType() {
-        db.collection("conversations")
-                .document(conversationId)
-                .get()
-                .addOnSuccessListener(doc -> {
-                    String type = doc.getString("type");
-                    isGroup = "group".equals(type);
-                    adapter.setGroup(isGroup);
-
-                    // Get participant IDs for read receipts calculation
-                    @SuppressWarnings("unchecked")
-                    List<String> ids = (List<String>) doc.get("participantIds");
-                    if (ids != null) {
-                        participantIds = ids;
-                        adapter.setParticipantIds(ids);
-                    }
-
-                    // Update button text and behavior based on conversation type
-                    Button btnGroupInfo = findViewById(R.id.btn_group_info);
-                    if (isGroup) {
-                        btnGroupInfo.setText("Group");
-                        btnGroupInfo.setOnClickListener(v -> {
-                            Intent i = new Intent(ChatActivity.this, GroupInfoActivity.class);
-                            i.putExtra("conversationId", conversationId);
-                            startActivity(i);
-                        });
-                    } else {
-                        btnGroupInfo.setText("Info");
-                        btnGroupInfo.setOnClickListener(v -> showUserInfo());
-                    }
-                })
-                .addOnFailureListener(e -> {
-                    isGroup = false;
-                    adapter.setGroup(false);
-                    // Default to info button for direct conversations
-                    Button btnGroupInfo = findViewById(R.id.btn_group_info);
-                    btnGroupInfo.setText("Info");
-                    btnGroupInfo.setOnClickListener(v -> showUserInfo());
-                });
-    }
-
-    private void resetMyUnreadCount() {
-        db.collection("conversations")
-                .document(conversationId)
-                .update("unreadCounts." + currentUserId, 0);
-    }
-
-    private void listenMessages() {
-        // Load initial messages (last 50)
-        Query initialQuery = db.collection("conversations")
-                .document(conversationId)
-                .collection("messages")
-                .orderBy("sentAt", Query.Direction.DESCENDING)
-                .limit(MESSAGES_PER_PAGE);
-
-        initialQuery.get().addOnSuccessListener(querySnapshot -> {
-            if (querySnapshot.isEmpty()) {
-                hasMoreMessages = false;
-                return;
-            }
-
-            List<ChatMessage> initialMessages = new ArrayList<>();
-            for (DocumentSnapshot d : querySnapshot.getDocuments()) {
-                ChatMessage m = d.toObject(ChatMessage.class);
-                if (m != null) {
-                    m.setId(d.getId());
-                    initialMessages.add(0, m); // Reverse order (oldest first)
-                }
-            }
-
-            // Store last document for pagination
-            if (querySnapshot.size() < MESSAGES_PER_PAGE) {
-                hasMoreMessages = false;
-            } else {
-                lastDocument = querySnapshot.getDocuments().get(querySnapshot.size() - 1);
-            }
-
-            // Update messages list
-            messages.clear();
-            messages.addAll(initialMessages);
-            adapter.submitList(new ArrayList<>(initialMessages));
-
-            // Scroll to bottom
-            if (!initialMessages.isEmpty()) {
-                scrollToBottom();
-            }
-
-            // Now set up real-time listener for new messages only
-            setupRealtimeListener();
-        });
-    }
-
-    private void setupRealtimeListener() {
-        // Listen for all new messages (real-time updates)
-        // We'll filter out duplicates based on message IDs
-        messagesListener = db.collection("conversations")
-                .document(conversationId)
-                .collection("messages")
-                .orderBy("sentAt", Query.Direction.ASCENDING)
-                .addSnapshotListener((snap, e) -> {
-                    if (snap == null || snap.isEmpty()) return;
-
-                    List<ChatMessage> allMessages = new ArrayList<>();
-                    for (DocumentSnapshot d : snap.getDocuments()) {
-                        ChatMessage m = d.toObject(ChatMessage.class);
-                        if (m != null) {
-                            m.setId(d.getId());
-                            allMessages.add(m);
-                        }
-                    }
-
-                    // Check if messages have changed (new messages or updates to existing messages like reactions)
-                    boolean hasChanges = false;
-                    int oldSize = messages.size();
-                    boolean isNewMessage = allMessages.size() > oldSize;
-
-                    if (allMessages.size() != oldSize) {
-                        hasChanges = true;
-                    } else {
-                        // Compare messages to detect updates (e.g., reactions, read status)
-                        for (int i = 0; i < allMessages.size(); i++) {
-                            ChatMessage newMsg = allMessages.get(i);
-                            ChatMessage oldMsg = i < messages.size() ? messages.get(i) : null;
-
-                            if (oldMsg == null || !newMsg.equals(oldMsg)) {
-                                hasChanges = true;
-                                break;
-                            }
-                        }
-                    }
-
-                    // Update if we have changes (new messages or updates to existing messages)
-                    if (hasChanges) {
-                        messages.clear();
-                        messages.addAll(allMessages);
-                        adapter.submitList(new ArrayList<>(messages));
-
-                        // Update last document for pagination
-                        if (!allMessages.isEmpty()) {
-                            lastDocument = snap.getDocuments().get(snap.size() - 1);
-                        }
-
-                        // Only scroll to bottom for new messages, not for updates to existing messages
-                        // Don't force scroll for received messages if user is reading older messages
-                        if (isNewMessage) {
-                            scrollToBottom(false);
-                        }
-                    }
-                });
-    }
-
-    private void loadOlderMessages() {
-        if (isLoadingOlderMessages || !hasMoreMessages || lastDocument == null) {
-            return;
-        }
-
-        isLoadingOlderMessages = true;
-        progressBarPagination.setVisibility(android.view.View.VISIBLE);
-
-        int currentScrollPosition = ((LinearLayoutManager) recyclerMessages.getLayoutManager())
-                .findFirstVisibleItemPosition();
-
-        Query olderQuery = db.collection("conversations")
-                .document(conversationId)
-                .collection("messages")
-                .orderBy("sentAt", Query.Direction.DESCENDING)
-                .startAfter(lastDocument)
-                .limit(MESSAGES_PER_PAGE);
-
-        olderQuery.get().addOnSuccessListener(querySnapshot -> {
-            isLoadingOlderMessages = false;
-            progressBarPagination.setVisibility(android.view.View.GONE);
-
-            if (querySnapshot.isEmpty()) {
-                hasMoreMessages = false;
-                return;
-            }
-
-            List<ChatMessage> olderMessages = new ArrayList<>();
-            for (DocumentSnapshot d : querySnapshot.getDocuments()) {
-                ChatMessage m = d.toObject(ChatMessage.class);
-                if (m != null) {
-                    m.setId(d.getId());
-                    olderMessages.add(0, m); // Reverse order
-                }
-            }
-
-            // Update last document
-            if (querySnapshot.size() < MESSAGES_PER_PAGE) {
-                hasMoreMessages = false;
-            } else {
-                lastDocument = querySnapshot.getDocuments().get(querySnapshot.size() - 1);
-            }
-
-            // Prepend older messages to list
-            olderMessages.addAll(messages);
-            messages.clear();
-            messages.addAll(olderMessages);
-
-            adapter.submitList(new ArrayList<>(messages));
-
-            // Maintain scroll position
-            recyclerMessages.post(() -> {
-                int newPosition = currentScrollPosition + olderMessages.size();
-                recyclerMessages.scrollToPosition(newPosition);
-            });
-        }).addOnFailureListener(e -> {
-            isLoadingOlderMessages = false;
-            progressBarPagination.setVisibility(android.view.View.GONE);
-        });
-    }
-
-    private void sendMessage() {
-        String text = inputMessage.getText().toString().trim();
-        if (text.isEmpty()) return;
-
-        ChatMessage msg = new ChatMessage(
-                null,
-                conversationId,
-                currentUserId,
-                text,
-                new Date(),
-                false,
-                null,
-                ChatMessage.MessageStatus.PENDING
-        );
-
-        // Add message locally first (optimistic update)
-        messages.add(msg);
-        adapter.submitList(new ArrayList<>(messages));
-
-        // Force scroll to bottom immediately after sending message
-        scrollToBottom(true);
-
-        // Use MessageRepository for sending with retry
-        messageRepository.sendMessage(msg, conversationId, currentUserId, new MessageRepository.SendMessageCallback() {
-            @Override
-            public void onSuccess(String messageId) {
-                // Message will be updated via real-time listener
-                msg.setId(messageId);
-                msg.setStatus(ChatMessage.MessageStatus.SENT);
-                adapter.submitList(new ArrayList<>(messages));
-                // Scroll again after message is confirmed sent
-                scrollToBottom(true);
-            }
-
-            @Override
-            public void onFailure(String error) {
-                // Message status already set to FAILED by repository
-                adapter.submitList(new ArrayList<>(messages));
-            }
-        });
-
-        inputMessage.setText("");
-        stopTyping(); // Stop typing when message is sent
-    }
-
-    private void markMessagesAsRead() {
-        // Delay to avoid marking as read if user leaves quickly
-        recyclerMessages.postDelayed(() -> {
-            if (isFinishing() || conversationId == null || currentUserId == null) {
-                return;
-            }
-
-            // Get all unread messages received by current user
-            List<ChatMessage> unreadMessages = new ArrayList<>();
-            for (ChatMessage msg : messages) {
-                if (!msg.getSenderId().equals(currentUserId)) {
-                    // Check if already read by this user
-                    boolean alreadyRead = msg.getReadBy() != null && msg.getReadBy().contains(currentUserId);
-                    if (!alreadyRead) {
-                        unreadMessages.add(msg);
-                    }
-                }
-            }
-
-            if (unreadMessages.isEmpty()) {
-                return;
-            }
-
-            // Use batch write to update multiple messages
-            WriteBatch batch = db.batch();
-            Date readAt = new Date();
-
-            for (ChatMessage msg : unreadMessages) {
-                if (msg.getId() != null) {
-                    // Get current readBy list or create new one
-                    List<String> currentReadBy = msg.getReadBy() != null ?
-                            new ArrayList<>(msg.getReadBy()) : new ArrayList<>();
-
-                    // Add current user if not already present
-                    if (!currentReadBy.contains(currentUserId)) {
-                        currentReadBy.add(currentUserId);
-                    }
-
-                    // Update both readBy (for WhatsApp-style) and isRead (for backward compatibility)
-                    batch.update(
-                            db.collection("conversations")
-                                    .document(conversationId)
-                                    .collection("messages")
-                                    .document(msg.getId()),
-                            "readBy", currentReadBy,
-                            "isRead", true,
-                            "readAt", readAt
-                    );
-                }
-            }
-
-            batch.commit().addOnSuccessListener(aVoid -> {
-                // Update local messages
-                for (ChatMessage msg : unreadMessages) {
-                    List<String> currentReadBy = msg.getReadBy() != null ?
-                            new ArrayList<>(msg.getReadBy()) : new ArrayList<>();
-                    if (!currentReadBy.contains(currentUserId)) {
-                        currentReadBy.add(currentUserId);
-                    }
-                    msg.setReadBy(currentReadBy);
-                    msg.setRead(true);
-                    msg.setReadAt(readAt);
-                }
-                adapter.submitList(new ArrayList<>(messages));
-            });
-        }, 500); // 500ms delay
-    }
-
-    private void setupTypingIndicator() {
-        typingHandler = new android.os.Handler(android.os.Looper.getMainLooper());
-
-        // Listen to typing status in Firestore
-        typingListener = db.collection("conversations")
-                .document(conversationId)
-                .addSnapshotListener((doc, e) -> {
-                    if (doc == null || !doc.exists()) return;
-
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> typingUsers = (Map<String, Object>) doc.get("typingUsers");
-
-                    if (typingUsers == null || typingUsers.isEmpty()) {
-                        typingIndicator.setVisibility(android.view.View.GONE);
-                        return;
-                    }
-
-                    // Remove current user from typing list
-                    List<String> otherTypingUsers = new ArrayList<>();
-                    for (String uid : typingUsers.keySet()) {
-                        if (!uid.equals(currentUserId)) {
-                            otherTypingUsers.add(uid);
-                        }
-                    }
-
-                    if (otherTypingUsers.isEmpty()) {
-                        typingIndicator.setVisibility(android.view.View.GONE);
-                        return;
-                    }
-
-                    // Display typing indicator
-                    if (otherTypingUsers.size() == 1) {
-                        // Load user name
-                        String uid = otherTypingUsers.get(0);
-                        db.collection("users").document(uid)
-                                .get()
-                                .addOnSuccessListener(userDoc -> {
-                                    String firstName = userDoc.getString("firstName");
-                                    String lastName = userDoc.getString("lastName");
-                                    String name = ((firstName != null ? firstName : "") + " " +
-                                            (lastName != null ? lastName : "")).trim();
-                                    if (name.isEmpty()) name = userDoc.getString("fullName");
-                                    if (name == null || name.isEmpty()) name = "Someone";
-
-                                    typingIndicator.setText(name + " is typing...");
-                                    typingIndicator.setVisibility(android.view.View.VISIBLE);
-                                });
-                    } else {
-                        typingIndicator.setText(otherTypingUsers.size() + " people are typing...");
-                        typingIndicator.setVisibility(android.view.View.VISIBLE);
-                    }
-                });
-    }
-
-    private void startTyping() {
-        if (conversationId == null || currentUserId == null) return;
-
-        // Update typing status in Firestore
-        db.collection("conversations")
-                .document(conversationId)
-                .update("typingUsers." + currentUserId, System.currentTimeMillis());
-
-        // Clear previous timeout
-        if (typingHandler != null) {
-            typingHandler.removeCallbacksAndMessages(null);
-        }
-
-        // Set timeout to stop typing after 3 seconds of inactivity
-        typingHandler.postDelayed(() -> stopTyping(), TYPING_TIMEOUT_MS);
-    }
-
-    private void stopTyping() {
-        if (conversationId == null || currentUserId == null) return;
-
-        // Remove typing status from Firestore
-        db.collection("conversations")
-                .document(conversationId)
-                .update("typingUsers." + currentUserId, FieldValue.delete());
-
-        // Clear timeout
-        if (typingHandler != null) {
-            typingHandler.removeCallbacksAndMessages(null);
-        }
-    }
-
-    // ===== CONTEXT MENU METHODS =====
+    // Context menu, reactions, message info (UI-only)
 
     private void showMessageContextMenu(ChatMessage message, View anchorView) {
-        // Skip for system messages
         if (message.isSystemMessage()) {
             return;
         }
@@ -1068,19 +476,16 @@ public class ChatActivity extends BaseDrawerActivity {
         Button btnReact = view.findViewById(R.id.btnReact);
         Button btnInfo = view.findViewById(R.id.btnInfo);
 
-        // Copy - available for all text messages
         btnCopy.setOnClickListener(v -> {
             copyMessage(message);
             bottomSheet.dismiss();
         });
 
-        // React - available for all messages
         btnReact.setOnClickListener(v -> {
             showReactionPicker(message);
             bottomSheet.dismiss();
         });
 
-        // Info - only for our messages in groups
         if (message.getSenderId().equals(currentUserId) && isGroup) {
             btnInfo.setVisibility(View.VISIBLE);
             btnInfo.setOnClickListener(v -> {
@@ -1114,7 +519,6 @@ public class ChatActivity extends BaseDrawerActivity {
         View view = LayoutInflater.from(this).inflate(R.layout.bottom_sheet_reactions, null);
         bottomSheet.setContentView(view);
 
-        // Emoji buttons
         Button btnThumbsUp = view.findViewById(R.id.btnReactionThumbsUp);
         Button btnHeart = view.findViewById(R.id.btnReactionHeart);
         Button btnLaugh = view.findViewById(R.id.btnReactionLaugh);
@@ -1124,38 +528,18 @@ public class ChatActivity extends BaseDrawerActivity {
         Button btnSmile = view.findViewById(R.id.btnReactionSmile);
         Button btnFire = view.findViewById(R.id.btnReactionFire);
 
-        // Emoji list
         String[] emojis = {"👍", "❤️", "😂", "😮", "😢", "👏", "😊", "🔥"};
         Button[] buttons = {btnThumbsUp, btnHeart, btnLaugh, btnWow, btnSad, btnClap, btnSmile, btnFire};
 
-        // Setup click listeners
         for (int i = 0; i < buttons.length; i++) {
             final String emoji = emojis[i];
             buttons[i].setOnClickListener(v -> {
-                toggleReaction(message, emoji);
+                vm.toggleReaction(message, emoji);
                 bottomSheet.dismiss();
             });
         }
 
         bottomSheet.show();
-    }
-
-    private void toggleReaction(ChatMessage message, String emoji) {
-        if (message == null || message.getId() == null || emoji == null || currentUserId == null) {
-            return;
-        }
-
-        boolean hasReacted = message.hasReactedWith(currentUserId, emoji);
-
-        if (hasReacted) {
-            // Remove reaction
-            messageRepository.removeReaction(message.getId(), emoji, currentUserId, conversationId);
-            Toast.makeText(this, "Reaction removed", Toast.LENGTH_SHORT).show();
-        } else {
-            // Add reaction
-            messageRepository.addReaction(message.getId(), emoji, currentUserId, conversationId);
-            Toast.makeText(this, "Reaction added", Toast.LENGTH_SHORT).show();
-        }
     }
 
     private void showReactionsDetails(ChatMessage message) {
@@ -1171,7 +555,6 @@ public class ChatActivity extends BaseDrawerActivity {
 
         RecyclerView recyclerReactions = view.findViewById(R.id.recyclerReactionsDetails);
 
-        // Create list of reaction details
         List<ReactionDetail> reactionDetails = new ArrayList<>();
         for (Map.Entry<String, List<String>> entry : reactions.entrySet()) {
             String emoji = entry.getKey();
@@ -1181,7 +564,6 @@ public class ChatActivity extends BaseDrawerActivity {
             }
         }
 
-        // Sort by count (most reactions first)
         reactionDetails.sort((r1, r2) -> Integer.compare(r2.userIds.size(), r1.userIds.size()));
 
         ReactionsDetailAdapter reactionsDetailAdapter = new ReactionsDetailAdapter(reactionDetails, this, adapter);
@@ -1207,20 +589,17 @@ public class ChatActivity extends BaseDrawerActivity {
             return;
         }
 
-        // Get all participants except sender
         List<String> recipients = new ArrayList<>(participantIds);
         recipients.remove(message.getSenderId());
 
-        // Create list of participant info
         List<ParticipantReadStatus> statusList = new ArrayList<>();
         List<String> readBy = message.getReadBy() != null ? message.getReadBy() : new ArrayList<>();
 
         for (String userId : recipients) {
             boolean isRead = readBy.contains(userId);
-            statusList.add(new ParticipantReadStatus(userId, isRead, null)); // TODO: add readAt timestamp
+            statusList.add(new ParticipantReadStatus(userId, isRead, null));
         }
 
-        // Show bottom sheet with info
         BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
         View view = LayoutInflater.from(this).inflate(R.layout.bottom_sheet_message_info, null);
         bottomSheet.setContentView(view);
@@ -1253,7 +632,6 @@ public class ChatActivity extends BaseDrawerActivity {
             return;
         }
 
-        // Find the other participant (not the current user)
         String otherUserId = null;
         for (String uid : participantIds) {
             if (!uid.equals(currentUserId)) {
@@ -1267,7 +645,6 @@ public class ChatActivity extends BaseDrawerActivity {
             return;
         }
 
-        // Load user data from Firestore
         db.collection("users").document(otherUserId)
                 .get()
                 .addOnSuccessListener(userDoc -> {
@@ -1276,14 +653,12 @@ public class ChatActivity extends BaseDrawerActivity {
                         return;
                     }
 
-                    // Get user data
                     String firstName = userDoc.getString("firstName");
                     String lastName = userDoc.getString("lastName");
                     String fullName = userDoc.getString("fullName");
                     String email = userDoc.getString("email");
                     String department = userDoc.getString("department");
 
-                    // Build display name
                     String displayName = "";
                     if (fullName != null && !fullName.trim().isEmpty()) {
                         displayName = fullName.trim();
@@ -1296,7 +671,6 @@ public class ChatActivity extends BaseDrawerActivity {
                         displayName = email != null ? email : "Unknown";
                     }
 
-                    // Show bottom sheet with user info
                     BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
                     View view = LayoutInflater.from(this).inflate(R.layout.bottom_sheet_user_info, null);
                     bottomSheet.setContentView(view);
@@ -1316,13 +690,12 @@ public class ChatActivity extends BaseDrawerActivity {
                 });
     }
 
-    // Scroll to bottom of the conversation
+    // Scroll helpers
+
     private void scrollToBottom() {
         scrollToBottom(true);
     }
 
-    // Scroll to bottom of the conversation
-    // forceScroll: if true, always scroll; if false, only scroll if user is near bottom
     private void scrollToBottom(boolean forceScroll) {
         if (recyclerMessages == null || adapter == null) {
             return;
@@ -1330,22 +703,17 @@ public class ChatActivity extends BaseDrawerActivity {
 
         int itemCount = adapter.getItemCount();
         if (itemCount > 0) {
-            // Use post to ensure the RecyclerView has finished laying out
             recyclerMessages.post(() -> {
                 LinearLayoutManager layoutManager = (LinearLayoutManager) recyclerMessages.getLayoutManager();
                 if (layoutManager != null) {
                     int lastPosition = itemCount - 1;
 
                     if (forceScroll) {
-                        // Force scroll (for sent messages or initial load)
-                        // Use scrollToPosition for instant scroll, then smooth scroll for better UX
                         layoutManager.scrollToPositionWithOffset(lastPosition, 0);
                         recyclerMessages.postDelayed(() -> {
                             recyclerMessages.smoothScrollToPosition(lastPosition);
                         }, 50);
                     } else {
-                        // Only scroll if user is already near the bottom (within 5 items)
-                        // This prevents interrupting user when reading older messages
                         int lastVisible = layoutManager.findLastVisibleItemPosition();
                         if (lastVisible >= itemCount - 5) {
                             recyclerMessages.smoothScrollToPosition(lastPosition);
@@ -1356,26 +724,22 @@ public class ChatActivity extends BaseDrawerActivity {
         }
     }
 
-    // Scroll to a specific message by ID
     private void scrollToMessage(String messageId) {
-        if (messageId == null || messages == null || adapter == null) {
+        if (messageId == null || adapter == null) {
             return;
         }
 
-        // Find the position of the message in the current list
         List<com.example.workconnect.models.ChatItem> items = adapter.getCurrentList();
         for (int i = 0; i < items.size(); i++) {
             com.example.workconnect.models.ChatItem item = items.get(i);
             if (item.isMessage()) {
                 ChatMessage msg = item.getMessage();
                 if (msg != null && messageId.equals(msg.getId())) {
-                    // Scroll to this position
                     LinearLayoutManager layoutManager = (LinearLayoutManager) recyclerMessages.getLayoutManager();
                     if (layoutManager != null) {
-                        final int position = i; // Make effectively final for lambda
+                        final int position = i;
                         layoutManager.scrollToPositionWithOffset(position, 0);
 
-                        // Highlight the message briefly (optional)
                         recyclerMessages.post(() -> {
                             RecyclerView.ViewHolder viewHolder = recyclerMessages.findViewHolderForAdapterPosition(position);
                             if (viewHolder != null && viewHolder.itemView != null) {
@@ -1395,7 +759,6 @@ public class ChatActivity extends BaseDrawerActivity {
             }
         }
 
-        // Message not found in current list
         Toast.makeText(this, "Message not found in current view", Toast.LENGTH_SHORT).show();
     }
 }

@@ -126,8 +126,128 @@ public class NotificationService {
         batch.set(newNotifRef(managerId), n);
     }
 
-    /**
-     * Additional notification types (e.g., shift assigned, swap approved)
-     * can be implemented here in the future.
-     */
+    // Chat notifications
+
+    /** Direct message: title = sender name, body = message preview. */
+    public static void addChatNewMessage(@NonNull WriteBatch batch,
+                                         @NonNull String recipientId,
+                                         @NonNull String senderName,
+                                         @NonNull String conversationId,
+                                         @NonNull String messagePreview) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("conversationId", conversationId);
+
+        AppNotification n = new AppNotification(
+                "CHAT_NEW_MESSAGE",
+                senderName,
+                messagePreview,
+                data
+        );
+
+        batch.set(newNotifRef(recipientId), n);
+    }
+
+    /** Group message: title = group name, body = "SenderName: preview". */
+    public static void addChatGroupMessage(@NonNull WriteBatch batch,
+                                           @NonNull String recipientId,
+                                           @NonNull String groupName,
+                                           @NonNull String senderName,
+                                           @NonNull String conversationId,
+                                           @NonNull String messagePreview) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("conversationId", conversationId);
+
+        AppNotification n = new AppNotification(
+                "CHAT_GROUP_MESSAGE",
+                groupName,
+                senderName + ": " + messagePreview,
+                data
+        );
+
+        batch.set(newNotifRef(recipientId), n);
+    }
+
+    // Call notifications
+
+    /** Group call started: sent to members who haven't yet joined. */
+    public static void addGroupCallStarted(@NonNull WriteBatch batch,
+                                           @NonNull String recipientId,
+                                           @NonNull String callerName,
+                                           @NonNull String groupName,
+                                           @NonNull String conversationId,
+                                           @NonNull String callType) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("conversationId", conversationId);
+
+        String callLabel = "video".equals(callType) ? "video" : "audio";
+
+        AppNotification n = new AppNotification(
+                "GROUP_CALL_STARTED",
+                groupName,
+                callerName + " started a " + callLabel + " call",
+                data
+        );
+
+        batch.set(newNotifRef(recipientId), n);
+    }
+
+    /** Missed call: sent to participants who never answered. */
+    public static void addMissedCall(@NonNull WriteBatch batch,
+                                     @NonNull String recipientId,
+                                     @NonNull String callerName,
+                                     @NonNull String conversationId,
+                                     @NonNull String callType) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("conversationId", conversationId);
+
+        String callLabel = "video".equals(callType) ? "video" : "audio";
+
+        AppNotification n = new AppNotification(
+                "MISSED_CALL",
+                "Missed call",
+                "Missed " + callLabel + " call from " + callerName,
+                data
+        );
+
+        batch.set(newNotifRef(recipientId), n);
+    }
+
+    // Group membership notifications
+
+    /** Added to group: sent to each new member. */
+    public static void addAddedToGroup(@NonNull WriteBatch batch,
+                                       @NonNull String recipientId,
+                                       @NonNull String adderName,
+                                       @NonNull String groupName,
+                                       @NonNull String conversationId) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("conversationId", conversationId);
+
+        AppNotification n = new AppNotification(
+                "ADDED_TO_GROUP",
+                groupName,
+                adderName + " added you to the group",
+                data
+        );
+
+        batch.set(newNotifRef(recipientId), n);
+    }
+
+    /** Removed from group: sent to each removed member. */
+    public static void addRemovedFromGroup(@NonNull WriteBatch batch,
+                                           @NonNull String recipientId,
+                                           @NonNull String groupName,
+                                           @NonNull String conversationId) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("conversationId", conversationId);
+
+        AppNotification n = new AppNotification(
+                "REMOVED_FROM_GROUP",
+                groupName,
+                "You were removed from the group",
+                data
+        );
+
+        batch.set(newNotifRef(recipientId), n);
+    }
 }
