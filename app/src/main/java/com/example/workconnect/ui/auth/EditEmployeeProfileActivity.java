@@ -5,16 +5,15 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Spinner;
+import android.widget.TextView;
 import android.widget.Toast;
-
-import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 
 import androidx.annotation.Nullable;
 
 import com.example.workconnect.R;
 import com.example.workconnect.models.User;
-import com.example.workconnect.repository.authAndUsers.EmployeeRepository;
 import com.example.workconnect.ui.home.BaseDrawerActivity;
+import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.util.ArrayList;
@@ -24,10 +23,9 @@ import java.util.List;
 /**
  * Screen for managers to edit an existing employee profile.
  *
- * Features:
- * - Search/select an approved employee from the company.
- * - Edit department, job title, vacation policy and employment type.
- * - Save updates directly into the user's Firestore document.
+ * Added:
+ * - Set direct manager (managers only) with "No Direct Manager" support.
+ * - Saves directManagerId + managerChain.
  */
 public class EditEmployeeProfileActivity extends BaseDrawerActivity {
 
@@ -36,27 +34,39 @@ public class EditEmployeeProfileActivity extends BaseDrawerActivity {
     // UI
     private Button btnSave;
     private MaterialAutoCompleteTextView actvEmployee;
+    private MaterialAutoCompleteTextView actvDirectManager;
+    private TextView tvCurrentManager;
+
     private EditText etDepartment, etJobTitle, etVacation;
     private Spinner spinnerEmploymentType;
 
-    // Data
+    // Employees dropdown data
     private final List<User> cachedEmployees = new ArrayList<>();
     private ArrayAdapter<String> employeeAdapter;
-
     private String selectedEmployeeUid = null;
+    private User selectedEmployeeUser = null;
+
+    // Managers dropdown data (first option is "No Direct Manager")
+    private final List<User> cachedManagers = new ArrayList<>();
+    private ArrayAdapter<String> managerAdapter;
+    private String selectedManagerUid = null;
+
+    // Flag to avoid triggering manager selection logic when we programmatically set text
+    private boolean suppressManagerDropdownCallback = false;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_edit_employee_profile);
 
-        // Read company id
         companyId = getIntent().getStringExtra("companyId");
         if (companyId == null) companyId = "";
 
-        // Bind views
         btnSave = findViewById(R.id.btn_save);
         actvEmployee = findViewById(R.id.actv_employee);
+
+        tvCurrentManager = findViewById(R.id.tv_current_manager);
+        actvDirectManager = findViewById(R.id.actv_direct_manager);
 
         etDepartment = findViewById(R.id.et_department);
         etJobTitle = findViewById(R.id.et_job_title);
@@ -64,21 +74,14 @@ public class EditEmployeeProfileActivity extends BaseDrawerActivity {
 
         spinnerEmploymentType = findViewById(R.id.spinner_employment_type);
 
-        // Initialize UI components and data sources
         bindEmploymentTypeSpinner();
-        bindEmployeesDropdown();
 
-        // Save changes for the selected employee
+        bindManagersDropdown();   // load managers first
+        bindEmployeesDropdown();  // then employees
+
         btnSave.setOnClickListener(v -> saveChanges());
     }
 
-    /**
-     * Employment type options shown in the UI.
-     * Stored as:
-     * - null (Not set)
-     * - "FULL_TIME"
-     * - "SHIFT_BASED"
-     */
     private void bindEmploymentTypeSpinner() {
         ArrayAdapter<String> a = new ArrayAdapter<>(
                 this,
@@ -90,8 +93,84 @@ public class EditEmployeeProfileActivity extends BaseDrawerActivity {
     }
 
     /**
-     * Loads approved employees for the current company and binds them to the AutoCompleteTextView.
-     * This uses a direct Firestore query (no repository method yet).
+     * Loads APPROVED MANAGERS for the company and binds them to the manager dropdown.
+     * First option is always "No Direct Manager".
+     */
+    private void bindManagersDropdown() {
+        if (companyId.trim().isEmpty()) {
+            Toast.makeText(this, "Missing companyId", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        FirebaseFirestore.getInstance()
+                .collection("users")
+                .whereEqualTo("companyId", companyId)
+                .whereEqualTo("status", "APPROVED")
+                .whereEqualTo("role", "MANAGER")
+                .addSnapshotListener((snap, e) -> {
+
+                    cachedManagers.clear();
+                    List<String> labels = new ArrayList<>();
+                    labels.add("No Direct Manager"); // position 0
+
+                    if (e != null || snap == null) {
+                        managerAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, labels);
+                        actvDirectManager.setAdapter(managerAdapter);
+                        return;
+                    }
+
+                    for (var doc : snap.getDocuments()) {
+                        User u = doc.toObject(User.class);
+                        if (u == null) continue;
+
+                        u.setUid(doc.getId());
+                        cachedManagers.add(u);
+
+                        String name = (u.getFullName() != null && !u.getFullName().trim().isEmpty())
+                                ? u.getFullName().trim()
+                                : (u.getEmail() == null ? "Manager" : u.getEmail());
+
+                        labels.add(name + " (" + (u.getEmail() == null ? "" : u.getEmail()) + ")");
+                    }
+
+                    managerAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, labels);
+                    actvDirectManager.setAdapter(managerAdapter);
+
+                    actvDirectManager.setOnItemClickListener((parent, view, position, id) -> {
+                        if (suppressManagerDropdownCallback) return;
+
+                        // Position 0 => no direct manager
+                        if (position == 0) {
+                            selectedManagerUid = null;
+                            tvCurrentManager.setText("Direct manager: No Direct Manager");
+                            return;
+                        }
+
+                        int idx = position - 1;
+                        if (idx < 0 || idx >= cachedManagers.size()) return;
+
+                        User pickedManager = cachedManagers.get(idx);
+
+                        // Don’t allow assigning employee as their own manager (safety)
+                        if (selectedEmployeeUid != null && selectedEmployeeUid.equals(pickedManager.getUid())) {
+                            Toast.makeText(this, "Employee cannot be their own manager", Toast.LENGTH_SHORT).show();
+                            forceSelectNoManager();
+                            return;
+                        }
+
+                        selectedManagerUid = pickedManager.getUid();
+                        tvCurrentManager.setText("Direct manager: " + displayName(pickedManager));
+                    });
+
+                    // If an employee is already selected, refresh the display to match current cached manager list
+                    if (selectedEmployeeUser != null) {
+                        applyEmployeeDirectManagerToUi(selectedEmployeeUser.getDirectManagerId());
+                    }
+                });
+    }
+
+    /**
+     * Loads APPROVED employees for the company and binds them to the employee dropdown.
      */
     private void bindEmployeesDropdown() {
         if (companyId.trim().isEmpty()) {
@@ -107,14 +186,12 @@ public class EditEmployeeProfileActivity extends BaseDrawerActivity {
                     cachedEmployees.clear();
                     List<String> labels = new ArrayList<>();
 
-                    // In case of error, show an empty dropdown list
                     if (e != null || snap == null) {
                         employeeAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, labels);
                         actvEmployee.setAdapter(employeeAdapter);
                         return;
                     }
 
-                    // Convert documents into User objects for local cache + display labels
                     for (var doc : snap.getDocuments()) {
                         User u = doc.toObject(User.class);
                         if (u == null) continue;
@@ -129,34 +206,30 @@ public class EditEmployeeProfileActivity extends BaseDrawerActivity {
                         labels.add(name + " (" + (u.getEmail() == null ? "" : u.getEmail()) + ")");
                     }
 
-                    // Bind the dropdown adapter
                     employeeAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, labels);
                     actvEmployee.setAdapter(employeeAdapter);
 
-                    // When an employee is selected, fill the form and store the uid
                     actvEmployee.setOnItemClickListener((parent, view, position, id) -> {
                         if (position < 0 || position >= cachedEmployees.size()) return;
 
                         User picked = cachedEmployees.get(position);
                         selectedEmployeeUid = picked.getUid();
+                        selectedEmployeeUser = picked;
+
                         fillFormFromUser(picked);
+                        applyEmployeeDirectManagerToUi(picked.getDirectManagerId());
                     });
                 });
     }
 
-    /**
-     * Fills the form fields based on the selected employee.
-     */
     private void fillFormFromUser(User u) {
         etDepartment.setText(u.getDepartment() == null ? "" : u.getDepartment());
         etJobTitle.setText(u.getJobTitle() == null ? "" : u.getJobTitle());
 
-        // Vacation days per month is stored
         double vpm = (u.getVacationDaysPerMonth() == null) ? 0.0 : u.getVacationDaysPerMonth();
         etVacation.setText(String.valueOf(vpm));
 
-        // Employment type selection
-        String empType = u.getEmploymentType(); // "FULL_TIME" / "SHIFT_BASED" / null
+        String empType = u.getEmploymentType();
         if (empType == null || empType.trim().isEmpty()) {
             spinnerEmploymentType.setSelection(0);
         } else if ("FULL_TIME".equals(empType)) {
@@ -169,8 +242,59 @@ public class EditEmployeeProfileActivity extends BaseDrawerActivity {
     }
 
     /**
-     * Validates form input and updates the selected employee document in Firestore.
+     * Shows current direct manager:
+     * - If null/empty => "No Direct Manager"
+     * - Else tries to resolve name from cached managers, and selects it in dropdown.
      */
+    private void applyEmployeeDirectManagerToUi(String directManagerId) {
+        if (directManagerId == null || directManagerId.trim().isEmpty()) {
+            selectedManagerUid = null;
+            tvCurrentManager.setText("Direct manager: No Direct Manager");
+            forceSelectNoManager();
+            return;
+        }
+
+        selectedManagerUid = directManagerId;
+
+        // Try find in cached managers
+        User found = null;
+        for (User m : cachedManagers) {
+            if (m != null && m.getUid() != null && m.getUid().equals(directManagerId)) {
+                found = m;
+                break;
+            }
+        }
+
+        if (found != null) {
+            tvCurrentManager.setText("Direct manager: " + displayName(found));
+            forceSelectManagerLabel(found);
+            return;
+        }
+
+        // Fallback: show id (still valid) and keep dropdown as-is
+        tvCurrentManager.setText("Direct manager: " + directManagerId);
+    }
+
+    private void forceSelectNoManager() {
+        suppressManagerDropdownCallback = true;
+        actvDirectManager.setText("No Direct Manager", false);
+        suppressManagerDropdownCallback = false;
+    }
+
+    private void forceSelectManagerLabel(User manager) {
+        String label = displayName(manager) + " (" + (manager.getEmail() == null ? "" : manager.getEmail()) + ")";
+        suppressManagerDropdownCallback = true;
+        actvDirectManager.setText(label, false);
+        suppressManagerDropdownCallback = false;
+    }
+
+    private String displayName(User u) {
+        if (u == null) return "";
+        if (u.getFullName() != null && !u.getFullName().trim().isEmpty()) return u.getFullName().trim();
+        if (u.getEmail() != null) return u.getEmail();
+        return "Manager";
+    }
+
     private void saveChanges() {
         if (selectedEmployeeUid == null || selectedEmployeeUid.trim().isEmpty()) {
             Toast.makeText(this, "Pick an employee first", Toast.LENGTH_SHORT).show();
@@ -180,7 +304,6 @@ public class EditEmployeeProfileActivity extends BaseDrawerActivity {
         String department = etDepartment.getText() == null ? "" : etDepartment.getText().toString().trim();
         String jobTitle = etJobTitle.getText() == null ? "" : etJobTitle.getText().toString().trim();
 
-        // Parse vacation days per month
         String vacationText = etVacation.getText() == null ? "" : etVacation.getText().toString().trim();
         double vacationDaysPerMonth;
         try {
@@ -195,31 +318,81 @@ public class EditEmployeeProfileActivity extends BaseDrawerActivity {
             return;
         }
 
-        // Convert spinner selection into stored value
         String selected = (String) spinnerEmploymentType.getSelectedItem();
         String employmentType = "Not set".equals(selected) ? null : selected;
 
-        // Build Firestore update map
-        HashMap<String, Object> updates = new HashMap<>();
-        updates.put("department", department);
-        updates.put("jobTitle", jobTitle);
-        updates.put("vacationDaysPerMonth", vacationDaysPerMonth);
-        updates.put("employmentType", employmentType);
+        // Safety: don’t allow self manager
+        if (selectedManagerUid != null && selectedManagerUid.equals(selectedEmployeeUid)) {
+            Toast.makeText(this, "Employee cannot be their own manager", Toast.LENGTH_SHORT).show();
+            return;
+        }
 
-        // Update employee profile fields
+        // We must compute managerChain BEFORE saving.
+        if (selectedManagerUid == null) {
+            // No manager => empty chain
+            HashMap<String, Object> updates = new HashMap<>();
+            updates.put("department", department);
+            updates.put("jobTitle", jobTitle);
+            updates.put("vacationDaysPerMonth", vacationDaysPerMonth);
+            updates.put("employmentType", employmentType);
+
+            updates.put("directManagerId", null);
+            updates.put("managerChain", new ArrayList<String>());
+
+            FirebaseFirestore.getInstance()
+                    .collection("users")
+                    .document(selectedEmployeeUid)
+                    .update(updates)
+                    .addOnSuccessListener(unused ->
+                            Toast.makeText(this, "Updated", Toast.LENGTH_SHORT).show()
+                    )
+                    .addOnFailureListener(e ->
+                            Toast.makeText(this,
+                                    "Failed: " + (e.getMessage() == null ? "" : e.getMessage()),
+                                    Toast.LENGTH_LONG).show()
+                    );
+            return;
+        }
+
+        // Has manager => load manager doc, build chain, then update.
         FirebaseFirestore.getInstance()
                 .collection("users")
-                .document(selectedEmployeeUid)
-                .update(updates)
-                .addOnSuccessListener(unused ->
-                        Toast.makeText(this, "Updated", Toast.LENGTH_SHORT).show()
-                )
+                .document(selectedManagerUid)
+                .get()
+                .addOnSuccessListener(managerDoc -> {
+                    List<String> chain = new ArrayList<>();
+                    chain.add(selectedManagerUid);
+
+                    @SuppressWarnings("unchecked")
+                    List<String> managersOfManager = (List<String>) managerDoc.get("managerChain");
+                    if (managersOfManager != null) chain.addAll(managersOfManager);
+
+                    HashMap<String, Object> updates = new HashMap<>();
+                    updates.put("department", department);
+                    updates.put("jobTitle", jobTitle);
+                    updates.put("vacationDaysPerMonth", vacationDaysPerMonth);
+                    updates.put("employmentType", employmentType);
+
+                    updates.put("directManagerId", selectedManagerUid);
+                    updates.put("managerChain", chain);
+
+                    FirebaseFirestore.getInstance()
+                            .collection("users")
+                            .document(selectedEmployeeUid)
+                            .update(updates)
+                            .addOnSuccessListener(unused ->
+                                    Toast.makeText(this, "Updated", Toast.LENGTH_SHORT).show()
+                            )
+                            .addOnFailureListener(e ->
+                                    Toast.makeText(this,
+                                            "Failed: " + (e.getMessage() == null ? "" : e.getMessage()),
+                                            Toast.LENGTH_LONG).show()
+                            );
+                })
                 .addOnFailureListener(e ->
-                        Toast.makeText(
-                                this,
-                                "Failed: " + (e.getMessage() == null ? "" : e.getMessage()),
-                                Toast.LENGTH_LONG
-                        ).show()
+                        Toast.makeText(this,
+                                "Failed to load manager: " + (e.getMessage() == null ? "" : e.getMessage()),
+                                Toast.LENGTH_LONG).show()
                 );
     }
 }

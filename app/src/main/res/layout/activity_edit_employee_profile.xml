@@ -33,7 +33,7 @@
                 android:layout_height="wrap_content"
                 android:padding="16dp">
 
-                <!-- Searchable dropdown -->
+                <!-- Pick employee -->
                 <com.google.android.material.textfield.TextInputLayout
                     android:id="@+id/til_employee"
                     style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
@@ -53,12 +53,44 @@
                         android:inputType="text" />
                 </com.google.android.material.textfield.TextInputLayout>
 
+                <!-- Direct Manager label -->
+                <TextView
+                    android:id="@+id/tv_current_manager"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="Direct manager: No Direct Manager"
+                    app:layout_constraintTop_toBottomOf="@id/til_employee"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"/>
+
+                <!-- Pick direct manager (managers only) -->
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/til_direct_manager"
+                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:hint="Set direct manager"
+                    app:endIconMode="dropdown_menu"
+                    app:layout_constraintTop_toBottomOf="@id/tv_current_manager"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent">
+
+                    <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                        android:id="@+id/actv_direct_manager"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:completionThreshold="1"
+                        android:inputType="text"/>
+                </com.google.android.material.textfield.TextInputLayout>
+
                 <com.google.android.material.textfield.TextInputLayout
                     android:id="@+id/til_department"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    app:layout_constraintTop_toBottomOf="@id/til_employee"
+                    app:layout_constraintTop_toBottomOf="@id/til_direct_manager"
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintEnd_toEndOf="parent">
 
