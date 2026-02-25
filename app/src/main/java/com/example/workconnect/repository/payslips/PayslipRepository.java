@@ -32,7 +32,6 @@ public class PayslipRepository {
         return db.collection("users")
                 .document(employeeUid)
                 .collection("payslips")
-                .orderBy(FieldPath.documentId(), Query.Direction.DESCENDING)
                 .addSnapshotListener((snap, e) -> {
                     if (e != null) {
                         callback.onError(e);
@@ -42,14 +41,35 @@ public class PayslipRepository {
                     List<Payslip> out = new ArrayList<>();
                     if (snap != null) {
                         for (DocumentSnapshot d : snap.getDocuments()) {
-                            Payslip p = d.toObject(Payslip.class);
-                            if (p != null) {
-                                if (p.getPeriodKey() == null) p.setPeriodKey(d.getId());
-                                out.add(p);
-                            }
+                            Payslip p = new Payslip();
+
+                            // always set the doc id as key (your ordering is by doc id anyway)
+                            p.setPeriodKey(d.getId());
+
+                            p.setEmployeeUid(d.getString("employeeUid"));
+                            p.setCompanyId(d.getString("companyId"));
+                            p.setFileName(d.getString("fileName"));
+                            p.setPdfBase64(d.getString("pdfBase64"));
+
+                            Long y = d.getLong("year");
+                            Long m = d.getLong("month");
+                            if (y != null) p.setYear(y.intValue());
+                            if (m != null) p.setMonth(m.intValue());
+
+                            Long sz = d.getLong("fileSizeBytes");
+                            if (sz != null) p.setFileSizeBytes(sz);
+
+                            p.setUploadedByUid(d.getString("uploadedByUid"));
+                            p.setUploadedAt(d.getDate("uploadedAt"));
+
+                            out.add(p);
                         }
                     }
 
+                    // SORT LOCALLY by periodKey DESC (yyyy-MM format sorts correctly as string)
+                    Collections.sort(out, (a, b) ->
+                            b.getPeriodKey().compareTo(a.getPeriodKey())
+                    );
                     callback.onUpdate(out);
                 });
     }

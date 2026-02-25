@@ -52,7 +52,7 @@ public class UploadSalarySlipsActivity extends BaseDrawerActivity {
 
     // employee picker
     private final List<EmployeeOption> employeeOptions = new ArrayList<>();
-    private ArrayAdapter<String> employeeNamesAdapter;
+    private ArrayAdapter<EmployeeOption> employeeAdapter;
 
     private @Nullable String selectedEmployeeUid = null;
     private @Nullable String selectedEmployeeLabel = null;
@@ -101,16 +101,22 @@ public class UploadSalarySlipsActivity extends BaseDrawerActivity {
         rvPayslips.setLayoutManager(new LinearLayoutManager(this));
         rvPayslips.setAdapter(adapter);
 
-        employeeNamesAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, new ArrayList<>());
-        actEmployee.setAdapter(employeeNamesAdapter);
+        employeeAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, new ArrayList<>());
+        actEmployee.setAdapter(employeeAdapter);
 
         actEmployee.setOnItemClickListener((parent, view, position, id) -> {
-            if (position < 0 || position >= employeeOptions.size()) return;
-            EmployeeOption opt = employeeOptions.get(position);
+            EmployeeOption opt = employeeAdapter.getItem(position);
+            if (opt == null) {
+                Toast.makeText(this, "Failed to select employee.", Toast.LENGTH_SHORT).show();
+                selectedEmployeeUid = null;
+                selectedEmployeeLabel = null;
+                clearPayslipsUI();
+                return;
+            }
+
             selectedEmployeeUid = opt.uid;
             selectedEmployeeLabel = opt.label;
 
-            detachPayslipListener();
             attachPayslipListener(selectedEmployeeUid);
         });
 
@@ -147,15 +153,12 @@ public class UploadSalarySlipsActivity extends BaseDrawerActivity {
     }
 
     private void loadCompanyEmployees(String companyId) {
-        // If your User docs have different field names, adjust here.
-        // Most common in your app: companyId + status APPROVED.
         db.collection("users")
                 .whereEqualTo("companyId", companyId)
                 .whereEqualTo("status", "APPROVED")
                 .get()
                 .addOnSuccessListener(qs -> {
                     employeeOptions.clear();
-                    List<String> labels = new ArrayList<>();
 
                     for (DocumentSnapshot d : qs.getDocuments()) {
                         String uid = d.getId();
@@ -169,17 +172,14 @@ public class UploadSalarySlipsActivity extends BaseDrawerActivity {
                         else label = uid;
 
                         employeeOptions.add(new EmployeeOption(uid, label));
-                        labels.add(label);
                     }
 
-                    // sort alphabetically
+                    // sort alphabetically by label
                     Collections.sort(employeeOptions, Comparator.comparing(o -> o.label.toLowerCase(Locale.US)));
-                    labels.clear();
-                    for (EmployeeOption o : employeeOptions) labels.add(o.label);
 
-                    employeeNamesAdapter.clear();
-                    employeeNamesAdapter.addAll(labels);
-                    employeeNamesAdapter.notifyDataSetChanged();
+                    employeeAdapter.clear();
+                    employeeAdapter.addAll(employeeOptions);
+                    employeeAdapter.notifyDataSetChanged();
 
                     if (employeeOptions.isEmpty()) {
                         Toast.makeText(this, "No employees found", Toast.LENGTH_SHORT).show();
@@ -190,17 +190,21 @@ public class UploadSalarySlipsActivity extends BaseDrawerActivity {
     }
 
     private void attachPayslipListener(String employeeUid) {
+        detachPayslipListener(); // prevent multiple active listeners
+
         payslipListener = payslipRepo.listenPayslips(employeeUid, new PayslipRepository.PayslipListCallback() {
             @Override
             public void onUpdate(List<Payslip> payslips) {
                 adapter.submit(payslips);
                 boolean empty = payslips == null || payslips.isEmpty();
                 tvEmpty.setVisibility(empty ? View.VISIBLE : View.GONE);
+                rvPayslips.setVisibility(empty ? View.GONE : View.VISIBLE);
             }
 
             @Override
             public void onError(Exception e) {
                 tvEmpty.setVisibility(View.VISIBLE);
+                rvPayslips.setVisibility(View.GONE);
             }
         });
     }
@@ -210,6 +214,12 @@ public class UploadSalarySlipsActivity extends BaseDrawerActivity {
             payslipListener.remove();
             payslipListener = null;
         }
+    }
+
+    private void clearPayslipsUI() {
+        adapter.submit(new ArrayList<>());
+        tvEmpty.setVisibility(View.VISIBLE);
+        rvPayslips.setVisibility(View.GONE);
     }
 
     private void confirmDelete(Payslip p) {
@@ -398,6 +408,11 @@ public class UploadSalarySlipsActivity extends BaseDrawerActivity {
         EmployeeOption(String uid, String label) {
             this.uid = uid;
             this.label = label;
+        }
+
+        @Override
+        public String toString() {
+            return label; // what the dropdown displays
         }
     }
     private byte[] readBytesWithLimit(Uri uri, int maxBytes) throws Exception {

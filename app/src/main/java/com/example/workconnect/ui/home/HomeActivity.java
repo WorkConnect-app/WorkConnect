@@ -24,6 +24,7 @@ import com.example.workconnect.repository.payslips.PayslipRepository;
 import com.google.firebase.firestore.ListenerRegistration;
 import android.view.View;
 
+
 public class HomeActivity extends BaseDrawerActivity {
 
     private TextView tvFullName, tvCompanyName, tvStartDate, tvMonthlyQuota, tvVacationBalance;
@@ -132,16 +133,20 @@ public class HomeActivity extends BaseDrawerActivity {
                 payslipsAdapter.submit(payslips);
 
                 boolean empty = (payslips == null || payslips.isEmpty());
-                if (tvSalarySlipsEmpty != null) {
-                    tvSalarySlipsEmpty.setVisibility(empty ? View.VISIBLE : View.GONE);
-                }
+                tvSalarySlipsEmpty.setText(empty ? "No salary slips uploaded yet." : "");
+                tvSalarySlipsEmpty.setVisibility(empty ? View.VISIBLE : View.GONE);
+                rvSalarySlips.setVisibility(empty ? View.GONE : View.VISIBLE);
             }
 
             @Override
             public void onError(Exception e) {
-                if (tvSalarySlipsEmpty != null) {
-                    tvSalarySlipsEmpty.setVisibility(View.VISIBLE);
-                }
+                // IMPORTANT: show a different message than the empty state
+                String msg = (e == null) ? "Unknown error" : (e.getClass().getSimpleName() + ": " + e.getMessage());
+                tvSalarySlipsEmpty.setText("Failed to load salary slips.\n" + msg);
+                tvSalarySlipsEmpty.setVisibility(View.VISIBLE);
+                rvSalarySlips.setVisibility(View.GONE);
+
+                Toast.makeText(HomeActivity.this, "Payslips error: " + msg, Toast.LENGTH_LONG).show();
             }
         });
     }
