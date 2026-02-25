@@ -10,7 +10,7 @@ import androidx.lifecycle.ViewModel;
 
 import com.example.workconnect.models.Call;
 import com.example.workconnect.repository.CallRepository;
-import com.example.workconnect.repository.UserRepository;
+import com.example.workconnect.repository.authAndUsers.UserRepository;
 import com.example.workconnect.repository.chat.MessageRepository;
 import com.example.workconnect.utils.FormatUtils;
 import com.google.firebase.firestore.ListenerRegistration;
