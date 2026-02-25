@@ -74,6 +74,7 @@ dependencies {
     implementation("io.agora.rtc:full-sdk:4.4.1")
 
     testImplementation(libs.junit)
+    testImplementation(libs.mockito.core)
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 

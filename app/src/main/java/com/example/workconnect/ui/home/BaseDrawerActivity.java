@@ -20,6 +20,7 @@ import androidx.core.content.ContextCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 
 import com.example.workconnect.R;
+import com.example.workconnect.services.NotificationService;
 import com.example.workconnect.ui.attendance.AttendanceActivity;
 import com.example.workconnect.models.Call;
 import com.example.workconnect.repository.CallRepository;
@@ -46,6 +47,7 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 
+import java.util.List;
 import java.util.Locale;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -551,20 +553,30 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
             bottomSheet.dismiss();
             // Update call status to active when accepting
             callRepository.updateCallStatus(call.getCallId(), "active");
+            boolean isGroupCall = call.getParticipants() != null && call.getParticipants().size() > 2;
+            // Notify remaining group members that a call is now active
+            if (isGroupCall) {
+                notifyGroupCallStarted(call);
+            }
             Intent intent = new Intent(this, CallActivity.class);
             intent.putExtra("callId", call.getCallId());
             intent.putExtra("conversationId", call.getConversationId());
             intent.putExtra("callType", call.getType());
             intent.putExtra("isCaller", false);
-            boolean isGroupCall = call.getParticipants() != null && call.getParticipants().size() > 2;
             intent.putExtra("isGroupCall", isGroupCall);
             startActivity(intent);
         });
         
         btnDecline.setOnClickListener(v -> {
             bottomSheet.dismiss();
-            // Mark call as missed
-            callRepository.updateCallStatus(call.getCallId(), "missed");
+            // For group calls, remove this participant; for direct calls, mark as missed
+            String currentUserId = mAuth.getCurrentUser() != null ? mAuth.getCurrentUser().getUid() : null;
+            if (currentUserId != null) {
+                callRepository.removeParticipantFromCall(call.getCallId(), currentUserId);
+            } else {
+                // Fallback if user is null (shouldn't happen)
+                callRepository.updateCallStatus(call.getCallId(), "missed");
+            }
         });
         
         // Dismiss dialog only on terminal states (ended/cancelled/missed) or document deletion.
@@ -595,6 +607,69 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
         
         bottomSheet.show();
         }
+    }
+
+    /**
+     * When a group call is accepted, notify all other participants so they see an
+     * in-app notification even if they missed the ringing dialog.
+     * Recipients: everyone in the call except the accepter (currentUserId) and the caller.
+     */
+    private void notifyGroupCallStarted(Call call) {
+        if (mAuth.getCurrentUser() == null) return;
+        String accepterId = mAuth.getCurrentUser().getUid();
+        String callerId   = call.getCallerId();
+        List<String> participants = call.getParticipants();
+        if (participants == null || participants.isEmpty()) return;
+
+        // 1) Fetch accepter (= currentUser) name
+        db.collection("users").document(accepterId).get()
+                .addOnSuccessListener(userDoc -> {
+                    String firstName = userDoc.getString("firstName");
+                    String lastName  = userDoc.getString("lastName");
+                    String full      = userDoc.getString("fullName");
+                    String accepterName;
+                    if (firstName != null && !firstName.trim().isEmpty()) {
+                        accepterName = (firstName.trim() + " " + (lastName != null ? lastName.trim() : "")).trim();
+                    } else if (full != null && !full.trim().isEmpty()) {
+                        accepterName = full.trim();
+                    } else {
+                        accepterName = "Someone";
+                    }
+
+                    // 2) Fetch conversation to get ALL group members (not just call participants)
+                    String conversationId = call.getConversationId();
+                    db.collection("conversations").document(conversationId).get()
+                            .addOnSuccessListener(convDoc -> {
+                                String groupTitle = convDoc.getString("title");
+                                if (groupTitle == null || groupTitle.trim().isEmpty()) groupTitle = "Group";
+
+                                String callType = call.getType() != null ? call.getType() : "audio";
+
+                                // 3) Send notification to ALL group members except accepter and caller
+                                // This allows those who declined to still receive the notification
+                                @SuppressWarnings("unchecked")
+                                List<String> allGroupMembers = (List<String>) convDoc.get("participantIds");
+                                if (allGroupMembers == null) allGroupMembers = participants; // Fallback to call participants
+                                
+                                com.google.firebase.firestore.WriteBatch batch = db.batch();
+                                for (String uid : allGroupMembers) {
+                                    if (uid == null) continue;
+                                    if (uid.equals(accepterId) || uid.equals(callerId)) continue;
+                                    NotificationService.addGroupCallStarted(
+                                            batch, uid, accepterName, groupTitle, conversationId, callType);
+                                }
+                                batch.commit()
+                                        .addOnFailureListener(e ->
+                                                android.util.Log.e("BaseDrawerActivity",
+                                                        "Failed to send group call notifications", e));
+                            })
+                            .addOnFailureListener(e ->
+                                    android.util.Log.e("BaseDrawerActivity",
+                                            "Failed to fetch conversation for group call notif", e));
+                })
+                .addOnFailureListener(e ->
+                        android.util.Log.e("BaseDrawerActivity",
+                                "Failed to fetch user for group call notif", e));
     }
 
     @Override

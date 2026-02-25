@@ -16,6 +16,7 @@ import com.example.workconnect.R;
 import com.example.workconnect.adapters.chats.GroupMemberAdapter;
 import com.example.workconnect.models.ChatMessage;
 import com.example.workconnect.models.User;
+import com.example.workconnect.services.NotificationService;
 import com.example.workconnect.utils.SystemMessageHelper;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentSnapshot;
@@ -228,6 +229,38 @@ public class AddMembersActivity extends AppCompatActivity {
                                 null // Text will be generated in adapter
                         );
                     }
+
+                    // Send ADDED_TO_GROUP notifications: fetch adder name + group title
+                    List<String> addedUids = new ArrayList<>(selectedUids);
+                    db.collection("users").document(currentUserId).get()
+                            .addOnSuccessListener(adderDoc -> {
+                                String firstName = adderDoc.getString("firstName");
+                                String lastName  = adderDoc.getString("lastName");
+                                String full      = adderDoc.getString("fullName");
+                                String adderName;
+                                if (firstName != null && !firstName.trim().isEmpty()) {
+                                    adderName = (firstName.trim() + " " + (lastName != null ? lastName.trim() : "")).trim();
+                                } else if (full != null && !full.trim().isEmpty()) {
+                                    adderName = full.trim();
+                                } else {
+                                    adderName = "Someone";
+                                }
+
+                                db.collection("conversations").document(conversationId).get()
+                                        .addOnSuccessListener(convDoc -> {
+                                            String groupTitle = convDoc.getString("title");
+                                            if (groupTitle == null || groupTitle.trim().isEmpty()) groupTitle = "Group";
+
+                                            WriteBatch notifBatch = db.batch();
+                                            for (String uid : addedUids) {
+                                                if (uid == null) continue;
+                                                NotificationService.addAddedToGroup(
+                                                        notifBatch, uid, adderName, groupTitle, conversationId);
+                                            }
+                                            notifBatch.commit();
+                                        });
+                            });
+
                     Toast.makeText(this, "Member(s) added", Toast.LENGTH_SHORT).show();
                     finish();
                 })

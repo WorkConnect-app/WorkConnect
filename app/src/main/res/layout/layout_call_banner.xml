@@ -27,15 +27,6 @@
         android:textAllCaps="false"
         android:textColor="@android:color/white"
         android:backgroundTint="@android:color/transparent"
-        android:layout_marginEnd="8dp" />
-
-    <Button
-        android:id="@+id/btn_end_call_from_banner"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="End call"
-        android:textAllCaps="false"
-        android:textColor="@android:color/white"
-        android:backgroundTint="@android:color/transparent" />
+        android:layout_gravity="end" />
 
 </LinearLayout>

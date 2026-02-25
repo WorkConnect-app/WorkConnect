@@ -14,6 +14,8 @@ import com.example.workconnect.R;
 import com.example.workconnect.adapters.notifications.NotificationsAdapter;
 import com.example.workconnect.repository.notifications.NotificationsRepository;
 import com.example.workconnect.ui.auth.PendingEmployeesActivity;
+import com.example.workconnect.ui.chat.ChatActivity;
+import com.example.workconnect.ui.chat.ChatListActivity;
 import com.example.workconnect.ui.vacations.PendingVacationRequestsActivity;
 import com.example.workconnect.ui.vacations.VacationRequestsActivity;
 import com.google.firebase.auth.FirebaseAuth;
@@ -122,6 +124,7 @@ public class NotificationsActivity extends AppCompatActivity {
             }
 
             // =========================================
+<<<<<<< HEAD
             // Shift notifications
             // =========================================
             if ("SHIFT_ASSIGNED".equals(type)
@@ -140,6 +143,26 @@ public class NotificationsActivity extends AppCompatActivity {
                 }
                 startActivity(i);
 
+=======
+            // Chat notifications
+            // =========================================
+            if ("CHAT_NEW_MESSAGE".equals(type)
+                    || "CHAT_GROUP_MESSAGE".equals(type)
+                    || "GROUP_CALL_STARTED".equals(type)
+                    || "MISSED_CALL".equals(type)
+                    || "ADDED_TO_GROUP".equals(type)) {
+                // Open the relevant conversation directly
+                String conversationId = n.getData() != null
+                        ? (String) n.getData().get("conversationId") : null;
+                if (conversationId != null) {
+                    Intent i = new Intent(this, ChatActivity.class);
+                    i.putExtra("conversationId", conversationId);
+                    startActivity(i);
+                } else {
+                    startActivity(new Intent(this, ChatListActivity.class));
+                }
+
+>>>>>>> 917301bc82270e595c683d0bdd32c9342da26322
                 if (n.getId() != null) {
                     repo.deleteNotification(uid, n.getId());
                 }
@@ -147,6 +170,7 @@ public class NotificationsActivity extends AppCompatActivity {
             }
 
             // =========================================
+<<<<<<< HEAD
             // Swap notifications
             // =========================================
             if ("SWAP_OFFER_RECEIVED".equals(type)
@@ -221,6 +245,13 @@ public class NotificationsActivity extends AppCompatActivity {
                     || "PAYSLIP_DELETED".equals(type)) {
 
                 startActivity(new Intent(this, HomeActivity.class));
+=======
+            // Removed from group
+            // =========================================
+            if ("REMOVED_FROM_GROUP".equals(type)) {
+                // User is no longer a member — open chat list instead
+                startActivity(new Intent(this, ChatListActivity.class));
+>>>>>>> 917301bc82270e595c683d0bdd32c9342da26322
 
                 if (n.getId() != null) {
                     repo.deleteNotification(uid, n.getId());
