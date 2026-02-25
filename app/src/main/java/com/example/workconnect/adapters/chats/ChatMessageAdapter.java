@@ -78,11 +78,20 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
     }
 
     /**
-     * Submit a list of messages and automatically insert date separators
+     * Submit a list of messages and automatically insert date separators.
      */
     public void submitList(List<ChatMessage> newMessages) {
         List<ChatItem> itemsWithSeparators = insertDateSeparators(newMessages);
         differ.submitList(itemsWithSeparators);
+    }
+
+    /**
+     * Submit a list of messages with a callback invoked on the main thread
+     * after the diff is applied (use this to scroll after the list is updated).
+     */
+    public void submitList(List<ChatMessage> newMessages, Runnable commitCallback) {
+        List<ChatItem> itemsWithSeparators = insertDateSeparators(newMessages);
+        differ.submitList(itemsWithSeparators, commitCallback);
     }
     
     /**

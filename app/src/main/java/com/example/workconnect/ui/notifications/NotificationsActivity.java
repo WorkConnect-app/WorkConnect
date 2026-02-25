@@ -14,6 +14,8 @@ import com.example.workconnect.R;
 import com.example.workconnect.adapters.notifications.NotificationsAdapter;
 import com.example.workconnect.repository.notifications.NotificationsRepository;
 import com.example.workconnect.ui.auth.PendingEmployeesActivity;
+import com.example.workconnect.ui.chat.ChatActivity;
+import com.example.workconnect.ui.chat.ChatListActivity;
 import com.example.workconnect.ui.vacations.PendingVacationRequestsActivity;
 import com.example.workconnect.ui.vacations.VacationRequestsActivity;
 import com.google.firebase.auth.FirebaseAuth;
@@ -109,6 +111,43 @@ public class NotificationsActivity extends AppCompatActivity {
                     || "VACATION_REJECTED".equals(type)) {
 
                 startActivity(new Intent(this, VacationRequestsActivity.class));
+
+                if (n.getId() != null) {
+                    repo.deleteNotification(uid, n.getId());
+                }
+                return;
+            }
+
+            
+            // Chat / Call / Group notifications
+            if ("CHAT_NEW_MESSAGE".equals(type)
+                    || "CHAT_GROUP_MESSAGE".equals(type)
+                    || "GROUP_CALL_STARTED".equals(type)
+                    || "MISSED_CALL".equals(type)
+                    || "ADDED_TO_GROUP".equals(type)) {
+
+                String conversationId = null;
+                if (n.getData() != null) {
+                    Object v = n.getData().get("conversationId");
+                    if (v != null) conversationId = String.valueOf(v);
+                }
+
+                if (conversationId != null && !conversationId.trim().isEmpty()) {
+                    Intent i = new Intent(this, ChatActivity.class);
+                    i.putExtra("conversationId", conversationId);
+                    startActivity(i);
+                } else {
+                    startActivity(new Intent(this, ChatListActivity.class));
+                }
+
+                if (n.getId() != null) {
+                    repo.deleteNotification(uid, n.getId());
+                }
+                return;
+            }
+
+            if ("REMOVED_FROM_GROUP".equals(type)) {
+                startActivity(new Intent(this, ChatListActivity.class));
 
                 if (n.getId() != null) {
                     repo.deleteNotification(uid, n.getId());

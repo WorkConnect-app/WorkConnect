@@ -11,6 +11,7 @@ material = "1.12.0"
 
 # Testing
 junit = "4.13.2"
+mockito = "5.14.2"
 androidxJunit = "1.2.1"
 espresso = "3.6.1"
 androidxRules = "1.6.1"
@@ -36,6 +37,7 @@ material = { group = "com.google.android.material", name = "material", version.r
 
 # Testing
 junit = { group = "junit", name = "junit", version.ref = "junit" }
+mockito-core = { group = "org.mockito", name = "mockito-core", version.ref = "mockito" }
 androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxJunit" }
 androidx-test-rules = { group = "androidx.test", name = "rules", version.ref = "androidxRules" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso" }

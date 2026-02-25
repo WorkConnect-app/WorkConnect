@@ -1,10 +1,11 @@
-package com.example.workconnect.repository;
+package com.example.workconnect.repository.chat;
 
 import android.util.Log;
 
 import com.example.workconnect.config.AgoraConfig;
 import com.example.workconnect.models.Call;
 import com.example.workconnect.models.ChatMessage;
+import com.example.workconnect.services.NotificationService;
 import com.example.workconnect.utils.SystemMessageHelper;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
@@ -12,6 +13,7 @@ import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
+import com.google.firebase.firestore.WriteBatch;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -325,6 +327,11 @@ public class CallRepository {
                     .addOnFailureListener(e -> Log.e(TAG, "Failed to get call document", e));
         }
 
+        // Send missed call notifications to all participants (except caller)
+        if (wasMissed) {
+            sendMissedCallNotifications(callId, conversationId, callType);
+        }
+
         // Update call status before deleting (so listeners can detect the change)
         // If wasMissed, it means call was cancelled before being answered
         String finalStatus = wasMissed ? "cancelled" : "ended";
@@ -404,6 +411,53 @@ public class CallRepository {
             Log.e(TAG, "Failed to leave group call", e);
             if (callback != null) callback.onComplete();
         });
+    }
+
+    /**
+     * Send a MISSED_CALL in-app notification to every participant except the caller.
+     */
+    private void sendMissedCallNotifications(String callId, String conversationId, String callType) {
+        if (callId == null || conversationId == null) return;
+
+        // 1) Fetch the call document to get callerId and participants
+        db.collection(COLLECTION_CALLS).document(callId).get()
+                .addOnSuccessListener(callDoc -> {
+                    if (!callDoc.exists()) return;
+
+                    String callerId = callDoc.getString("callerId");
+                    @SuppressWarnings("unchecked")
+                    List<String> participants = (List<String>) callDoc.get("participants");
+                    if (callerId == null || participants == null || participants.isEmpty()) return;
+
+                    // 2) Fetch caller's display name
+                    db.collection("users").document(callerId).get()
+                            .addOnSuccessListener(userDoc -> {
+                                String firstName = userDoc.getString("firstName");
+                                String lastName  = userDoc.getString("lastName");
+                                String full      = userDoc.getString("fullName");
+                                String callerName;
+                                if (firstName != null && !firstName.trim().isEmpty()) {
+                                    callerName = (firstName.trim() + " " + (lastName != null ? lastName.trim() : "")).trim();
+                                } else if (full != null && !full.trim().isEmpty()) {
+                                    callerName = full.trim();
+                                } else {
+                                    callerName = "Someone";
+                                }
+
+                                // 3) Build batch: one notification per participant who missed the call
+                                WriteBatch batch = db.batch();
+                                for (String uid : participants) {
+                                    if (uid == null || uid.equals(callerId)) continue;
+                                    NotificationService.addMissedCall(
+                                            batch, uid, callerName, conversationId,
+                                            callType != null ? callType : "audio");
+                                }
+                                batch.commit()
+                                        .addOnFailureListener(e -> Log.e(TAG, "Failed to send missed call notifications", e));
+                            })
+                            .addOnFailureListener(e -> Log.e(TAG, "Failed to fetch caller for missed call notif", e));
+                })
+                .addOnFailureListener(e -> Log.e(TAG, "Failed to fetch call doc for missed call notif", e));
     }
 
     /**
