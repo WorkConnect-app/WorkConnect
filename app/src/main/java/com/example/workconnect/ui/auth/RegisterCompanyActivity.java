@@ -23,7 +23,7 @@ public class RegisterCompanyActivity extends AppCompatActivity {
     // Buttons
     private Button btnCreateCompany, btnBack;
 
-    // ViewModel handles the registration logic (Firebase/Auth/Firestore)
+    // ViewModel handles the registration logic
     private RegisterCompanyViewModel viewModel;
 
     @Override
@@ -44,7 +44,7 @@ public class RegisterCompanyActivity extends AppCompatActivity {
         btnBack = findViewById(R.id.btn_back_login);
         btnBack.setOnClickListener(v -> finish());
 
-        // Create ViewModel instance (survives configuration changes like rotation)
+        // Create ViewModel instance
         viewModel = new ViewModelProvider(this).get(RegisterCompanyViewModel.class);
 
         // Create company button click
@@ -54,7 +54,7 @@ public class RegisterCompanyActivity extends AppCompatActivity {
             String email       = etEmail.getText().toString().trim();
             String password    = etPassword.getText().toString().trim();
 
-            // Basic validation before calling ViewModel (same idea as LoginActivity)
+            // Basic validation before calling ViewModel
             if (TextUtils.isEmpty(companyName)) {
                 etCompanyName.setError("Company name is required");
                 etCompanyName.requestFocus();
@@ -80,7 +80,7 @@ public class RegisterCompanyActivity extends AppCompatActivity {
                 return;
             }
 
-            // Simple email format check (UX improvement)
+            // Simple email format check
             if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
                 etEmail.setError("Please enter a valid email");
                 etEmail.requestFocus();
@@ -115,7 +115,6 @@ public class RegisterCompanyActivity extends AppCompatActivity {
     private void observeViewModel() {
 
         // Loading state: disable buttons while the request is in progress
-        // This prevents double clicks and also prevents going "Back" mid-request.
         viewModel.getIsLoading().observe(this, isLoading -> {
             boolean loading = isLoading != null && isLoading;
             btnCreateCompany.setEnabled(!loading);
@@ -129,7 +128,7 @@ public class RegisterCompanyActivity extends AppCompatActivity {
             }
         });
 
-        // Success: company created -> navigate to ManagerHome
+        // Success: company created - navigate to ManagerHome
         viewModel.getSuccessCompanyId().observe(this, companyId -> {
             if (!TextUtils.isEmpty(companyId)) {
 
@@ -142,19 +141,18 @@ public class RegisterCompanyActivity extends AppCompatActivity {
                         Toast.LENGTH_LONG
                 ).show();
 
-                goToManagerHome(companyId);
-            }
+                goToCompleteManagerProfile(companyId);            }
         });
 
 
     }
     /**
      * Opens ManagerHomeActivity and passes the companyId.
-     * finish() removes this screen from the back stack.
      */
-    private void goToManagerHome(String companyId) {
-        Intent intent = new Intent(RegisterCompanyActivity.this, HomeActivity.class);
+    private void goToCompleteManagerProfile(String companyId) {
+        Intent intent = new Intent(this, CompleteManagerProfileActivity.class);
         intent.putExtra("companyId", companyId);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         startActivity(intent);
         finish();
     }

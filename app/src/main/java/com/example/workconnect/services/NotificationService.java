@@ -15,15 +15,11 @@ import java.util.Map;
 /**
  * Centralized service responsible for creating notification documents
  * under users/{uid}/notifications.
- *
- * All methods are static and are designed to be used inside
- * Firestore transactions or batch writes.
  */
 public class NotificationService {
 
     /**
      * Creates a new notification document reference
-     * under users/{uid}/notifications with an auto-generated ID.
      */
     private static DocumentReference newNotifRef(@NonNull String uid) {
         return FirebaseFirestore.getInstance()
@@ -33,7 +29,6 @@ public class NotificationService {
 
     /**
      * Adds a "Vacation Approved" notification to an employee.
-     * Must be called inside an existing Firestore transaction.
      */
     public static void addVacationApproved(@NonNull Transaction tx,
                                            @NonNull String employeeId,
@@ -57,7 +52,6 @@ public class NotificationService {
 
     /**
      * Adds a "Vacation Rejected" notification to an employee.
-     * Must be called inside an existing Firestore transaction.
      */
     public static void addVacationRejected(@NonNull Transaction tx,
                                            @NonNull String employeeId,
@@ -79,7 +73,6 @@ public class NotificationService {
 
     /**
      * Adds a notification for a manager when a new vacation request is created.
-     * Must be used inside a Firestore WriteBatch.
      */
     public static void addVacationNewRequestForManager(@NonNull WriteBatch batch,
                                                        @NonNull String managerId,
@@ -104,7 +97,6 @@ public class NotificationService {
     /**
      * Adds a notification for managers when a new employee registers
      * and is pending approval.
-     * Must be used inside a Firestore WriteBatch.
      */
     public static void addEmployeePendingApprovalForManager(@NonNull WriteBatch batch,
                                                             @NonNull String managerId,
@@ -126,8 +118,4 @@ public class NotificationService {
         batch.set(newNotifRef(managerId), n);
     }
 
-    /**
-     * Additional notification types (e.g., shift assigned, swap approved)
-     * can be implemented here in the future.
-     */
 }

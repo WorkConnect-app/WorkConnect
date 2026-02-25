@@ -41,7 +41,7 @@ public class PendingVacationRequestsActivity extends BaseDrawerActivity {
         RecyclerView rv = findViewById(R.id.rv_requests);
         rv.setLayoutManager(new LinearLayoutManager(this));
 
-        // ViewModel (business logic + data)
+        // ViewModel
         PendingVacationRequestsViewModel vm =
                 new ViewModelProvider(this).get(PendingVacationRequestsViewModel.class);
 

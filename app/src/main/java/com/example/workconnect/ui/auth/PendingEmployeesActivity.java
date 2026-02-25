@@ -57,7 +57,6 @@ public class PendingEmployeesActivity extends BaseDrawerActivity {
 
         viewModel = new ViewModelProvider(this).get(PendingEmployeesViewModel.class);
 
-        // Company id is required for filtering pending employees
         companyId = getIntent().getStringExtra("companyId");
         if (companyId == null || companyId.trim().isEmpty()) {
             Toast.makeText(this,
@@ -241,7 +240,7 @@ public class PendingEmployeesActivity extends BaseDrawerActivity {
                     return;
                 }
 
-                // Direct manager (optional)
+                // Direct manager
                 String directManagerId = etDirectManagerId == null
                         ? ""
                         : etDirectManagerId.getText().toString().trim();

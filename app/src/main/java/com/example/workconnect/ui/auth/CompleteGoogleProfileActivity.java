@@ -123,15 +123,18 @@ public class CompleteGoogleProfileActivity extends AppCompatActivity {
             }
         });
 
-        // Employee flow: registration completed but pending approval
         viewModel.getEmployeePending().observe(this, pending -> {
             if (Boolean.TRUE.equals(pending)) {
                 Toast.makeText(this,
                         "Registration completed. Waiting for manager approval.",
                         Toast.LENGTH_LONG).show();
 
-                // Sign out until approval
                 FirebaseAuth.getInstance().signOut();
+
+                Intent i = new Intent(this, RegisterTypeActivity.class);
+                i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(i);
+
                 finish();
             }
         });
@@ -148,7 +151,7 @@ public class CompleteGoogleProfileActivity extends AppCompatActivity {
             }
 
             // Manager enters app immediately after company creation
-            startActivity(new Intent(this, HomeActivity.class));
+            startActivity(new Intent(this, CompleteManagerProfileActivity.class));
             finish();
         });
     }

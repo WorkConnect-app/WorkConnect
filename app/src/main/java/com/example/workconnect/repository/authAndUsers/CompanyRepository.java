@@ -73,8 +73,6 @@ public class CompanyRepository {
                     companyData.put("code", companyCode);
                     companyData.put("createdAt", Timestamp.now());
 
-                    // attendanceLocation not set here (null = GPS disabled)
-
                     // Step 2: Create company document
                     db.collection("companies").document(companyId)
                             .set(companyData)
@@ -84,7 +82,7 @@ public class CompanyRepository {
                                 Map<String, Object> managerData = new HashMap<>();
                                 managerData.put("uid", managerId);
                                 managerData.put("fullName", managerFullName);
-                                managerData.put("email", email);
+                                managerData.put("email", email.trim().toLowerCase());
                                 managerData.put("role", "MANAGER");
                                 managerData.put("companyId", companyId);
                                 managerData.put("status", "APPROVED");
@@ -147,7 +145,7 @@ public class CompanyRepository {
 
     /**
      * Updates company's attendance GPS configuration.
-     * If location == null → disables GPS attendance.
+     * If location == null - disables GPS attendance.
      */
     public void updateAttendanceLocation(
             String companyId,
@@ -156,7 +154,7 @@ public class CompanyRepository {
             Consumer<Exception> onError
     ) {
 
-        // If null → explicitly disable GPS attendance
+        // If null - explicitly disable GPS attendance
         if (location == null) {
             db.collection("companies")
                     .document(companyId)

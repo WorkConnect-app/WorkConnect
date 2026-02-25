@@ -19,9 +19,6 @@ import java.util.List;
  */
 public class PendingVacationRequestsViewModel extends ViewModel {
 
-    /**
-     * Repository that communicates with Firestore.
-     */
     private final VacationRepository repo = new VacationRepository();
 
     /**

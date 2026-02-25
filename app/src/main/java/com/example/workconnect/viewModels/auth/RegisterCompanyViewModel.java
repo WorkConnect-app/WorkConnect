@@ -10,7 +10,8 @@ import com.example.workconnect.repository.authAndUsers.CompanyRepository;
 
 /**
  * ViewModel responsible for the logic of registering a new company
- * and its manager. It validates input, exposes loading/error/success
+ * and its manager.
+ * It validates input, exposes loading/error/success
  * states to the UI using LiveData, and delegates Firebase operations
  * to the CompanyRepository.
  */
@@ -19,16 +20,12 @@ public class RegisterCompanyViewModel extends ViewModel {
     // Indicates whether the registration process is currently running
     private final MutableLiveData<Boolean> isLoading = new MutableLiveData<>(false);
 
-    // Contains error messages to display in the UI
     private final MutableLiveData<String> errorMessage = new MutableLiveData<>();
 
-    // Holds the newly created company's ID (upon success)
     private final MutableLiveData<String> successCompanyId = new MutableLiveData<>();
 
-    // Holds the auto-generated short company code (shown to the manager)
     private final MutableLiveData<String> successCompanyCode = new MutableLiveData<>();
 
-    // Repository layer – handles all Firebase operations
     private final CompanyRepository repository = new CompanyRepository();
 
     // Getters for exposing LiveData to the Activity (UI observes these)

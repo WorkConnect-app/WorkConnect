@@ -16,14 +16,23 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
+/**
+ * Home screen of the app.
+ * Displays basic user info + monthly attendance summary.
+ * Inherits drawer + notifications behavior from BaseDrawerActivity.
+ */
 public class HomeActivity extends BaseDrawerActivity {
 
     private TextView tvFullName, tvCompanyName, tvStartDate, tvMonthlyQuota, tvVacationBalance;
-    private TextView tvMonthHours, tvDailyStart;
+    private TextView tvMonthHours;
 
+    // Repository used only for attendance summary
     private final AttendanceRepository attendanceRepo = new AttendanceRepository();
 
+    // Format used as key for monthly attendance docs (yyyy-MM)
     private static final DateTimeFormatter MONTH_KEY_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM");
+
+    // Company timezone
     private final ZoneId companyZone = ZoneId.of("Asia/Jerusalem");
 
     private HomeViewModel homeVm;
@@ -33,17 +42,17 @@ public class HomeActivity extends BaseDrawerActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.home_activity);
 
+        // Bind UI fields
         tvFullName = findViewById(R.id.tv_full_name);
         tvCompanyName = findViewById(R.id.tv_company_name);
         tvStartDate = findViewById(R.id.tv_start_date);
         tvMonthlyQuota = findViewById(R.id.tv_monthly_quota);
         tvVacationBalance = findViewById(R.id.tv_vacation_balance);
-
         tvMonthHours = findViewById(R.id.tv_month_hours);
 
         setupHomeViewModel();
 
-        // Monthly hours comes from attendance docs
+        // Load monthly attendance hours on screen creation
         refreshCurrentMonthHours();
     }
 
@@ -51,20 +60,24 @@ public class HomeActivity extends BaseDrawerActivity {
     protected void onResume() {
         super.onResume();
 
+        // Refresh profile in case something changed (e.g., vacation balance)
         if (homeVm != null) {
-            homeVm.refreshProfileOnce(); // will update todayStartTime via activeAttendance
+            homeVm.refreshProfileOnce();
         }
 
         refreshCurrentMonthHours();
     }
 
-    // ✅ Called when cachedCompanyId becomes ready
+    // Called when BaseDrawer finishes loading role/company state
     @Override
     protected void onCompanyStateLoaded() {
         super.onCompanyStateLoaded();
         refreshCurrentMonthHours();
     }
 
+    /**
+     * Fetch and display total worked hours for the current month.
+     */
     private void refreshCurrentMonthHours() {
         String uid = FirebaseAuth.getInstance().getUid();
         if (uid == null) return;
@@ -84,15 +97,19 @@ public class HomeActivity extends BaseDrawerActivity {
             @Override
             public void onError(Exception e) {
                 if (tvMonthHours == null) return;
+                // Fallback to 0 in case of error
                 tvMonthHours.setText("Hours this month: 0.00");
             }
         });
     }
 
+    /**
+     * Initializes ViewModel and observes LiveData.
+     */
     private void setupHomeViewModel() {
         homeVm = new ViewModelProvider(this).get(HomeViewModel.class);
 
-        // Header (MVVM-consistent: observe headerState only)
+        // Header state (name + company)
         homeVm.getHeaderState().observe(this, s -> {
             String n = normalizeOrDash(s.fullName);
             String c = normalizeOrDash(s.companyName);
@@ -100,9 +117,10 @@ public class HomeActivity extends BaseDrawerActivity {
 
             tvFullName.setText("Name: " + n);
             tvCompanyName.setText("Company: " + c + " , " + sid);
+
+            // Also update drawer header
             updateDrawerHeader(n, c);
         });
-
 
         homeVm.getStartDate().observe(this, d ->
                 tvStartDate.setText("Start date: " + normalizeOrDash(d))
@@ -118,15 +136,18 @@ public class HomeActivity extends BaseDrawerActivity {
             tvVacationBalance.setText("Balance: " + text);
         });
 
+        // Display error messages from ViewModel
         homeVm.getError().observe(this, msg -> {
             if (msg != null && !msg.isEmpty()) {
                 Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
             }
         });
 
+        // Initial profile load
         homeVm.loadProfile();
     }
 
+    // Utility: convert null/empty strings to "-"
     private String normalizeOrDash(String s) {
         if (s == null) return "-";
         String t = s.trim();

@@ -40,7 +40,6 @@ public class EditEmployeeProfileActivity extends BaseDrawerActivity {
     private Spinner spinnerEmploymentType;
 
     // Data
-    private final EmployeeRepository employeeRepo = new EmployeeRepository(); // kept for future repo-based queries
     private final List<User> cachedEmployees = new ArrayList<>();
     private ArrayAdapter<String> employeeAdapter;
 
@@ -51,7 +50,7 @@ public class EditEmployeeProfileActivity extends BaseDrawerActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_edit_employee_profile);
 
-        // Read company id (usually provided by BaseDrawerActivity or intent)
+        // Read company id
         companyId = getIntent().getStringExtra("companyId");
         if (companyId == null) companyId = "";
 
@@ -152,7 +151,7 @@ public class EditEmployeeProfileActivity extends BaseDrawerActivity {
         etDepartment.setText(u.getDepartment() == null ? "" : u.getDepartment());
         etJobTitle.setText(u.getJobTitle() == null ? "" : u.getJobTitle());
 
-        // Vacation days per month is stored as Double
+        // Vacation days per month is stored
         double vpm = (u.getVacationDaysPerMonth() == null) ? 0.0 : u.getVacationDaysPerMonth();
         etVacation.setText(String.valueOf(vpm));
 
