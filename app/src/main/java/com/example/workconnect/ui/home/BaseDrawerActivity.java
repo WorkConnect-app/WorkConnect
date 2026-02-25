@@ -283,6 +283,18 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
         }
 
         if (id == R.id.nav_shift_replacement) {
+
+            // FULL TIME employees: warn and block access
+            if ("FULL_TIME".equalsIgnoreCase(cachedEmploymentType)) {
+                Toast.makeText(
+                        this,
+                        "FULL TIME employees please contact your manager if you have any shift issues",
+                        Toast.LENGTH_LONG
+                ).show();
+                return; // block navigation
+            }
+
+            // Non full-time employees: allow access
             Intent i = new Intent(this, ShiftReplacementActivity.class);
             if (cachedCompanyId != null) i.putExtra("companyId", cachedCompanyId);
             startActivity(i);
