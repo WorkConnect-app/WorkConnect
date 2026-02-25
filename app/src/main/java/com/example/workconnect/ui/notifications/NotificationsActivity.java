@@ -17,6 +17,11 @@ import com.example.workconnect.ui.auth.PendingEmployeesActivity;
 import com.example.workconnect.ui.vacations.PendingVacationRequestsActivity;
 import com.example.workconnect.ui.vacations.VacationRequestsActivity;
 import com.google.firebase.auth.FirebaseAuth;
+import com.example.workconnect.ui.shifts.MyShiftsActivity;
+import com.example.workconnect.ui.shifts.ShiftReplacementActivity;
+import com.example.workconnect.ui.shifts.SwapApprovalsActivity;
+import com.example.workconnect.ui.attendance.AttendanceActivity;
+import com.example.workconnect.ui.home.HomeActivity;
 
 /**
  * Displays the current user's in-app notifications.
@@ -109,6 +114,113 @@ public class NotificationsActivity extends AppCompatActivity {
                     || "VACATION_REJECTED".equals(type)) {
 
                 startActivity(new Intent(this, VacationRequestsActivity.class));
+
+                if (n.getId() != null) {
+                    repo.deleteNotification(uid, n.getId());
+                }
+                return;
+            }
+
+            // =========================================
+            // Shift notifications
+            // =========================================
+            if ("SHIFT_ASSIGNED".equals(type)
+                    || "SHIFT_CHANGED".equals(type)
+                    || "SHIFT_REMOVED".equals(type)) {
+
+                String companyId = null;
+                if (n.getData() != null) {
+                    Object v = n.getData().get("companyId");
+                    if (v != null) companyId = String.valueOf(v);
+                }
+
+                Intent i = new Intent(this, MyShiftsActivity.class);
+                if (companyId != null) {
+                    i.putExtra("companyId", companyId);
+                }
+                startActivity(i);
+
+                if (n.getId() != null) {
+                    repo.deleteNotification(uid, n.getId());
+                }
+                return;
+            }
+
+            // =========================================
+            // Swap notifications
+            // =========================================
+            if ("SWAP_OFFER_RECEIVED".equals(type)
+                    || "SWAP_APPROVED".equals(type)
+                    || "SWAP_REJECTED".equals(type)) {
+
+                String companyId = null;
+                if (n.getData() != null) {
+                    Object v = n.getData().get("companyId");
+                    if (v != null) companyId = String.valueOf(v);
+                }
+
+                Intent i = new Intent(this, ShiftReplacementActivity.class);
+                if (companyId != null) {
+                    i.putExtra("companyId", companyId);
+                }
+                startActivity(i);
+
+                if (n.getId() != null) {
+                    repo.deleteNotification(uid, n.getId());
+                }
+                return;
+            }
+
+            if ("SWAP_SENT_FOR_APPROVAL".equals(type)) {
+
+                String companyId = null;
+                if (n.getData() != null) {
+                    Object v = n.getData().get("companyId");
+                    if (v != null) companyId = String.valueOf(v);
+                }
+
+                Intent i = new Intent(this, SwapApprovalsActivity.class);
+                if (companyId != null) {
+                    i.putExtra("companyId", companyId);
+                }
+                startActivity(i);
+
+                if (n.getId() != null) {
+                    repo.deleteNotification(uid, n.getId());
+                }
+                return;
+            }
+
+            // =========================================
+            // Attendance notifications
+            // =========================================
+            if ("ATTENDANCE_AUTO_ENDED".equals(type)) {
+
+                String companyId = null;
+                if (n.getData() != null) {
+                    Object v = n.getData().get("companyId");
+                    if (v != null) companyId = String.valueOf(v);
+                }
+
+                Intent i = new Intent(this, AttendanceActivity.class);
+                if (companyId != null) {
+                    i.putExtra("companyId", companyId);
+                }
+                startActivity(i);
+
+                if (n.getId() != null) {
+                    repo.deleteNotification(uid, n.getId());
+                }
+                return;
+            }
+
+            // =========================================
+            // Payslip notifications
+            // =========================================
+            if ("PAYSLIP_UPLOADED".equals(type)
+                    || "PAYSLIP_DELETED".equals(type)) {
+
+                startActivity(new Intent(this, HomeActivity.class));
 
                 if (n.getId() != null) {
                     repo.deleteNotification(uid, n.getId());

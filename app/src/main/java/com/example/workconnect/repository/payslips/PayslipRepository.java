@@ -4,7 +4,7 @@ import androidx.annotation.Nullable;
 
 import com.example.workconnect.models.Payslip;
 import com.google.firebase.firestore.*;
-
+import com.example.workconnect.services.NotificationService;
 import java.util.*;
 
 public class PayslipRepository {
@@ -115,6 +115,13 @@ public class PayslipRepository {
                     data.put("uploadedAt", new Date());
 
                     tx.set(docRef, data, SetOptions.merge());
+                    // Notify only when NEW payslip is created
+                    NotificationService.addPayslipUploaded(
+                            tx,
+                            employeeUid,
+                            companyId,
+                            periodKey
+                    );
                     return Result.UPLOADED;
                 }).addOnSuccessListener(callback::onComplete)
                 .addOnFailureListener(callback::onError);
@@ -126,11 +133,28 @@ public class PayslipRepository {
             return;
         }
 
-        db.collection("users")
-                .document(payslip.getEmployeeUid())
+        String employeeUid = payslip.getEmployeeUid();
+        String periodKey = payslip.getPeriodKey();
+        String companyId = payslip.getCompanyId();
+
+        DocumentReference payslipRef = db.collection("users")
+                .document(employeeUid)
                 .collection("payslips")
-                .document(payslip.getPeriodKey())
-                .delete()
+                .document(periodKey);
+
+        WriteBatch batch = db.batch();
+
+        batch.delete(payslipRef);
+
+        // Notify employee that payslip was deleted
+        NotificationService.addPayslipDeleted(
+                batch,
+                employeeUid,
+                companyId,
+                periodKey
+        );
+
+        batch.commit()
                 .addOnSuccessListener(v -> callback.onComplete(Result.DELETED))
                 .addOnFailureListener(callback::onError);
     }
