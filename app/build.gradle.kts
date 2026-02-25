@@ -51,6 +51,7 @@ dependencies {
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
     implementation("com.google.firebase:firebase-messaging")
+    implementation("com.google.firebase:firebase-storage")
     
     // Google Sign-In
     implementation("com.google.android.gms:play-services-auth:21.2.0")
@@ -73,6 +74,7 @@ dependencies {
     implementation("io.agora.rtc:full-sdk:4.4.1")
 
     testImplementation(libs.junit)
+    testImplementation(libs.mockito.core)
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 

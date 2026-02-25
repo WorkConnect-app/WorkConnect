@@ -7,6 +7,7 @@ import androidx.lifecycle.MutableLiveData;
 import com.example.workconnect.models.ShiftAssignment;
 import com.example.workconnect.models.ShiftSwapOffer;
 import com.example.workconnect.models.ShiftSwapRequest;
+import com.example.workconnect.services.NotificationService;
 import com.google.firebase.firestore.CollectionReference;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
@@ -235,7 +236,25 @@ public class ShiftSwapRepository {
                     o.setCreatedAt(System.currentTimeMillis());
 
                     doc.set(o)
-                            .addOnSuccessListener(unused -> cb.onDone(true, "Offer submitted"))
+                            .addOnSuccessListener(unused -> {
+                                cb.onDone(true, "Offer submitted");
+
+                                // fetch requesterUid from the request doc
+                                req.get().addOnSuccessListener(reqSnap -> {
+                                    String requesterUid = reqSnap.getString("requesterUid");
+                                    if (requesterUid == null || requesterUid.trim().isEmpty()) return;
+
+                                    WriteBatch batch = db.batch();
+                                    NotificationService.addSwapOfferReceived(
+                                            batch,
+                                            requesterUid,
+                                            companyId,
+                                            teamId,
+                                            requestId
+                                    );
+                                    batch.commit();
+                                });
+                            })
                             .addOnFailureListener(e -> cb.onDone(false, "Failed: " + (e.getMessage() == null ? "" : e.getMessage())));
                 })
                 .addOnFailureListener(e -> cb.onDone(false, "Failed: " + (e.getMessage() == null ? "" : e.getMessage())));
@@ -256,8 +275,36 @@ public class ShiftSwapRepository {
 
         reqDoc(companyId, teamId, requestId)
                 .update(up)
-                .addOnSuccessListener(unused -> cb.onDone(true, "Sent for manager approval"))
-                .addOnFailureListener(e -> cb.onDone(false, "Failed: " + (e.getMessage() == null ? "" : e.getMessage())));
+                .addOnSuccessListener(unused -> {
+
+                    cb.onDone(true, "Sent for manager approval");
+
+                    // Load team to get managerId (confirmed from Team.java)
+                    db.collection("companies").document(companyId)
+                            .collection("teams").document(teamId)
+                            .get()
+                            .addOnSuccessListener(teamSnap -> {
+
+                                if (teamSnap == null || !teamSnap.exists()) return;
+
+                                String managerId = teamSnap.getString("managerId");
+                                if (managerId == null || managerId.trim().isEmpty()) return;
+
+                                WriteBatch batch = db.batch();
+                                NotificationService.addSwapSentForApproval(
+                                        batch,
+                                        managerId,
+                                        companyId,
+                                        teamId,
+                                        requestId
+                                );
+                                batch.commit();
+                            });
+
+                })
+                .addOnFailureListener(e ->
+                        cb.onDone(false, "Failed: " + (e.getMessage() == null ? "" : e.getMessage()))
+                );
     }
 
     public void managerRejectPending(String companyId, String teamId, String requestId, SimpleCallback cb) {
@@ -267,7 +314,25 @@ public class ShiftSwapRepository {
 
         reqDoc(companyId, teamId, requestId)
                 .update(up)
-                .addOnSuccessListener(unused -> cb.onDone(true, "Rejected (back to open)"))
+                .addOnSuccessListener(unused -> {
+                    cb.onDone(true, "Rejected (back to open)");
+
+                    reqDoc(companyId, teamId, requestId).get()
+                            .addOnSuccessListener(reqSnap -> {
+                                String requesterUid = reqSnap.getString("requesterUid");
+                                if (requesterUid == null || requesterUid.trim().isEmpty()) return;
+
+                                WriteBatch batch = db.batch();
+                                NotificationService.addSwapRejected(
+                                        batch,
+                                        requesterUid,
+                                        companyId,
+                                        teamId,
+                                        requestId
+                                );
+                                batch.commit();
+                            });
+                })
                 .addOnFailureListener(e -> cb.onDone(false, "Failed: " + (e.getMessage() == null ? "" : e.getMessage())));
     }
 
@@ -400,6 +465,21 @@ public class ShiftSwapRepository {
             // ---------- MARK APPROVED ----------
             transaction.update(requestRef, "status", ShiftSwapRequest.APPROVED);
 
+            NotificationService.addSwapApproved(
+                    transaction,
+                    requesterUid,
+                    companyId,
+                    teamId,
+                    requestId
+            );
+
+            NotificationService.addSwapApproved(
+                    transaction,
+                    offererUid,
+                    companyId,
+                    teamId,
+                    requestId
+            );
             Map<String, String> out = new HashMap<>();
             out.put("ok", "true");
             out.put("msg", "Approved");

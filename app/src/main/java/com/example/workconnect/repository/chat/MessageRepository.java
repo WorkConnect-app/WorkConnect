@@ -3,6 +3,7 @@ package com.example.workconnect.repository.chat;
 import android.util.Log;
 
 import com.example.workconnect.models.ChatMessage;
+import com.example.workconnect.services.NotificationService;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.WriteBatch;
@@ -90,6 +91,9 @@ public class MessageRepository {
 
                     // 3) Update unread counts
                     updateUnreadCounts(conversationId, currentUserId);
+
+                    // 4) Send in-app notifications to other participants
+                    notifyParticipants(conversationId, currentUserId, message.getText());
 
                     // Remove from retry queue if it was there
                     retryQueue.remove(messageId);
@@ -313,6 +317,67 @@ public class MessageRepository {
                     Log.e(TAG, "Failed to load conversation title", e);
                     callback.accept("Group");
                 });
+    }
+
+    /**
+     * After a message is successfully sent, notify all other participants.
+     * Uses two chained Firestore reads (sender name + conversation doc) then a WriteBatch.
+     */
+    private void notifyParticipants(String conversationId, String senderId, String messageText) {
+        if (conversationId == null || senderId == null || messageText == null) return;
+
+        // Truncate preview to 60 chars
+        String preview = messageText.length() > 60 ? messageText.substring(0, 60) + "…" : messageText;
+
+        // 1) Fetch sender name
+        db.collection("users").document(senderId).get()
+                .addOnSuccessListener(senderDoc -> {
+                    String firstName = senderDoc.getString("firstName");
+                    String lastName  = senderDoc.getString("lastName");
+                    String full      = senderDoc.getString("fullName");
+                    String senderName;
+                    if (firstName != null && !firstName.trim().isEmpty()) {
+                        senderName = (firstName.trim() + " " + (lastName != null ? lastName.trim() : "")).trim();
+                    } else if (full != null && !full.trim().isEmpty()) {
+                        senderName = full.trim();
+                    } else {
+                        senderName = "Someone";
+                    }
+
+                    // 2) Fetch conversation doc
+                    db.collection("conversations").document(conversationId).get()
+                            .addOnSuccessListener(convDoc -> {
+                                if (!convDoc.exists()) return;
+
+                                String convType = convDoc.getString("type");        // "direct" or "group"
+                                String groupTitle = convDoc.getString("title");
+                                @SuppressWarnings("unchecked")
+                                List<String> participants = (List<String>) convDoc.get("participantIds");
+                                if (participants == null || participants.isEmpty()) return;
+
+                                boolean isGroup = "group".equals(convType);
+                                String title = (groupTitle != null && !groupTitle.trim().isEmpty())
+                                        ? groupTitle.trim() : "Group";
+
+                                // 3) Build batch with one notification per other participant
+                                WriteBatch batch = db.batch();
+                                for (String uid : participants) {
+                                    if (uid == null || uid.equals(senderId)) continue;
+                                    if (isGroup) {
+                                        NotificationService.addChatGroupMessage(
+                                                batch, uid, title, senderName, conversationId, preview);
+                                    } else {
+                                        NotificationService.addChatNewMessage(
+                                                batch, uid, senderName, conversationId, preview);
+                                    }
+                                }
+                                batch.commit()
+                                        .addOnFailureListener(e ->
+                                                Log.e(TAG, "Failed to send chat notifications", e));
+                            })
+                            .addOnFailureListener(e -> Log.e(TAG, "Failed to fetch conversation for notifications", e));
+                })
+                .addOnFailureListener(e -> Log.e(TAG, "Failed to fetch sender for notifications", e));
     }
 
     private static class RetryTask {

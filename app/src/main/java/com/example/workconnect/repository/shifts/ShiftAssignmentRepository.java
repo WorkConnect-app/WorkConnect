@@ -5,6 +5,7 @@ import androidx.lifecycle.MutableLiveData;
 
 import com.example.workconnect.models.ShiftAssignment;
 import com.example.workconnect.models.ShiftTemplate;
+import com.example.workconnect.services.NotificationService;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldValue;
@@ -126,6 +127,16 @@ public class ShiftAssignmentRepository {
 
                         if (wasOnThisTemplate && !stillSelected) {
                             DocumentReference ref = itemsCol.document(uid);
+
+                            NotificationService.addShiftRemoved(
+                                    batch,
+                                    uid,
+                                    companyId,
+                                    teamId,
+                                    dateKey,
+                                    template.getTitle() == null ? "" : template.getTitle()
+                            );
+
                             batch.delete(ref);
                         }
                     }
@@ -141,6 +152,29 @@ public class ShiftAssignmentRepository {
                         data.put("startHour", template.getStartHour());
                         data.put("endHour", template.getEndHour());
                         data.put("createdAt", FieldValue.serverTimestamp());
+
+                        ShiftAssignment prev = existing.get(uid);
+
+                        if (prev == null) {
+                            NotificationService.addShiftAssigned(
+                                    batch,
+                                    uid,
+                                    companyId,
+                                    teamId,
+                                    dateKey,
+                                    template.getTitle() == null ? "" : template.getTitle()
+                            );
+                        } else if (prev.getTemplateId() != null && !prev.getTemplateId().equals(template.getId())) {
+                            NotificationService.addShiftChanged(
+                                    batch,
+                                    uid,
+                                    companyId,
+                                    teamId,
+                                    dateKey,
+                                    prev.getTemplateTitle() == null ? "" : prev.getTemplateTitle(),
+                                    template.getTitle() == null ? "" : template.getTitle()
+                            );
+                        }
 
                         batch.set(ref, data, SetOptions.merge());
                     }

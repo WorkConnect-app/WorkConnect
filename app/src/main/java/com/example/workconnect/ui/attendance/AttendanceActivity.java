@@ -4,6 +4,8 @@ import android.Manifest;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Bundle;
+import android.view.View;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -25,16 +27,32 @@ import com.example.workconnect.viewModels.attendance.AttendanceViewModel;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.Priority;
+import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 
+import java.time.LocalDate;
 import java.time.YearMonth;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 public class AttendanceActivity extends BaseDrawerActivity {
 
     private AttendanceViewModel vm;
-    private AttendancePeriodsAdapter adapter;
+
+    // NEW: two adapters (today + selected)
+    private AttendancePeriodsAdapter todayAdapter;
+    private AttendancePeriodsAdapter selectedAdapter;
+
+    // NEW: two recycler views
+    private RecyclerView rvToday;
+    private RecyclerView rvSelected;
+
+    // NEW: day dropdown + header
+    private MaterialAutoCompleteTextView actDay;
+    private TextView tvSelectedHeader;
+    private ArrayAdapter<String> dayAdapter;
 
     private final CompanyRepository companyRepo = new CompanyRepository();
 
@@ -87,13 +105,27 @@ public class AttendanceActivity extends BaseDrawerActivity {
         txtMonthTitle = findViewById(R.id.txtMonthTitle);
         txtMonthlyHours = findViewById(R.id.txtMonthlyHours);
 
-        RecyclerView rv = findViewById(R.id.recyclerAttendance);
-        rv.setLayoutManager(new LinearLayoutManager(this));
-        adapter = new AttendancePeriodsAdapter();
-        rv.setAdapter(adapter);
+        // NEW views (must exist in activity_attendance.xml)
+        rvToday = findViewById(R.id.recyclerToday);
+        rvSelected = findViewById(R.id.recyclerSelectedDay);
+        actDay = findViewById(R.id.actDay);
+        tvSelectedHeader = findViewById(R.id.tvSelectedHeader);
 
-        vm.getPeriods().observe(this, adapter::submit);
+        // Two recycler setups
+        rvToday.setLayoutManager(new LinearLayoutManager(this));
+        rvSelected.setLayoutManager(new LinearLayoutManager(this));
 
+        todayAdapter = new AttendancePeriodsAdapter();
+        selectedAdapter = new AttendancePeriodsAdapter();
+
+        rvToday.setAdapter(todayAdapter);
+        rvSelected.setAdapter(selectedAdapter);
+
+        // Observe new live data
+        vm.getTodayPeriods().observe(this, todayAdapter::submit);
+        vm.getSelectedDayPeriods().observe(this, selectedAdapter::submit);
+
+        // Keep old logic intact
         vm.isShiftActive().observe(this, active -> {
             start.setEnabled(active == null || !active);
             end.setEnabled(active != null && active);
@@ -101,7 +133,7 @@ public class AttendanceActivity extends BaseDrawerActivity {
 
         vm.getActiveDateKey().observe(this, key -> {
             if (key == null) return;
-            info.setVisibility(TextView.VISIBLE);
+            info.setVisibility(View.VISIBLE);
             info.setText("Attendance day: " + key);
         });
 
@@ -110,10 +142,13 @@ public class AttendanceActivity extends BaseDrawerActivity {
             Toast.makeText(this, r.name(), Toast.LENGTH_SHORT).show();
         });
 
-        // Month title + hours
+        // Month title + hours (+ rebuild day dropdown)
         vm.getMonthKey().observe(this, mk -> {
             if (mk == null) return;
             txtMonthTitle.setText(mk);
+
+            // NEW: day dropdown depends on month
+            rebuildDayDropdown(mk);
         });
 
         vm.getMonthlyHours().observe(this, hours -> {
@@ -171,8 +206,54 @@ public class AttendanceActivity extends BaseDrawerActivity {
 
         vm.init(companyId);
         vmInitialized = true;
+
+        // NEW: ensure dropdown is built immediately after init (even if observer hasn't fired yet)
+        String mk = vm.getMonthKey().getValue();
+        if (mk != null) rebuildDayDropdown(mk);
     }
 
+    private void rebuildDayDropdown(String monthKey) {
+        if (!vmInitialized) return;
+        if (actDay == null || tvSelectedHeader == null) return;
+
+        int days = 31;
+        try {
+            days = YearMonth.parse(monthKey).lengthOfMonth();
+        } catch (Exception ignored) {}
+
+        List<String> items = new ArrayList<>();
+        for (int d = 1; d <= days; d++) {
+            items.add(String.format(Locale.US, "%02d", d));
+        }
+
+        dayAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, items);
+        actDay.setAdapter(dayAdapter);
+
+        // Make sure tapping always opens the dropdown
+        actDay.setOnClickListener(v -> actDay.showDropDown());
+
+        // default day = today if same month, else 01
+        String defaultDay = "01";
+        String todayMonth = YearMonth.now().toString();
+        if (todayMonth.equals(monthKey)) {
+            defaultDay = String.format(Locale.US, "%02d", LocalDate.now().getDayOfMonth());
+        }
+
+        actDay.setText(defaultDay, false);
+
+        String dateKey = monthKey + "-" + defaultDay;
+        tvSelectedHeader.setText("Shifts from " + dateKey);
+        vm.selectDay(dateKey);
+
+        // IMPORTANT: use the clicked item, not actDay.getText()
+        actDay.setOnItemClickListener((parent, view, position, id) -> {
+            String dd = parent.getItemAtPosition(position).toString(); // <-- correct
+            String dk = monthKey + "-" + dd;
+
+            tvSelectedHeader.setText("Shifts from " + dk);
+            vm.selectDay(dk);
+        });
+    }
     private String shiftMonth(String monthKey, int deltaMonths) {
         try {
             if (monthKey == null || monthKey.trim().isEmpty()) {

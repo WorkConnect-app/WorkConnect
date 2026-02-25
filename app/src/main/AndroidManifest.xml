@@ -35,7 +35,10 @@
 
         <!-- Chat -->
         <activity android:name=".ui.chat.ChatListActivity" android:exported="false" />
-        <activity android:name=".ui.chat.ChatActivity" android:exported="false" />
+        <activity
+            android:name=".ui.chat.ChatActivity"
+            android:exported="false"
+            android:launchMode="singleTop" />
         <activity
             android:name=".ui.chat.CallActivity"
             android:exported="false"
@@ -76,7 +79,8 @@
             android:name=".ui.vacations.NewVacationRequestActivity"
             android:exported="false" />
 
-        <activity android:name=".ui.vacations.PendingVacationRequestsActivity"
+        <activity
+            android:name=".ui.vacations.PendingVacationRequestsActivity"
             android:exported="false" />
 
         <activity
@@ -120,12 +124,17 @@
             android:name=".ui.company.CompanySettingsActivity"
             android:exported="false" />
 
-        <activity android:name=".ui.auth.CompleteGoogleProfileActivity"
+        <activity
+            android:name=".ui.auth.CompleteGoogleProfileActivity"
             android:exported="false" />
 
-        <activity android:name=".ui.notifications.NotificationsActivity"
+        <activity
+            android:name=".ui.notifications.NotificationsActivity"
             android:exported="false"/>
 
+        <activity
+            android:name=".ui.payslips.UploadSalarySlipsActivity"
+            android:exported="false"/>
 
         <!-- Call Foreground Service -->
         <service

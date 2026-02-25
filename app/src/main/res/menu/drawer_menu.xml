@@ -52,12 +52,6 @@
                     android:icon="@android:drawable/ic_menu_view"/>
 
                 <item
-                    android:id="@+id/nav_manage_attendance"
-                    android:title="Manage attendance"
-                    android:icon="@android:drawable/ic_menu_edit"/>
-
-
-                <item
                     android:id="@+id/nav_manage_shifts"
                     android:title="Manage shifts"
                     android:icon="@android:drawable/ic_menu_month"/>

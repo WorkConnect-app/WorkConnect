@@ -7,6 +7,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import com.example.workconnect.services.NotificationService;
 
 public class AttendanceRepository {
 
@@ -14,6 +15,8 @@ public class AttendanceRepository {
 
     private static final DateTimeFormatter DAY_KEY_FORMAT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
+    private static final long MAX_SHIFT_MS = 13L * 60L * 60L * 1000L; // 13 hours
 
     // ===============================
     // Result enum (clean UI handling)
@@ -89,6 +92,10 @@ public class AttendanceRepository {
 
                             long startMs = s.toDate().getTime();
                             long endMs = (e == null) ? System.currentTimeMillis() : e.toDate().getTime();
+
+                            // Clamp any period to max 13 hours (prevents 24h+ inflation)
+                            long capEndMs = startMs + MAX_SHIFT_MS;
+                            if (endMs > capEndMs) endMs = capEndMs;
 
                             if (endMs > startMs) {
                                 totalHours += (endMs - startMs) / 3600000.0;
@@ -266,6 +273,110 @@ public class AttendanceRepository {
                             "periods", periods,
                             "updatedAt", now,
                             "expiresAt", expiresAt
+                    );
+
+                    transaction.update(userRef, "activeAttendance", FieldValue.delete());
+
+                    return Result.ENDED;
+
+                }).addOnSuccessListener(callback::onComplete)
+                .addOnFailureListener(callback::onError);
+    }
+
+    // ===============================
+// END SHIFT AT (forced timestamp)
+// ===============================
+    public void endShiftAt(
+            String userId,
+            Timestamp forcedEndAt,
+            Map<String, Object> endLocation, // nullable
+            AttendanceCallback callback
+    ) {
+        if (forcedEndAt == null) {
+            callback.onComplete(Result.ERROR);
+            return;
+        }
+
+        DocumentReference userRef = db
+                .collection("users")
+                .document(userId);
+
+        db.runTransaction(transaction -> {
+
+                    DocumentSnapshot userSnap = transaction.get(userRef);
+
+                    if (!userSnap.contains("activeAttendance")) {
+                        return Result.NOT_STARTED;
+                    }
+
+                    Map<String, Object> activeAttendance =
+                            (Map<String, Object>) userSnap.get("activeAttendance");
+
+                    String companyId = (String) activeAttendance.get("companyId");
+                    String attendanceDocId = (String) activeAttendance.get("attendanceDocId");
+
+                    DocumentReference attendanceRef = db
+                            .collection("companies")
+                            .document(companyId)
+                            .collection("attendance")
+                            .document(attendanceDocId);
+
+                    DocumentSnapshot attendanceSnap = transaction.get(attendanceRef);
+
+                    if (!attendanceSnap.exists()) {
+                        return Result.NOT_STARTED;
+                    }
+
+                    List<Map<String, Object>> periods =
+                            (List<Map<String, Object>>) attendanceSnap.get("periods");
+
+                    if (periods == null || periods.isEmpty()) {
+                        return Result.NOT_STARTED;
+                    }
+
+                    Map<String, Object> last = periods.get(periods.size() - 1);
+
+                    Timestamp startTs = (Timestamp) last.get("startAt");
+                    if (startTs == null) return Result.NOT_STARTED;
+
+                    if (last.get("endAt") != null) {
+                        return Result.NOT_STARTED;
+                    }
+
+                    long startMs = startTs.toDate().getTime();
+                    long endMs = forcedEndAt.toDate().getTime();
+
+                    // Do not allow ending before start; also clamp to 13h max
+                    long minEndMs = startMs;
+                    long maxEndMs = startMs + MAX_SHIFT_MS;
+
+                    if (endMs < minEndMs) endMs = minEndMs;
+                    if (endMs > maxEndMs) endMs = maxEndMs;
+
+                    Timestamp safeEnd = new Timestamp(new Date(endMs));
+
+                    last.put("endAt", safeEnd);
+                    if (endLocation != null) {
+                        last.putAll(endLocation);
+                    }
+
+                    // TTL refresh (optional but nice)
+                    Calendar cal = Calendar.getInstance();
+                    cal.setTime(safeEnd.toDate());
+                    cal.add(Calendar.DAY_OF_YEAR, 370);
+                    Timestamp expiresAt = new Timestamp(cal.getTime());
+
+                    transaction.update(attendanceRef,
+                            "periods", periods,
+                            "updatedAt", safeEnd,
+                            "expiresAt", expiresAt
+                    );
+
+                    NotificationService.addAttendanceAutoEnded(
+                            transaction,
+                            userId,
+                            companyId,
+                            attendanceDocId.substring(attendanceDocId.indexOf("_") + 1)
                     );
 
                     transaction.update(userRef, "activeAttendance", FieldValue.delete());

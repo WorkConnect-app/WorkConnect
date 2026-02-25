@@ -154,6 +154,39 @@
                             android:textSize="12sp"
                             android:textColor="#666666" />
 
+                        <!-- Divider: Vacation -> Salary Slips -->
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="1dp"
+                            android:layout_marginTop="12dp"
+                            android:layout_marginBottom="12dp"
+                            android:background="#DDDDDD" />
+
+                        <!-- Salary Slips -->
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Salary slips"
+                            android:textStyle="bold"
+                            android:textSize="16sp" />
+
+                        <androidx.recyclerview.widget.RecyclerView
+                            android:id="@+id/rv_salary_slips"
+                            android:layout_width="match_parent"
+                            android:layout_height="240dp"
+                            android:layout_marginTop="8dp"
+                            android:nestedScrollingEnabled="true" />
+
+                        <TextView
+                            android:id="@+id/tv_salary_slips_empty"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="No salary slips uploaded yet."
+                            android:layout_marginTop="8dp"
+                            android:textSize="13sp"
+                            android:textColor="#666666"
+                            android:visibility="gone" />
+
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 

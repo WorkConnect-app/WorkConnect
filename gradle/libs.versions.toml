@@ -15,6 +15,7 @@ androidxJunit = "1.2.1"
 espresso = "3.6.1"
 androidxRules = "1.6.1"
 uiautomator = "2.3.0"
+mockito = "5.14.2"
 
 # Plugins
 agp = "8.13.2"
@@ -34,14 +35,17 @@ androidx-constraintlayout = { group = "androidx.constraintlayout", name = "const
 androidx-recyclerview = { group = "androidx.recyclerview", name = "recyclerview", version.ref = "recyclerview" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 
+# Lifecycle
+androidx-lifecycle-livedata = { group = "androidx.lifecycle", name = "lifecycle-livedata", version.ref = "lifecycleLivedata" }
+
 # Testing
 junit = { group = "junit", name = "junit", version.ref = "junit" }
+mockito-core = { group = "org.mockito", name = "mockito-core", version.ref = "mockito" }
 androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxJunit" }
 androidx-test-rules = { group = "androidx.test", name = "rules", version.ref = "androidxRules" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso" }
 androidx-espresso-contrib = { group = "androidx.test.espresso", name = "espresso-contrib", version.ref = "espresso" }
 androidx-uiautomator = { group = "androidx.test.uiautomator", name = "uiautomator", version.ref = "uiautomator" }
-androidx-lifecycle-livedata = { group = "androidx.lifecycle", name = "lifecycle-livedata", version.ref = "lifecycleLivedata" }
 
 
 [plugins]
