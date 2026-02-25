@@ -25,6 +25,10 @@ public class AttendanceViewModel extends ViewModel {
     private static final DateTimeFormatter MONTH_KEY_FORMAT =
             DateTimeFormatter.ofPattern("yyyy-MM");
 
+    private static final long MAX_SHIFT_MS = 13L * 60L * 60L * 1000L; // 13 hours
+
+    private boolean autoEndInProgress = false;
+
     private final MutableLiveData<List<Map<String, Object>>> periodsLiveData =
             new MutableLiveData<>();
 
@@ -119,6 +123,52 @@ public class AttendanceViewModel extends ViewModel {
             if (snapshot.contains("activeAttendance")) {
                 Map<String, Object> active =
                         (Map<String, Object>) snapshot.get("activeAttendance");
+
+                // Auto-end safety: if shift ran 13h+, force end it
+                if (!autoEndInProgress) {
+                    Object startedObj = active.get("startedAt");
+                    if (startedObj instanceof com.google.firebase.Timestamp) {
+                        com.google.firebase.Timestamp startedAt = (com.google.firebase.Timestamp) startedObj;
+
+                        long startMs = startedAt.toDate().getTime();
+                        long nowMs = System.currentTimeMillis();
+
+                        if (nowMs - startMs >= MAX_SHIFT_MS) {
+                            autoEndInProgress = true;
+
+                            com.google.firebase.Timestamp forcedEnd =
+                                    new com.google.firebase.Timestamp(new java.util.Date(startMs + MAX_SHIFT_MS));
+
+                            attendanceRepository.endShiftAt(
+                                    userId,
+                                    forcedEnd,
+                                    null,
+                                    new AttendanceRepository.AttendanceCallback() {
+                                        @Override
+                                        public void onComplete(AttendanceRepository.Result result) {
+                                            autoEndInProgress = false;
+                                            actionResultLiveData.postValue(result);
+
+                                            String mk = monthKeyLiveData.getValue();
+                                            if (mk != null) refreshMonthlyHours(mk);
+                                            // user doc will update (activeAttendance deleted) and listener will re-run
+                                        }
+
+                                        @Override
+                                        public void onError(Exception e) {
+                                            autoEndInProgress = false;
+                                            actionResultLiveData.postValue(AttendanceRepository.Result.ERROR);
+
+                                            String mk = monthKeyLiveData.getValue();
+                                            if (mk != null) refreshMonthlyHours(mk);
+                                        }
+                                    }
+                            );
+
+                            return; // wait for listener to refresh after auto-end
+                        }
+                    }
+                }
 
                 String dateKey = (String) active.get("dateKey");
                 activeDateKeyLiveData.postValue(dateKey);
