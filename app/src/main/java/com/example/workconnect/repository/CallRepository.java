@@ -5,6 +5,8 @@ import android.util.Log;
 import com.example.workconnect.config.AgoraConfig;
 import com.example.workconnect.models.Call;
 import com.example.workconnect.models.ChatMessage;
+import com.example.workconnect.services.NotificationService;
+import com.example.workconnect.utils.FormatUtils;
 import com.example.workconnect.utils.SystemMessageHelper;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
@@ -77,7 +79,8 @@ public class CallRepository {
         callData.put("callId", callId);
         callData.put("conversationId", conversationId);
         callData.put("callerId", callerId);
-        callData.put("participants", participants);
+        callData.put("participants", participants); // All group members (for notifications)
+        callData.put("activeParticipants", new ArrayList<String>()); // Only those who actually joined
         callData.put("type", callType);
         callData.put("status", "ringing");
         callData.put("channelName", channelName);
@@ -121,6 +124,41 @@ public class CallRepository {
                 .document(callId)
                 .update(updates)
                 .addOnFailureListener(e -> Log.e(TAG, "Failed to update call status", e));
+    }
+
+    /**
+     * Add a participant to activeParticipants when they actually join the Agora channel.
+     * This is called when the user successfully joins the call.
+     */
+    public void addActiveParticipant(String callId, String userId) {
+        if (callId == null || userId == null) return;
+
+        DocumentReference callRef = db.collection(COLLECTION_CALLS).document(callId);
+
+        db.runTransaction(transaction -> {
+            DocumentSnapshot callDoc = transaction.get(callRef);
+            if (!callDoc.exists()) return null;
+
+            @SuppressWarnings("unchecked")
+            List<String> activeParticipants = (List<String>) callDoc.get("activeParticipants");
+            if (activeParticipants == null) {
+                activeParticipants = new ArrayList<>();
+            }
+
+            // Only add if not already in the list
+            if (!activeParticipants.contains(userId)) {
+                activeParticipants.add(userId);
+                transaction.update(callRef, "activeParticipants", activeParticipants);
+            }
+
+            return activeParticipants.size();
+        }).addOnSuccessListener(count -> {
+            if (count != null) {
+                Log.d(TAG, "Added active participant: " + userId + ", total active: " + count);
+            }
+        }).addOnFailureListener(e -> {
+            Log.e(TAG, "Failed to add active participant", e);
+        });
     }
 
     /**
@@ -221,8 +259,6 @@ public class CallRepository {
 
     /**
      * End a call: create message in chat and delete call document
-     */
-    /**
      * Reject an incoming call (used for auto-reject when already in a call)
      */
     public void rejectCall(String callId, String userId) {
@@ -240,6 +276,95 @@ public class CallRepository {
                 Log.e(TAG, "Failed to reject call", e);
             });
     }
+
+    /**
+     * Remove a participant from a group call when they decline.
+     * For group calls, this allows other participants to continue the call.
+     * For direct calls (2 participants), this will end the call for everyone.
+     */
+    public void removeParticipantFromCall(String callId, String userId) {
+        if (callId == null || userId == null) {
+            Log.e(TAG, "Cannot remove participant: invalid parameters");
+            return;
+        }
+
+        DocumentReference callRef = db.collection(COLLECTION_CALLS).document(callId);
+
+        // Use a transaction to prevent race conditions when multiple participants decline simultaneously
+        db.runTransaction(transaction -> {
+            DocumentSnapshot callDoc = transaction.get(callRef);
+            if (!callDoc.exists()) {
+                Log.e(TAG, "Call document not found: " + callId);
+                return null;
+            }
+
+            @SuppressWarnings("unchecked")
+            List<String> participants = (List<String>) callDoc.get("participants");
+            if (participants == null || participants.isEmpty()) {
+                Log.e(TAG, "Call has no participants");
+                return null;
+            }
+
+            boolean isGroupCall = participants.size() > 2;
+
+            if (isGroupCall) {
+                List<String> updated = new ArrayList<>(participants);
+                updated.remove(userId);
+
+                // Check activeParticipants 
+                @SuppressWarnings("unchecked")
+                List<String> activeParticipants = (List<String>) callDoc.get("activeParticipants");
+                if (activeParticipants == null) {
+                    activeParticipants = new ArrayList<>();
+                }
+
+                Map<String, Object> updates = new HashMap<>();
+                updates.put("participants", updated);
+                updates.put("videoEnabled." + userId, FieldValue.delete());
+                updates.put("audioEnabled." + userId, FieldValue.delete());
+
+                // (if someone joined, they'll leave via leaveGroupCall() which handles deletion)
+                if (updated.isEmpty() && activeParticipants.isEmpty()) {
+                    updates.put("status", "ended");
+                    updates.put("endedAt", FieldValue.serverTimestamp());
+                }
+
+                transaction.update(callRef, updates);
+                // Return remaining participants count (we'll check activeParticipants separately)
+                return updated.size();
+            } else {
+                // Direct call: mark as missed 
+                transaction.update(callRef, "status", "missed",
+                        "endedAt", FieldValue.serverTimestamp());
+                return 0;
+            }
+        }).addOnSuccessListener(remainingParticipants -> {
+            if (remainingParticipants == null) return;
+            
+            // Check activeParticipants separately to determine if we should delete
+            callRef.get().addOnSuccessListener(callDoc -> {
+                if (!callDoc.exists()) return;
+                
+                @SuppressWarnings("unchecked")
+                List<String> activeParticipants = (List<String>) callDoc.get("activeParticipants");
+                int remainingActive = (activeParticipants != null) ? activeParticipants.size() : 0;
+                
+                // Only delete if no participants left AND no active participants (everyone declined without joining)
+                if (remainingParticipants == 0 && remainingActive == 0) {
+                    new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() ->
+                        callRef.delete()
+                            .addOnSuccessListener(v -> Log.d(TAG, "Call doc deleted after removeParticipant: " + callId))
+                            .addOnFailureListener(e -> Log.e(TAG, "Failed to delete call doc", e)),
+                    2000);
+                }
+                Log.d(TAG, "Participant removed from call: " + userId + ", remaining: " + remainingParticipants + ", active: " + remainingActive);
+            }).addOnFailureListener(e -> {
+                Log.e(TAG, "Failed to check activeParticipants after removeParticipant", e);
+            });
+        }).addOnFailureListener(e -> {
+            Log.e(TAG, "Transaction failed for removeParticipantFromCall", e);
+        });
+    }
     
     public void endCall(String callId, String conversationId, boolean isGroup, 
                        String callType, long durationMs, boolean wasMissed) {
@@ -254,7 +379,7 @@ public class CallRepository {
         }
 
         // Format duration
-        String durationText = formatDuration(durationMs);
+        String durationText = FormatUtils.formatDuration(durationMs);
         
         // Create message text
         String messageText;
@@ -265,20 +390,8 @@ public class CallRepository {
             messageText = callTypeText + " - Duration: " + durationText;
         }
 
-        // Create message in chat
-        if (isGroup) {
-            // System message for groups
-            ChatMessage.SystemMessageType systemType = wasMissed ? 
-                ChatMessage.SystemMessageType.CALL_MISSED : 
-                ChatMessage.SystemMessageType.CALL_ENDED;
-            SystemMessageHelper.createSystemMessage(
-                conversationId,
-                systemType,
-                null, // systemUserId
-                null, // actorUserId
-                messageText
-            );
-        } else {
+        // Create message in chat (only for direct calls, groups don't create messages)
+        if (!isGroup) {
             // For direct conversations, determine sender ID based on who ended the call
             // If wasMissed: message appears on the side of who declined (endedByUserId)
             // If not missed: message appears on the side of who ended it (endedByUserId or callerId)
@@ -290,8 +403,8 @@ public class CallRepository {
                             String callerId = callDoc.getString("callerId");
                             
                             // Determine sender ID:
-                            // - For missed calls: use endedByUserId (the one who declined)
-                            // - For normal end: use endedByUserId if provided, otherwise callerId
+                            // For missed calls: use endedByUserId (the one who declined)
+                            // For normal end: use endedByUserId if provided, otherwise callerId
                             String senderId;
                             if (wasMissed && endedByUserId != null) {
                                 senderId = endedByUserId; // Message on the side of who declined
@@ -323,6 +436,11 @@ public class CallRepository {
                         }
                     })
                     .addOnFailureListener(e -> Log.e(TAG, "Failed to get call document", e));
+        }
+
+        // Send missed-call notifications to all participants except the caller
+        if (wasMissed) {
+            sendMissedCallNotifications(callId, conversationId, callType);
         }
 
         // Update call status before deleting (so listeners can detect the change)
@@ -358,46 +476,70 @@ public class CallRepository {
             DocumentSnapshot callDoc = transaction.get(callRef);
             if (!callDoc.exists()) return 0;
 
-            List<String> participants = (List<String>) callDoc.get("participants");
-            if (participants == null) participants = new ArrayList<>();
+            // Use activeParticipants (those who actually joined) to determine when to delete
+            @SuppressWarnings("unchecked")
+            List<String> activeParticipants = (List<String>) callDoc.get("activeParticipants");
+            if (activeParticipants == null) {
+                activeParticipants = new ArrayList<>();
+            }
 
-            List<String> updated = new ArrayList<>(participants);
-            updated.remove(userId);
+            List<String> updatedActive = new ArrayList<>(activeParticipants);
+            updatedActive.remove(userId);
 
             Map<String, Object> updates = new HashMap<>();
-            updates.put("participants", updated);
+            updates.put("activeParticipants", updatedActive);
 
-            // If 1 or fewer participants remain, end the call
-            if (updated.size() <= 1) {
+            // Also remove from videoEnabled and audioEnabled maps
+            updates.put("videoEnabled." + userId, FieldValue.delete());
+            updates.put("audioEnabled." + userId, FieldValue.delete());
+
+            // If no active participants remain, end the call
+            // (If 1 remains, the call continues - they can still talk or wait for others to join)
+            if (updatedActive.isEmpty()) {
                 updates.put("status", "ended");
                 updates.put("endedAt", FieldValue.serverTimestamp());
             }
 
             transaction.update(callRef, updates);
-            return updated.size();
+            return updatedActive.size();
 
-        }).addOnSuccessListener(remainingCount -> {
-            if (remainingCount != null && remainingCount <= 1) {
-                // Last person left: write call summary message and schedule doc deletion
-                String durationText = formatDuration(durationMs);
-                String callTypeText = "video".equals(callType) ? "Video call" : "Audio call";
-                String messageText = callTypeText + " - Duration: " + durationText;
+        }).addOnSuccessListener(remainingActiveCount -> {
 
+            if (remainingActiveCount == 0) {
+                // Last active participant left: create system message and schedule doc deletion
                 if (conversationId != null) {
+                    String messageText;
+                    ChatMessage.SystemMessageType systemType;
+                    
+                    if (durationMs == 0) {
+                        // Call was missed (no one actually joined or call ended immediately)
+                        messageText = "Missed group call";
+                        systemType = ChatMessage.SystemMessageType.CALL_MISSED;
+                    } else {
+                        // Call was answered and had duration
+                        String durationText = FormatUtils.formatDuration(durationMs);
+                        String callTypeText = "video".equals(callType) ? "Video call" : "Audio call";
+                        messageText = callTypeText + " - Duration: " + durationText;
+                        systemType = ChatMessage.SystemMessageType.CALL_ENDED;
+                    }
+                    
                     SystemMessageHelper.createSystemMessage(
-                        conversationId,
-                        ChatMessage.SystemMessageType.CALL_ENDED,
-                        null, null, messageText
+                            conversationId,
+                            systemType,
+                            null, // systemUserId 
+                            null, // actorUserId
+                            messageText
                     );
                 }
-
+                
+                // Schedule doc deletion
                 new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() ->
                     callRef.delete()
                         .addOnSuccessListener(v -> Log.d(TAG, "Group call doc deleted: " + callId))
                         .addOnFailureListener(e -> Log.e(TAG, "Failed to delete group call doc", e)),
                 2000);
             }
-            Log.d(TAG, "Left group call. Remaining participants: " + remainingCount);
+            Log.d(TAG, "Left group call. Remaining active participants: " + remainingActiveCount);
             if (callback != null) callback.onComplete();
 
         }).addOnFailureListener(e -> {
@@ -407,20 +549,47 @@ public class CallRepository {
     }
 
     /**
-     * Format duration in milliseconds to "M:SS" or "H:MM:SS" format
+     * Notify all participants (except the caller) that they missed a call.
+     * Reads the call doc to get callerId + participants, then the caller's name.
      */
-    private String formatDuration(long durationMs) {
-        if (durationMs < 0) return "0:00";
-        
-        long totalSeconds = durationMs / 1000;
-        long hours = totalSeconds / 3600;
-        long minutes = (totalSeconds % 3600) / 60;
-        long seconds = totalSeconds % 60;
+    private void sendMissedCallNotifications(String callId, String conversationId, String callType) {
+        db.collection(COLLECTION_CALLS).document(callId).get()
+                .addOnSuccessListener(callDoc -> {
+                    if (!callDoc.exists()) return;
 
-        if (hours > 0) {
-            return String.format("%d:%02d:%02d", hours, minutes, seconds);
-        } else {
-            return String.format("%d:%02d", minutes, seconds);
-        }
+                    String callerId = callDoc.getString("callerId");
+                    @SuppressWarnings("unchecked")
+                    List<String> participants = (List<String>) callDoc.get("participants");
+                    if (callerId == null || participants == null || participants.isEmpty()) return;
+
+                    // Fetch caller name, then send notifications
+                    db.collection("users").document(callerId).get()
+                            .addOnSuccessListener(userDoc -> {
+                                String firstName = userDoc.getString("firstName");
+                                String lastName  = userDoc.getString("lastName");
+                                String full      = userDoc.getString("fullName");
+                                String callerName;
+                                if (firstName != null && !firstName.trim().isEmpty()) {
+                                    callerName = (firstName.trim() + " " + (lastName != null ? lastName.trim() : "")).trim();
+                                } else if (full != null && !full.trim().isEmpty()) {
+                                    callerName = full.trim();
+                                } else {
+                                    callerName = "Someone";
+                                }
+
+                                com.google.firebase.firestore.WriteBatch batch = db.batch();
+                                for (String uid : participants) {
+                                    if (uid == null || uid.equals(callerId)) continue;
+                                    NotificationService.addMissedCall(
+                                            batch, uid, callerName, conversationId, callType);
+                                }
+                                batch.commit()
+                                        .addOnFailureListener(e ->
+                                                Log.e(TAG, "Failed to send missed-call notifications", e));
+                            })
+                            .addOnFailureListener(e -> Log.e(TAG, "Failed to fetch caller for missed-call notif", e));
+                })
+                .addOnFailureListener(e -> Log.e(TAG, "Failed to fetch call doc for missed-call notif", e));
     }
+
 }

@@ -91,7 +91,6 @@ public class NotificationService {
         data.put("employeeId", employeeId);
         data.put("companyId", companyId);
 
-        // נבנה Map כדי להוסיף createdAt serverTimestamp (ולא להיתקע בלי createdAt)
         Map<String, Object> notif = new HashMap<>();
         notif.put("type", "EMPLOYEE_PENDING_APPROVAL");
         notif.put("title", "New employee pending approval ✅");
@@ -107,5 +106,134 @@ public class NotificationService {
         batch.set(notifRef, notif);
     }
 
-    // בהמשך: addShiftAssigned, addSwapApproved וכו'
+    // Chat notifications 
+
+    /** Direct message: title = sender name, body = message preview. */
+    public static void addChatNewMessage(@NonNull WriteBatch batch,
+                                         @NonNull String recipientId,
+                                         @NonNull String senderName,
+                                         @NonNull String conversationId,
+                                         @NonNull String messagePreview) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("conversationId", conversationId);
+
+        Map<String, Object> notif = new HashMap<>();
+        notif.put("type", "CHAT_NEW_MESSAGE");
+        notif.put("title", senderName);
+        notif.put("body", messagePreview);
+        notif.put("read", false);
+        notif.put("createdAt", FieldValue.serverTimestamp());
+        notif.put("data", data);
+
+        batch.set(newNotifRef(recipientId), notif);
+    }
+
+    /** Group message: title = group name, body = "SenderName: preview". */
+    public static void addChatGroupMessage(@NonNull WriteBatch batch,
+                                           @NonNull String recipientId,
+                                           @NonNull String groupName,
+                                           @NonNull String senderName,
+                                           @NonNull String conversationId,
+                                           @NonNull String messagePreview) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("conversationId", conversationId);
+
+        Map<String, Object> notif = new HashMap<>();
+        notif.put("type", "CHAT_GROUP_MESSAGE");
+        notif.put("title", groupName);
+        notif.put("body", senderName + ": " + messagePreview);
+        notif.put("read", false);
+        notif.put("createdAt", FieldValue.serverTimestamp());
+        notif.put("data", data);
+
+        batch.set(newNotifRef(recipientId), notif);
+    }
+
+    //Call notifications 
+
+    /** Group call started: sent to members who haven't yet joined. */
+    public static void addGroupCallStarted(@NonNull WriteBatch batch,
+                                           @NonNull String recipientId,
+                                           @NonNull String callerName,
+                                           @NonNull String groupName,
+                                           @NonNull String conversationId,
+                                           @NonNull String callType) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("conversationId", conversationId);
+
+        String callLabel = "video".equals(callType) ? "video" : "audio";
+
+        Map<String, Object> notif = new HashMap<>();
+        notif.put("type", "GROUP_CALL_STARTED");
+        notif.put("title", groupName);
+        notif.put("body", callerName + " started a " + callLabel + " call");
+        notif.put("read", false);
+        notif.put("createdAt", FieldValue.serverTimestamp());
+        notif.put("data", data);
+
+        batch.set(newNotifRef(recipientId), notif);
+    }
+
+    /** Missed call: sent to participants who never answered. */
+    public static void addMissedCall(@NonNull WriteBatch batch,
+                                     @NonNull String recipientId,
+                                     @NonNull String callerName,
+                                     @NonNull String conversationId,
+                                     @NonNull String callType) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("conversationId", conversationId);
+
+        String callLabel = "video".equals(callType) ? "video" : "audio";
+
+        Map<String, Object> notif = new HashMap<>();
+        notif.put("type", "MISSED_CALL");
+        notif.put("title", "Missed call");
+        notif.put("body", "Missed " + callLabel + " call from " + callerName);
+        notif.put("read", false);
+        notif.put("createdAt", FieldValue.serverTimestamp());
+        notif.put("data", data);
+
+        batch.set(newNotifRef(recipientId), notif);
+    }
+
+    // Group membership notifications 
+
+    /** Added to group: sent to each new member. */
+    public static void addAddedToGroup(@NonNull WriteBatch batch,
+                                       @NonNull String recipientId,
+                                       @NonNull String adderName,
+                                       @NonNull String groupName,
+                                       @NonNull String conversationId) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("conversationId", conversationId);
+
+        Map<String, Object> notif = new HashMap<>();
+        notif.put("type", "ADDED_TO_GROUP");
+        notif.put("title", groupName);
+        notif.put("body", adderName + " added you to the group");
+        notif.put("read", false);
+        notif.put("createdAt", FieldValue.serverTimestamp());
+        notif.put("data", data);
+
+        batch.set(newNotifRef(recipientId), notif);
+    }
+
+    /** Removed from group: sent to each removed member. */
+    public static void addRemovedFromGroup(@NonNull WriteBatch batch,
+                                           @NonNull String recipientId,
+                                           @NonNull String groupName,
+                                           @NonNull String conversationId) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("conversationId", conversationId);
+
+        Map<String, Object> notif = new HashMap<>();
+        notif.put("type", "REMOVED_FROM_GROUP");
+        notif.put("title", groupName);
+        notif.put("body", "You were removed from the group");
+        notif.put("read", false);
+        notif.put("createdAt", FieldValue.serverTimestamp());
+        notif.put("data", data);
+
+        batch.set(newNotifRef(recipientId), notif);
+    }
 }

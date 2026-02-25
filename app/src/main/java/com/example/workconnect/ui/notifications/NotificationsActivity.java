@@ -13,6 +13,8 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.example.workconnect.R;
 import com.example.workconnect.adapters.notifications.NotificationsAdapter;
 import com.example.workconnect.repository.notifications.NotificationsRepository;
+import com.example.workconnect.ui.chat.ChatActivity;
+import com.example.workconnect.ui.chat.ChatListActivity;
 import com.example.workconnect.ui.vacations.PendingVacationRequestsActivity;
 import com.example.workconnect.ui.vacations.VacationRequestsActivity;
 import com.google.firebase.auth.FirebaseAuth;
@@ -68,6 +70,26 @@ public class NotificationsActivity extends AppCompatActivity {
             } else if ("VACATION_REJECTED".equals(type)) {
                 // ❌ חופשה נדחתה
                 startActivity(new Intent(this, VacationRequestsActivity.class));
+
+            } else if ("CHAT_NEW_MESSAGE".equals(type)
+                    || "CHAT_GROUP_MESSAGE".equals(type)
+                    || "GROUP_CALL_STARTED".equals(type)
+                    || "MISSED_CALL".equals(type)
+                    || "ADDED_TO_GROUP".equals(type)) {
+                // Open the relevant conversation directly
+                String conversationId = n.getData() != null
+                        ? (String) n.getData().get("conversationId") : null;
+                if (conversationId != null) {
+                    Intent i = new Intent(this, ChatActivity.class);
+                    i.putExtra("conversationId", conversationId);
+                    startActivity(i);
+                } else {
+                    startActivity(new Intent(this, ChatListActivity.class));
+                }
+
+            } else if ("REMOVED_FROM_GROUP".equals(type)) {
+                // User is no longer a member — open chat list instead
+                startActivity(new Intent(this, ChatListActivity.class));
 
             } else {
                 Log.w(TAG, "Unknown notification type: " + type);
