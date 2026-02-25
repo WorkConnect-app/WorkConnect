@@ -16,6 +16,14 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import com.example.workconnect.adapters.PayslipsAdapter;
+import com.example.workconnect.repository.payslips.PayslipRepository;
+import com.google.firebase.firestore.ListenerRegistration;
+import android.view.View;
+
 public class HomeActivity extends BaseDrawerActivity {
 
     private TextView tvFullName, tvCompanyName, tvStartDate, tvMonthlyQuota, tvVacationBalance;
@@ -27,6 +35,13 @@ public class HomeActivity extends BaseDrawerActivity {
     private final ZoneId companyZone = ZoneId.of("Asia/Jerusalem");
 
     private HomeViewModel homeVm;
+
+    private RecyclerView rvSalarySlips;
+    private TextView tvSalarySlipsEmpty;
+
+    private PayslipsAdapter payslipsAdapter;
+    private PayslipRepository payslipRepo;
+    private ListenerRegistration payslipListener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -40,6 +55,18 @@ public class HomeActivity extends BaseDrawerActivity {
         tvVacationBalance = findViewById(R.id.tv_vacation_balance);
 
         tvMonthHours = findViewById(R.id.tv_month_hours);
+
+        rvSalarySlips = findViewById(R.id.rv_salary_slips);
+        tvSalarySlipsEmpty = findViewById(R.id.tv_salary_slips_empty);
+
+        payslipRepo = new PayslipRepository();
+        payslipsAdapter = new PayslipsAdapter(this);
+
+        rvSalarySlips.setLayoutManager(new LinearLayoutManager(this));
+        rvSalarySlips.setAdapter(payslipsAdapter);
+
+        // Start listening now (uid exists already)
+        startPayslipListenerIfPossible();
 
         setupHomeViewModel();
 
@@ -56,6 +83,7 @@ public class HomeActivity extends BaseDrawerActivity {
         }
 
         refreshCurrentMonthHours();
+        startPayslipListenerIfPossible();
     }
 
     // ✅ Called when cachedCompanyId becomes ready
@@ -85,6 +113,35 @@ public class HomeActivity extends BaseDrawerActivity {
             public void onError(Exception e) {
                 if (tvMonthHours == null) return;
                 tvMonthHours.setText("Hours this month: 0.00");
+            }
+        });
+    }
+
+    private void startPayslipListenerIfPossible() {
+        String uid = FirebaseAuth.getInstance().getUid();
+        if (uid == null) return;
+
+        if (payslipListener != null) {
+            payslipListener.remove();
+            payslipListener = null;
+        }
+
+        payslipListener = payslipRepo.listenPayslips(uid, new PayslipRepository.PayslipListCallback() {
+            @Override
+            public void onUpdate(java.util.List<com.example.workconnect.models.Payslip> payslips) {
+                payslipsAdapter.submit(payslips);
+
+                boolean empty = (payslips == null || payslips.isEmpty());
+                if (tvSalarySlipsEmpty != null) {
+                    tvSalarySlipsEmpty.setVisibility(empty ? View.VISIBLE : View.GONE);
+                }
+            }
+
+            @Override
+            public void onError(Exception e) {
+                if (tvSalarySlipsEmpty != null) {
+                    tvSalarySlipsEmpty.setVisibility(View.VISIBLE);
+                }
             }
         });
     }
@@ -131,5 +188,14 @@ public class HomeActivity extends BaseDrawerActivity {
         if (s == null) return "-";
         String t = s.trim();
         return t.isEmpty() ? "-" : t;
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (payslipListener != null) {
+            payslipListener.remove();
+            payslipListener = null;
+        }
     }
 }

@@ -1,0 +1,104 @@
+package com.example.workconnect.adapters.payslips;
+
+import android.app.DownloadManager;
+import android.content.Context;
+import android.net.Uri;
+import android.os.Environment;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.TextView;
+
+import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.RecyclerView;
+
+import com.example.workconnect.R;
+import com.example.workconnect.models.Payslip;
+import com.google.android.material.button.MaterialButton;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class PayslipsManagerAdapter extends RecyclerView.Adapter<PayslipsManagerAdapter.VH> {
+
+    public interface OnPayslipClick {
+        void onClick(Payslip payslip);
+    }
+
+    private final Context context;
+    private final List<Payslip> items = new ArrayList<>();
+    private final OnPayslipClick onDownload;
+    private final OnPayslipClick onDelete;
+
+    public PayslipsManagerAdapter(Context context, OnPayslipClick onDownload, OnPayslipClick onDelete) {
+        this.context = context;
+        this.onDownload = onDownload;
+        this.onDelete = onDelete;
+    }
+
+    public void submit(List<Payslip> list) {
+        items.clear();
+        if (list != null) items.addAll(list);
+        notifyDataSetChanged();
+    }
+
+    @NonNull
+    @Override
+    public VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_payslip_manager, parent, false);
+        return new VH(v);
+    }
+
+    @Override
+    public void onBindViewHolder(@NonNull VH h, int position) {
+        Payslip p = items.get(position);
+        String label = p.getPrettyLabel() != null ? p.getPrettyLabel() : (p.getPeriodKey() != null ? p.getPeriodKey() : "-");
+        h.txtPeriod.setText(label);
+
+        boolean canDownload = p.getDownloadUrl() != null && !p.getDownloadUrl().trim().isEmpty();
+        h.btnDownload.setEnabled(canDownload);
+
+        h.btnDownload.setOnClickListener(v -> onDownload.onClick(p));
+        h.btnDelete.setOnClickListener(v -> onDelete.onClick(p));
+    }
+
+    @Override
+    public int getItemCount() {
+        return items.size();
+    }
+
+    static class VH extends RecyclerView.ViewHolder {
+        TextView txtPeriod;
+        MaterialButton btnDownload, btnDelete;
+
+        VH(@NonNull View itemView) {
+            super(itemView);
+            txtPeriod = itemView.findViewById(R.id.txt_period);
+            btnDownload = itemView.findViewById(R.id.btn_download);
+            btnDelete = itemView.findViewById(R.id.btn_delete);
+        }
+    }
+
+    // Reusable download helper
+    public static void downloadPdf(Context context, Payslip p) {
+        if (p == null || p.getDownloadUrl() == null || p.getDownloadUrl().trim().isEmpty()) return;
+
+        String label = p.getPrettyLabel() != null ? p.getPrettyLabel() : (p.getPeriodKey() != null ? p.getPeriodKey() : "payslip");
+        String fileName = p.getFileName();
+        if (fileName == null || fileName.trim().isEmpty()) fileName = label + ".pdf";
+
+        DownloadManager dm = (DownloadManager) context.getSystemService(Context.DOWNLOAD_SERVICE);
+        if (dm == null) return;
+
+        DownloadManager.Request req = new DownloadManager.Request(Uri.parse(p.getDownloadUrl()));
+        req.setTitle("Salary slip " + label);
+        req.setDescription("Downloading PDF");
+        req.setMimeType("application/pdf");
+        req.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+        req.setAllowedOverMetered(true);
+        req.setAllowedOverRoaming(true);
+        req.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName);
+
+        dm.enqueue(req);
+    }
+}

@@ -361,9 +361,14 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
             return;
         }
 
-        // Placeholder items
+        //Salary slips
         if (id == R.id.nav_salary_slips) {
-            Toast.makeText(this, "TODO", Toast.LENGTH_SHORT).show();
+            if (!cachedIsManager) {
+                Toast.makeText(this, "Managers only", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            startActivity(new android.content.Intent(this, com.example.workconnect.ui.payslips.UploadSalarySlipsActivity.class));
+            return;
         }
     }
 
