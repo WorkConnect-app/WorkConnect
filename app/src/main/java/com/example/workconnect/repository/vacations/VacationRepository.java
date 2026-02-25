@@ -20,6 +20,7 @@ import com.google.firebase.firestore.ListenerRegistration;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+
 import androidx.annotation.NonNull;
 
 public class VacationRepository {
@@ -32,23 +33,19 @@ public class VacationRepository {
         db = FirebaseFirestore.getInstance();
     }
 
-    /** @return current FirebaseAuth user's uid, or null if not signed in. */
+    /** @return current signed-in user's uid, or null if not signed in. */
     public String getCurrentUserId() {
-        if (mAuth.getCurrentUser() == null) {
-            return null;
-        }
+        if (mAuth.getCurrentUser() == null) return null;
         return mAuth.getCurrentUser().getUid();
     }
 
     /**
-     * bring the current user's Firestore document.
-     * returns null if user is not logged in (caller must handle).
+     * Fetch current user's Firestore document.
+     * Returns null if user is not logged in (caller should handle).
      */
     public Task<DocumentSnapshot> getCurrentUserTask() {
         String uid = getCurrentUserId();
-        if (uid == null) {
-            return null;
-        }
+        if (uid == null) return null;
 
         return db.collection("users")
                 .document(uid)
@@ -56,8 +53,8 @@ public class VacationRepository {
     }
 
     /**
-     * bring a company document by id.
-     * returns null if companyId is empty (caller must handle).
+     * Fetch company document by id.
+     * Returns null if companyId is empty (caller should handle).
      */
     public Task<DocumentSnapshot> getCompanyTask(String companyId) {
         if (companyId == null || companyId.trim().isEmpty()) return null;
@@ -66,13 +63,12 @@ public class VacationRepository {
 
     /** Generates a new document id for a vacation request (client-side). */
     public String generateVacationRequestId() {
-        DocumentReference ref = db.collection("vacation_requests").document();
-        return ref.getId();
+        return db.collection("vacation_requests").document().getId();
     }
 
     /**
      * Creates a vacation request document using request.getId() as the document id.
-     * Assumes request and request.getId() are not null.
+     * Also adds a notification to the manager (if managerId exists).
      */
     public Task<Void> createVacationRequest(VacationRequest request) {
         if (request == null || request.getId() == null) return null;
@@ -83,11 +79,11 @@ public class VacationRepository {
 
         com.google.firebase.firestore.WriteBatch batch = db.batch();
 
-        // 1) create the vacation request
+        // Create the request document
         DocumentReference reqRef = db.collection("vacation_requests").document(requestId);
         batch.set(reqRef, request);
 
-        // 2) notify manager (only if managerId exists)
+        // Notify manager (only when we have both managerId and employeeId)
         if (managerId != null && !managerId.trim().isEmpty()
                 && employeeId != null && !employeeId.trim().isEmpty()) {
 
@@ -102,13 +98,10 @@ public class VacationRepository {
         return batch.commit();
     }
 
-
     /**
-     * Realtime listener: returns LiveData of all PENDING requests for a manager.
+     * Realtime listener: returns LiveData of all PENDING requests for a specific manager.
      */
     public LiveData<List<VacationRequest>> getPendingRequestsForManager(String managerId) {
-
-        // Creates a MutableLiveData object and initial value is an empty list
         MutableLiveData<List<VacationRequest>> live = new MutableLiveData<>(new ArrayList<>());
 
         db.collection("vacation_requests")
@@ -121,21 +114,22 @@ public class VacationRepository {
                     }
 
                     List<VacationRequest> list = new ArrayList<>();
-                    for (DocumentSnapshot d : snap.getDocuments()) { // runung on the list of all documents that meet the query conditions.
-                        VacationRequest r = d.toObject(VacationRequest.class); // Automatically converts the document into VacationRequest fields.
+                    for (DocumentSnapshot d : snap.getDocuments()) {
+                        VacationRequest r = d.toObject(VacationRequest.class);
                         if (r != null) {
-                            r.setId(d.getId());  // Ensure model id matches the Firestore document id
-                            list.add(r); // Adds the vacation request to the results list.
+                            // Keep model id consistent with Firestore document id
+                            r.setId(d.getId());
+                            list.add(r);
                         }
                     }
-                    live.postValue(list); // Updating the LiveData in the new list
+                    live.postValue(list);
                 });
 
         return live;
     }
 
     /**
-     * Realtime listener: returns LiveData of all requests for an employee.
+     * Realtime listener: returns LiveData of all vacation requests for a specific employee.
      */
     public LiveData<List<VacationRequest>> getRequestsForEmployee(String employeeId) {
         MutableLiveData<List<VacationRequest>> live = new MutableLiveData<>(new ArrayList<>());
@@ -143,12 +137,11 @@ public class VacationRepository {
         db.collection("vacation_requests")
                 .whereEqualTo("employeeId", employeeId)
                 .addSnapshotListener((snap, e) -> {
-                    if (e != null) {
+                    if (e != null || snap == null) {
                         Log.e("VacationRepo", "employee query failed", e);
                         live.postValue(new ArrayList<>());
                         return;
                     }
-                    Log.d("VacationRepo", "employee query docs=" + snap.size());
 
                     List<VacationRequest> list = new ArrayList<>();
                     for (DocumentSnapshot d : snap.getDocuments()) {
@@ -165,8 +158,8 @@ public class VacationRepository {
     }
 
     /**
-     * Daily accrual update: stores the new balance and the last accrued date (yyyy-MM-dd).
-     * NOTE: returns null if user is not logged in (caller must handle).
+     * Updates current user's vacation balance and last accrual date.
+     * NOTE: returns null if user is not logged in (caller should handle).
      */
     public Task<Void> updateCurrentUserVacationAccrualDaily(double newBalance, String lastAccrualDate) {
         String uid = getCurrentUserId();
@@ -181,9 +174,8 @@ public class VacationRepository {
     }
 
     /**
-     * Approves a request and deducts the employee's vacation balance atomically.
-     *
-     *
+     * Approves a request and deducts employee's vacation balance in a single transaction.
+     * Transaction prevents race conditions (two approvals at the same time).
      */
     public Task<Void> approveRequestAndDeductBalance(String requestId) {
         DocumentReference reqRef = db.collection("vacation_requests").document(requestId);
@@ -195,7 +187,7 @@ public class VacationRepository {
                         FirebaseFirestoreException.Code.NOT_FOUND);
             }
 
-            // If the request has already been processed
+            // Prevent double-processing
             String currentStatus = reqSnap.getString("status");
             if (VacationStatus.APPROVED.name().equals(currentStatus)
                     || VacationStatus.REJECTED.name().equals(currentStatus)) {
@@ -203,7 +195,7 @@ public class VacationRepository {
             }
 
             String employeeId = reqSnap.getString("employeeId");
-            Long daysL = reqSnap.getLong("daysRequested"); // Reading the number of vacation days
+            Long daysL = reqSnap.getLong("daysRequested");
 
             if (employeeId == null || employeeId.trim().isEmpty() || daysL == null) {
                 throw new FirebaseFirestoreException("Invalid request fields",
@@ -214,7 +206,6 @@ public class VacationRepository {
 
             DocumentReference userRef = db.collection("users").document(employeeId);
 
-            // Reading within a transaction ensures that no one else has changed the balance at the same time
             DocumentSnapshot userSnap = transaction.get(userRef);
             if (userSnap == null || !userSnap.exists()) {
                 throw new FirebaseFirestoreException("Employee not found",
@@ -222,21 +213,30 @@ public class VacationRepository {
             }
 
             Double balD = userSnap.getDouble("vacationBalance");
-            double balance = balD == null ? 0.0 : balD;
+            double balance = (balD == null) ? 0.0 : balD;
 
             double newBalance = balance - daysRequested;
 
-            // 1) Approve request + store decision time (client device time)
+            // Prevent approving if balance would become negative
+            if (newBalance < 0) {
+                throw new FirebaseFirestoreException(
+                        "Not enough balance",
+                        FirebaseFirestoreException.Code.INVALID_ARGUMENT
+                );
+            }
+
+            // Approve request + store decision time
             transaction.update(reqRef,
                     "status", VacationStatus.APPROVED.name(),
                     "decisionAt", new Date()
             );
 
-            // 2) Deduct balance
+            // Deduct balance
             transaction.update(userRef,
                     "vacationBalance", newBalance
             );
 
+            // Add notification inside transaction
             NotificationService.addVacationApproved(
                     transaction,
                     employeeId,
@@ -249,7 +249,7 @@ public class VacationRepository {
     }
 
     /**
-     * Rejects a request atomically.
+     * Rejects a request atomically (single transaction).
      */
     public Task<Void> rejectRequest(String requestId) {
         DocumentReference reqRef = db.collection("vacation_requests").document(requestId);
@@ -279,7 +279,6 @@ public class VacationRepository {
                     "decisionAt", new Date()
             );
 
-            // notification inside same transaction
             NotificationService.addVacationRejected(
                     transaction,
                     employeeId,
@@ -290,7 +289,6 @@ public class VacationRepository {
         });
     }
 
-
     /**
      * Realtime listener for a single user document.
      * Caller should keep the returned ListenerRegistration and remove it when done.
@@ -299,8 +297,8 @@ public class VacationRepository {
         return db.collection("users").document(uid).addSnapshotListener(listener);
     }
 
+    /** Fetch a user document once. */
     public Task<DocumentSnapshot> getUserTask(@NonNull String uid) {
         return FirebaseFirestore.getInstance().collection("users").document(uid).get();
     }
-
 }

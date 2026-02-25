@@ -41,6 +41,7 @@ android {
 
 dependencies {
 
+    implementation(libs.androidx.lifecycle.livedata)
     // Enable java.time on API < 26 (Desugaring)
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
     implementation("androidx.recyclerview:recyclerview:1.3.2")
@@ -50,6 +51,7 @@ dependencies {
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
     implementation("com.google.firebase:firebase-messaging")
+    implementation("com.google.firebase:firebase-storage")
     
     // Google Sign-In
     implementation("com.google.android.gms:play-services-auth:21.2.0")

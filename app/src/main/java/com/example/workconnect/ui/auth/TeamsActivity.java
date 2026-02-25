@@ -16,16 +16,17 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.example.workconnect.R;
 import com.example.workconnect.models.Team;
 import com.example.workconnect.repository.authAndUsers.TeamRepository;
+import com.example.workconnect.ui.home.BaseDrawerActivity;
 import com.google.firebase.auth.FirebaseAuth;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class TeamsActivity extends AppCompatActivity {
+public class TeamsActivity extends BaseDrawerActivity {
 
     private String companyId = "";
 
-    private Button btnBack, btnCreate, btnEdit;
+    private Button btnCreate, btnEdit;
 
     private final TeamRepository teamRepo = new TeamRepository();
 
@@ -44,12 +45,9 @@ public class TeamsActivity extends AppCompatActivity {
             myUid = FirebaseAuth.getInstance().getCurrentUser().getUid();
         }
 
-        btnBack = findViewById(R.id.btn_back);
         btnCreate = findViewById(R.id.btn_create_team);
         btnEdit = findViewById(R.id.btn_edit_team);
-
-        btnBack.setOnClickListener(v -> finish());
-
+        
         teamRepo.getTeamsForCompany(companyId).observe(this, teams -> {
             cachedTeams.clear();
             if (teams != null) cachedTeams.addAll(teams);

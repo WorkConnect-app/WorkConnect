@@ -28,11 +28,6 @@
             android:icon="@android:drawable/ic_menu_compass"/>
 
         <item
-            android:id="@+id/nav_tasks"
-            android:title="My tasks"
-            android:icon="@android:drawable/ic_menu_agenda"/>
-
-        <item
             android:id="@+id/nav_chat"
             android:title="Chat"
             android:icon="@drawable/ic_chat_menu"/>
@@ -55,12 +50,6 @@
                     android:id="@+id/nav_vacation_requests"
                     android:title="Vacation requests"
                     android:icon="@android:drawable/ic_menu_view"/>
-
-                <item
-                    android:id="@+id/nav_manage_attendance"
-                    android:title="Manage attendance"
-                    android:icon="@android:drawable/ic_menu_edit"/>
-
 
                 <item
                     android:id="@+id/nav_manage_shifts"

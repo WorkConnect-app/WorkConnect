@@ -15,6 +15,7 @@ import android.widget.Button;
 import com.example.workconnect.R;
 import com.example.workconnect.adapters.shifts.MyShiftsAdapter;
 import com.example.workconnect.models.Team;
+import com.example.workconnect.ui.home.BaseDrawerActivity;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.example.workconnect.repository.shifts.MyShiftsRepository;
 import com.example.workconnect.repository.authAndUsers.TeamRepository;
@@ -26,14 +27,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class MyShiftsActivity extends AppCompatActivity {
+public class MyShiftsActivity extends BaseDrawerActivity {
 
     private String companyId = "";
 
     private TextView tvRange;
     private ImageButton btnPrev;
     private ImageButton btnNext;
-    private ImageButton btnBack;
 
     private RecyclerView rv;
     private MyShiftsAdapter adapter;
@@ -72,15 +72,12 @@ public class MyShiftsActivity extends AppCompatActivity {
         tvRange = findViewById(R.id.tv_range);
         btnPrev = findViewById(R.id.btn_prev);
         btnNext = findViewById(R.id.btn_next);
-        btnBack = findViewById(R.id.btn_back);
         rv = findViewById(R.id.rv_my_shifts);
         btnAvailability = findViewById(R.id.btn_availability);
 
         adapter = new MyShiftsAdapter();
         rv.setLayoutManager(new LinearLayoutManager(this));
         rv.setAdapter(adapter);
-
-        btnBack.setOnClickListener(v -> finish());
 
         initWeekWindows();
         updateRangeHeader();

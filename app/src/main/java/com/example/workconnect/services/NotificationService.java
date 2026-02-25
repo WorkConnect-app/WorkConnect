@@ -7,23 +7,39 @@ import com.example.workconnect.models.enums.VacationStatus;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.Transaction;
+import com.google.firebase.firestore.WriteBatch;
 
 import java.util.HashMap;
 import java.util.Map;
-import com.google.firebase.firestore.FieldValue;
-import com.google.firebase.firestore.WriteBatch;
+
+/**
+ * Centralized service responsible for creating notification documents
+ * under users/{uid}/notifications.
+ *
+ * All methods are static and are designed to be used inside
+ * Firestore transactions or batch writes.
+ */
 public class NotificationService {
 
+    /**
+     * Creates a new notification document reference
+     * under users/{uid}/notifications with an auto-generated ID.
+     */
     private static DocumentReference newNotifRef(@NonNull String uid) {
         return FirebaseFirestore.getInstance()
                 .collection("users").document(uid)
                 .collection("notifications").document();
     }
 
+    /**
+     * Adds a "Vacation Approved" notification to an employee.
+     * Must be called inside an existing Firestore transaction.
+     */
     public static void addVacationApproved(@NonNull Transaction tx,
                                            @NonNull String employeeId,
                                            @NonNull String requestId,
                                            int daysRequested) {
+
         Map<String, Object> data = new HashMap<>();
         data.put("requestId", requestId);
         data.put("status", VacationStatus.APPROVED.name());
@@ -31,7 +47,7 @@ public class NotificationService {
 
         AppNotification n = new AppNotification(
                 "VACATION_APPROVED",
-                "Vacation approved ✅",
+                "Vacation approved",
                 "Your vacation request was approved",
                 data
         );
@@ -39,16 +55,21 @@ public class NotificationService {
         tx.set(newNotifRef(employeeId), n);
     }
 
+    /**
+     * Adds a "Vacation Rejected" notification to an employee.
+     * Must be called inside an existing Firestore transaction.
+     */
     public static void addVacationRejected(@NonNull Transaction tx,
                                            @NonNull String employeeId,
                                            @NonNull String requestId) {
+
         Map<String, Object> data = new HashMap<>();
         data.put("requestId", requestId);
         data.put("status", VacationStatus.REJECTED.name());
 
         AppNotification n = new AppNotification(
                 "VACATION_REJECTED",
-                "Vacation rejected ❌",
+                "Vacation rejected",
                 "Your vacation request was rejected",
                 data
         );
@@ -56,8 +77,11 @@ public class NotificationService {
         tx.set(newNotifRef(employeeId), n);
     }
 
-
-    public static void addVacationNewRequestForManager(@NonNull com.google.firebase.firestore.WriteBatch batch,
+    /**
+     * Adds a notification for a manager when a new vacation request is created.
+     * Must be used inside a Firestore WriteBatch.
+     */
+    public static void addVacationNewRequestForManager(@NonNull WriteBatch batch,
                                                        @NonNull String managerId,
                                                        @NonNull String requestId,
                                                        @NonNull String employeeId) {
@@ -74,13 +98,14 @@ public class NotificationService {
                 data
         );
 
-        DocumentReference notifRef = FirebaseFirestore.getInstance()
-                .collection("users").document(managerId)
-                .collection("notifications").document();
-
-        batch.set(notifRef, n);
+        batch.set(newNotifRef(managerId), n);
     }
 
+    /**
+     * Adds a notification for managers when a new employee registers
+     * and is pending approval.
+     * Must be used inside a Firestore WriteBatch.
+     */
     public static void addEmployeePendingApprovalForManager(@NonNull WriteBatch batch,
                                                             @NonNull String managerId,
                                                             @NonNull String employeeId,
@@ -91,22 +116,17 @@ public class NotificationService {
         data.put("employeeId", employeeId);
         data.put("companyId", companyId);
 
-        Map<String, Object> notif = new HashMap<>();
-        notif.put("type", "EMPLOYEE_PENDING_APPROVAL");
-        notif.put("title", "New employee pending approval ✅");
-        notif.put("body", employeeName + " is waiting for approval");
-        notif.put("read", false);
-        notif.put("createdAt", FieldValue.serverTimestamp());
-        notif.put("data", data);
+        AppNotification n = new AppNotification(
+                "EMPLOYEE_PENDING_APPROVAL",
+                "New employee pending approval",
+                employeeName + " is waiting for approval",
+                data
+        );
 
-        DocumentReference notifRef = FirebaseFirestore.getInstance()
-                .collection("users").document(managerId)
-                .collection("notifications").document();
-
-        batch.set(notifRef, notif);
+        batch.set(newNotifRef(managerId), n);
     }
 
-    // Chat notifications 
+    // Chat notifications
 
     /** Direct message: title = sender name, body = message preview. */
     public static void addChatNewMessage(@NonNull WriteBatch batch,
@@ -117,15 +137,14 @@ public class NotificationService {
         Map<String, Object> data = new HashMap<>();
         data.put("conversationId", conversationId);
 
-        Map<String, Object> notif = new HashMap<>();
-        notif.put("type", "CHAT_NEW_MESSAGE");
-        notif.put("title", senderName);
-        notif.put("body", messagePreview);
-        notif.put("read", false);
-        notif.put("createdAt", FieldValue.serverTimestamp());
-        notif.put("data", data);
+        AppNotification n = new AppNotification(
+                "CHAT_NEW_MESSAGE",
+                senderName,
+                messagePreview,
+                data
+        );
 
-        batch.set(newNotifRef(recipientId), notif);
+        batch.set(newNotifRef(recipientId), n);
     }
 
     /** Group message: title = group name, body = "SenderName: preview". */
@@ -138,18 +157,17 @@ public class NotificationService {
         Map<String, Object> data = new HashMap<>();
         data.put("conversationId", conversationId);
 
-        Map<String, Object> notif = new HashMap<>();
-        notif.put("type", "CHAT_GROUP_MESSAGE");
-        notif.put("title", groupName);
-        notif.put("body", senderName + ": " + messagePreview);
-        notif.put("read", false);
-        notif.put("createdAt", FieldValue.serverTimestamp());
-        notif.put("data", data);
+        AppNotification n = new AppNotification(
+                "CHAT_GROUP_MESSAGE",
+                groupName,
+                senderName + ": " + messagePreview,
+                data
+        );
 
-        batch.set(newNotifRef(recipientId), notif);
+        batch.set(newNotifRef(recipientId), n);
     }
 
-    //Call notifications 
+    // Call notifications
 
     /** Group call started: sent to members who haven't yet joined. */
     public static void addGroupCallStarted(@NonNull WriteBatch batch,
@@ -163,15 +181,14 @@ public class NotificationService {
 
         String callLabel = "video".equals(callType) ? "video" : "audio";
 
-        Map<String, Object> notif = new HashMap<>();
-        notif.put("type", "GROUP_CALL_STARTED");
-        notif.put("title", groupName);
-        notif.put("body", callerName + " started a " + callLabel + " call");
-        notif.put("read", false);
-        notif.put("createdAt", FieldValue.serverTimestamp());
-        notif.put("data", data);
+        AppNotification n = new AppNotification(
+                "GROUP_CALL_STARTED",
+                groupName,
+                callerName + " started a " + callLabel + " call",
+                data
+        );
 
-        batch.set(newNotifRef(recipientId), notif);
+        batch.set(newNotifRef(recipientId), n);
     }
 
     /** Missed call: sent to participants who never answered. */
@@ -185,18 +202,17 @@ public class NotificationService {
 
         String callLabel = "video".equals(callType) ? "video" : "audio";
 
-        Map<String, Object> notif = new HashMap<>();
-        notif.put("type", "MISSED_CALL");
-        notif.put("title", "Missed call");
-        notif.put("body", "Missed " + callLabel + " call from " + callerName);
-        notif.put("read", false);
-        notif.put("createdAt", FieldValue.serverTimestamp());
-        notif.put("data", data);
+        AppNotification n = new AppNotification(
+                "MISSED_CALL",
+                "Missed call",
+                "Missed " + callLabel + " call from " + callerName,
+                data
+        );
 
-        batch.set(newNotifRef(recipientId), notif);
+        batch.set(newNotifRef(recipientId), n);
     }
 
-    // Group membership notifications 
+    // Group membership notifications
 
     /** Added to group: sent to each new member. */
     public static void addAddedToGroup(@NonNull WriteBatch batch,
@@ -207,15 +223,14 @@ public class NotificationService {
         Map<String, Object> data = new HashMap<>();
         data.put("conversationId", conversationId);
 
-        Map<String, Object> notif = new HashMap<>();
-        notif.put("type", "ADDED_TO_GROUP");
-        notif.put("title", groupName);
-        notif.put("body", adderName + " added you to the group");
-        notif.put("read", false);
-        notif.put("createdAt", FieldValue.serverTimestamp());
-        notif.put("data", data);
+        AppNotification n = new AppNotification(
+                "ADDED_TO_GROUP",
+                groupName,
+                adderName + " added you to the group",
+                data
+        );
 
-        batch.set(newNotifRef(recipientId), notif);
+        batch.set(newNotifRef(recipientId), n);
     }
 
     /** Removed from group: sent to each removed member. */
@@ -226,14 +241,13 @@ public class NotificationService {
         Map<String, Object> data = new HashMap<>();
         data.put("conversationId", conversationId);
 
-        Map<String, Object> notif = new HashMap<>();
-        notif.put("type", "REMOVED_FROM_GROUP");
-        notif.put("title", groupName);
-        notif.put("body", "You were removed from the group");
-        notif.put("read", false);
-        notif.put("createdAt", FieldValue.serverTimestamp());
-        notif.put("data", data);
+        AppNotification n = new AppNotification(
+                "REMOVED_FROM_GROUP",
+                groupName,
+                "You were removed from the group",
+                data
+        );
 
-        batch.set(newNotifRef(recipientId), notif);
+        batch.set(newNotifRef(recipientId), n);
     }
 }

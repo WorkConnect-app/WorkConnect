@@ -10,7 +10,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.workconnect.R;
 import com.example.workconnect.models.ChatConversation;
-import com.example.workconnect.repository.UserRepository;
+import com.example.workconnect.repository.authAndUsers.UserRepository;
 import com.example.workconnect.utils.UserUtils;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;

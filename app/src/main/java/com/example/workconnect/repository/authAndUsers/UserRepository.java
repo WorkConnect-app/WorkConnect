@@ -1,4 +1,4 @@
-package com.example.workconnect.repository;
+package com.example.workconnect.repository.authAndUsers;
 
 import android.util.Log;
 import com.example.workconnect.models.User;
@@ -44,29 +44,5 @@ public class UserRepository {
                 callback.accept(null);
             });
     }
-    
-    /**
-     * Load user object from Firestore
-     * @param userId User ID
-     * @param callback Callback with User object or null if not found/error
-     */
-    public static void loadUser(String userId, Consumer<User> callback) {
-        if (userId == null || userId.trim().isEmpty()) {
-            callback.accept(null);
-            return;
-        }
-        
-        db.collection("users").document(userId).get()
-            .addOnSuccessListener(document -> {
-                if (document.exists()) {
-                    callback.accept(document.toObject(User.class));
-                } else {
-                    callback.accept(null);
-                }
-            })
-            .addOnFailureListener(e -> {
-                Log.e(TAG, "Failed to load user: " + userId, e);
-                callback.accept(null);
-            });
-    }
+
 }

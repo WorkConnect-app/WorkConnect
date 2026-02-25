@@ -25,9 +25,19 @@ public class AttendanceViewModel extends ViewModel {
     private static final DateTimeFormatter MONTH_KEY_FORMAT =
             DateTimeFormatter.ofPattern("yyyy-MM");
 
+    private static final long MAX_SHIFT_MS = 13L * 60L * 60L * 1000L; // 13 hours
+
+    private boolean autoEndInProgress = false;
+
     private final MutableLiveData<List<Map<String, Object>>> periodsLiveData =
             new MutableLiveData<>();
+    // two lists
+    private final MutableLiveData<List<Map<String, Object>>> todayPeriodsLiveData = new MutableLiveData<>();
+    private final MutableLiveData<List<Map<String, Object>>> selectedDayPeriodsLiveData = new MutableLiveData<>();
 
+    // two listeners
+    private ListenerRegistration todayListener;
+    private ListenerRegistration selectedDayListener;
     private final MutableLiveData<Boolean> isShiftActiveLiveData =
             new MutableLiveData<>(false);
 
@@ -70,6 +80,9 @@ public class AttendanceViewModel extends ViewModel {
     public LiveData<String> getMonthKey() { return monthKeyLiveData; }
     public LiveData<Double> getMonthlyHours() { return monthlyHoursLiveData; }
 
+    public LiveData<List<Map<String, Object>>> getTodayPeriods() { return todayPeriodsLiveData; }
+    public LiveData<List<Map<String, Object>>> getSelectedDayPeriods() { return selectedDayPeriodsLiveData; }
+
     // ---------------- INIT ----------------
 
     public void init(String companyId) {
@@ -81,6 +94,13 @@ public class AttendanceViewModel extends ViewModel {
         refreshMonthlyHours(mk);
 
         listenToUserActiveAttendance();
+
+        // NEW: today listener
+        attachTodayListener();
+
+        // NEW: default selected day = today
+        String todayKey = ZonedDateTime.now(companyZone).format(DAY_KEY_FORMAT);
+        selectDay(todayKey);
     }
 
     // ---------------- MONTHLY ----------------
@@ -120,11 +140,56 @@ public class AttendanceViewModel extends ViewModel {
                 Map<String, Object> active =
                         (Map<String, Object>) snapshot.get("activeAttendance");
 
+                // Auto-end safety: if shift ran 13h+, force end it
+                if (!autoEndInProgress) {
+                    Object startedObj = active.get("startedAt");
+                    if (startedObj instanceof com.google.firebase.Timestamp) {
+                        com.google.firebase.Timestamp startedAt = (com.google.firebase.Timestamp) startedObj;
+
+                        long startMs = startedAt.toDate().getTime();
+                        long nowMs = System.currentTimeMillis();
+
+                        if (nowMs - startMs >= MAX_SHIFT_MS) {
+                            autoEndInProgress = true;
+
+                            com.google.firebase.Timestamp forcedEnd =
+                                    new com.google.firebase.Timestamp(new java.util.Date(startMs + MAX_SHIFT_MS));
+
+                            attendanceRepository.endShiftAt(
+                                    userId,
+                                    forcedEnd,
+                                    null,
+                                    new AttendanceRepository.AttendanceCallback() {
+                                        @Override
+                                        public void onComplete(AttendanceRepository.Result result) {
+                                            autoEndInProgress = false;
+                                            actionResultLiveData.postValue(result);
+
+                                            String mk = monthKeyLiveData.getValue();
+                                            if (mk != null) refreshMonthlyHours(mk);
+                                            // user doc will update (activeAttendance deleted) and listener will re-run
+                                        }
+
+                                        @Override
+                                        public void onError(Exception e) {
+                                            autoEndInProgress = false;
+                                            actionResultLiveData.postValue(AttendanceRepository.Result.ERROR);
+
+                                            String mk = monthKeyLiveData.getValue();
+                                            if (mk != null) refreshMonthlyHours(mk);
+                                        }
+                                    }
+                            );
+
+                            return; // wait for listener to refresh after auto-end
+                        }
+                    }
+                }
+
                 String dateKey = (String) active.get("dateKey");
                 activeDateKeyLiveData.postValue(dateKey);
                 isShiftActiveLiveData.postValue(true);
 
-                listenToAttendanceDay(dateKey);
             } else {
                 isShiftActiveLiveData.postValue(false);
 
@@ -133,7 +198,6 @@ public class AttendanceViewModel extends ViewModel {
                         .format(DAY_KEY_FORMAT);
 
                 activeDateKeyLiveData.postValue(todayKey);
-                listenToAttendanceDay(todayKey);
             }
         });
     }
@@ -163,6 +227,79 @@ public class AttendanceViewModel extends ViewModel {
                 });
     }
 
+    @SuppressWarnings("unchecked")
+    private ListenerRegistration listenToAttendanceDayInto(
+            String dateKey,
+            MutableLiveData<List<Map<String, Object>>> target
+    ) {
+        String docId = userId + "_" + dateKey;
+
+        return db.collection("companies")
+                .document(companyId)
+                .collection("attendance")
+                .document(docId)
+                .addSnapshotListener((snapshot, e) -> {
+                    if (snapshot == null || !snapshot.exists()) {
+                        target.postValue(null);
+                        return;
+                    }
+
+                    List<Map<String, Object>> periods =
+                            (List<Map<String, Object>>) snapshot.get("periods");
+
+                    target.postValue(periods);
+                });
+    }
+
+    @SuppressWarnings("unchecked")
+    private void attachTodayListener() {
+        if (todayListener != null) todayListener.remove();
+
+        String todayKey = ZonedDateTime
+                .now(companyZone)
+                .format(DAY_KEY_FORMAT);
+
+        String docId = userId + "_" + todayKey;
+
+        todayListener = db.collection("companies")
+                .document(companyId)
+                .collection("attendance")
+                .document(docId)
+                .addSnapshotListener((snapshot, e) -> {
+                    if (snapshot == null || !snapshot.exists()) {
+                        todayPeriodsLiveData.postValue(null);
+                        return;
+                    }
+
+                    List<Map<String, Object>> periods =
+                            (List<Map<String, Object>>) snapshot.get("periods");
+
+                    todayPeriodsLiveData.postValue(periods);
+                });
+    }
+
+    @SuppressWarnings("unchecked")
+    public void selectDay(String dateKey) {
+        if (selectedDayListener != null) selectedDayListener.remove();
+
+        String docId = userId + "_" + dateKey;
+
+        selectedDayListener = db.collection("companies")
+                .document(companyId)
+                .collection("attendance")
+                .document(docId)
+                .addSnapshotListener((snapshot, e) -> {
+                    if (snapshot == null || !snapshot.exists()) {
+                        selectedDayPeriodsLiveData.postValue(null);
+                        return;
+                    }
+
+                    List<Map<String, Object>> periods =
+                            (List<Map<String, Object>>) snapshot.get("periods");
+
+                    selectedDayPeriodsLiveData.postValue(periods);
+                });
+    }
     // ---------------- ACTIONS ----------------
 
     public void startShift(Map<String, Object> locationData) {
@@ -221,5 +358,8 @@ public class AttendanceViewModel extends ViewModel {
     protected void onCleared() {
         if (attendanceListener != null) attendanceListener.remove();
         if (userListener != null) userListener.remove();
+
+        if (todayListener != null) todayListener.remove();
+        if (selectedDayListener != null) selectedDayListener.remove();
     }
 }

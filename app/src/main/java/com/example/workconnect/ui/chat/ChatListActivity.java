@@ -18,6 +18,7 @@ import com.example.workconnect.adapters.chats.EmployeeSearchAdapter;
 import com.example.workconnect.models.ChatConversation;
 import com.example.workconnect.models.User;
 import com.example.workconnect.ui.home.BaseDrawerActivity;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldValue;
@@ -74,6 +75,12 @@ public class ChatListActivity extends BaseDrawerActivity {
         etSearchEmployee = findViewById(R.id.et_search_employee);
         rvSearchResults  = findViewById(R.id.rv_search_results);
         rvConversations  = findViewById(R.id.rv_conversations);
+
+        FloatingActionButton btnNewGroup = findViewById(R.id.fab_new_group);
+        btnNewGroup.setOnClickListener(v -> {
+            Intent i = new Intent(ChatListActivity.this, CreateGroupActivity.class);
+            startActivity(i);
+        });
 
         searchAdapter = new EmployeeSearchAdapter(searchResults, user -> {
             if (user != null && user.getUid() != null) {

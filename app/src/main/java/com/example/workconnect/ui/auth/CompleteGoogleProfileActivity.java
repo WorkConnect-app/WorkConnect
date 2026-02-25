@@ -18,6 +18,14 @@ import com.example.workconnect.viewModels.auth.CompleteGoogleProfileViewModel;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 
+/**
+ * Activity responsible for completing user profile
+ * after successful Google authentication.
+ *
+ * The user chooses whether to join as:
+ * - Employee (join existing company via code)
+ * - Manager (create new company)
+ */
 public class CompleteGoogleProfileActivity extends AppCompatActivity {
 
     private EditText etFullName, etCompanyCode, etCompanyName;
@@ -31,6 +39,7 @@ public class CompleteGoogleProfileActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.complete_google_profile_activity);
 
+        // Bind UI components
         etFullName = findViewById(R.id.et_full_name);
         etCompanyCode = findViewById(R.id.et_company_code);
         etCompanyName = findViewById(R.id.et_company_name);
@@ -43,13 +52,13 @@ public class CompleteGoogleProfileActivity extends AppCompatActivity {
 
         viewModel = new ViewModelProvider(this).get(CompleteGoogleProfileViewModel.class);
 
-        // Prefill name from Google if exists
+        // Prefill full name from Google account if available
         FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
         if (user != null && !TextUtils.isEmpty(user.getDisplayName())) {
             etFullName.setText(user.getDisplayName());
         }
 
-        // default = employee
+        // Default selection: Employee
         rbEmployee.setChecked(true);
         updateFieldsVisibility();
 
@@ -58,6 +67,7 @@ public class CompleteGoogleProfileActivity extends AppCompatActivity {
 
         btnBack.setOnClickListener(v -> finish());
 
+        // Trigger completion flow through ViewModel
         btnComplete.setOnClickListener(v -> {
             String fullName = etFullName.getText().toString().trim();
             String companyCode = etCompanyCode.getText().toString().trim().toUpperCase();
@@ -74,13 +84,18 @@ public class CompleteGoogleProfileActivity extends AppCompatActivity {
         observe();
     }
 
+    /**
+     * Updates input field visibility according to selected role.
+     * Employees must enter a company code.
+     * Managers must enter a new company name.
+     */
     private void updateFieldsVisibility() {
         boolean isManager = rbManager.isChecked();
 
         etCompanyCode.setVisibility(isManager ? View.GONE : View.VISIBLE);
         etCompanyName.setVisibility(isManager ? View.VISIBLE : View.GONE);
 
-        // clear irrelevant field
+        // Clear irrelevant field to avoid accidental submission
         if (isManager) {
             etCompanyCode.setText("");
         } else {
@@ -88,38 +103,51 @@ public class CompleteGoogleProfileActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * Observes ViewModel LiveData objects
+     * and reacts to loading, error, and success states.
+     */
     private void observe() {
+
+        // Loading state: disable buttons while processing
         viewModel.getIsLoading().observe(this, loading -> {
             boolean isLoading = Boolean.TRUE.equals(loading);
             btnComplete.setEnabled(!isLoading);
             btnBack.setEnabled(!isLoading);
         });
 
+        // Error messages from ViewModel
         viewModel.getErrorMessage().observe(this, msg -> {
             if (!TextUtils.isEmpty(msg)) {
                 Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
             }
         });
 
+        // Employee flow: registration completed but pending approval
         viewModel.getEmployeePending().observe(this, pending -> {
             if (Boolean.TRUE.equals(pending)) {
                 Toast.makeText(this,
                         "Registration completed. Waiting for manager approval.",
                         Toast.LENGTH_LONG).show();
+
+                // Sign out until approval
                 FirebaseAuth.getInstance().signOut();
                 finish();
             }
         });
 
+        // Manager flow: company created successfully
         viewModel.getManagerCompanyId().observe(this, companyId -> {
             if (TextUtils.isEmpty(companyId)) return;
 
             String code = viewModel.getManagerCompanyCode().getValue();
             if (!TextUtils.isEmpty(code)) {
-                Toast.makeText(this, "Company created! Code: " + code, Toast.LENGTH_LONG).show();
+                Toast.makeText(this,
+                        "Company created! Code: " + code,
+                        Toast.LENGTH_LONG).show();
             }
 
-            // Manager can enter immediately
+            // Manager enters app immediately after company creation
             startActivity(new Intent(this, HomeActivity.class));
             finish();
         });

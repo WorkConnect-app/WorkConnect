@@ -120,16 +120,12 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
                 R.string.navigation_drawer_close
         );
 
-        // NOTE: Force hamburger/arrow color (fixes black icon)
         toggle.getDrawerArrowDrawable().setColor(
-                ContextCompat.getColor(this, R.color.primaryBlue)
+                ContextCompat.getColor(this, R.color.black)
         );
 
         drawerLayout.addDrawerListener(toggle);
         toggle.syncState();
-
-        // (optional) if you want black:
-        toggle.getDrawerArrowDrawable().setColor(getResources().getColor(android.R.color.black));
 
         // NOTE: Hide management until role is loaded
         navView.getMenu().setGroupVisible(R.id.group_management, false);
@@ -289,6 +285,18 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
         }
 
         if (id == R.id.nav_shift_replacement) {
+
+            // FULL TIME employees: warn and block access
+            if ("FULL_TIME".equalsIgnoreCase(cachedEmploymentType)) {
+                Toast.makeText(
+                        this,
+                        "FULL TIME employees please contact your manager if you have any shift issues",
+                        Toast.LENGTH_LONG
+                ).show();
+                return; // block navigation
+            }
+
+            // Non full-time employees: allow access
             Intent i = new Intent(this, ShiftReplacementActivity.class);
             if (cachedCompanyId != null) i.putExtra("companyId", cachedCompanyId);
             startActivity(i);
@@ -355,9 +363,14 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
             return;
         }
 
-        // Placeholder items
-        if (id == R.id.nav_manage_attendance || id == R.id.nav_salary_slips) {
-            Toast.makeText(this, "TODO", Toast.LENGTH_SHORT).show();
+        //Salary slips
+        if (id == R.id.nav_salary_slips) {
+            if (!cachedIsManager) {
+                Toast.makeText(this, "Managers only", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            startActivity(new android.content.Intent(this, com.example.workconnect.ui.payslips.UploadSalarySlipsActivity.class));
+            return;
         }
     }
 
@@ -385,8 +398,25 @@ public abstract class BaseDrawerActivity extends AppCompatActivity {
                     // show management
                     navView.getMenu().setGroupVisible(R.id.group_management, cachedIsManager);
 
-                    // header
-                    updateDrawerHeader(doc.getString("fullName"), doc.getString("companyName"));
+                    // ✅ header: set name immediately
+                    String fullName = doc.getString("fullName");
+                    updateDrawerHeader(fullName, "-");
+
+                    // ✅ fetch company name by companyId
+                    if (cachedCompanyId != null) {
+                        db.collection("companies")
+                                .document(cachedCompanyId)
+                                .get()
+                                .addOnSuccessListener(cDoc -> {
+                                    String companyName = null;
+                                    if (cDoc != null && cDoc.exists()) {
+                                        companyName = cDoc.getString("name");
+                                        if (companyName == null) companyName = cDoc.getString("companyName");
+                                    }
+                                    updateDrawerHeader(fullName, companyName);
+                                })
+                                .addOnFailureListener(e -> updateDrawerHeader(fullName, "-"));
+                    }
 
                     onCompanyStateLoaded();
                 });

@@ -12,7 +12,7 @@ import android.widget.Spinner;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
-import androidx.appcompat.app.AppCompatActivity;
+import androidx.annotation.Nullable;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import android.view.ViewGroup;
@@ -25,13 +25,14 @@ import com.example.workconnect.models.ShiftSwapRequest;
 import com.example.workconnect.models.Team;
 import com.example.workconnect.repository.shifts.ShiftSwapRepository;
 import com.example.workconnect.repository.authAndUsers.TeamRepository;
+import com.example.workconnect.ui.home.BaseDrawerActivity;
 import com.google.firebase.auth.FirebaseAuth;
 
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
 
-public class ShiftReplacementActivity extends AppCompatActivity {
+public class ShiftReplacementActivity extends BaseDrawerActivity {
 
     private String companyId = "";
     private String myUid = "";
@@ -41,7 +42,7 @@ public class ShiftReplacementActivity extends AppCompatActivity {
     private RecyclerView rvMy, rvOpen;
     private Button btnNew;
 
-    // NEW UI pieces for collapsible "Your Requests"
+    // Collapsible "Your Requests"
     private View headerMy;
     private ImageButton btnToggleMy;
     private View mySectionContainer;
@@ -59,20 +60,24 @@ public class ShiftReplacementActivity extends AppCompatActivity {
     // Track my requests (for quick duplicate checks in UI)
     private final List<ShiftSwapRequest> myRequestsCache = new ArrayList<>();
 
+    // ✅ prevent double init
+    private boolean uiReady = false;
+    private boolean teamsBound = false;
+
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_shift_replacement);
 
-        ImageButton btnBack = findViewById(R.id.btn_back);
-        btnBack.setOnClickListener(v -> finish());
+        // ❌ אין יותר btn_back — יש Drawer/Hamburger
+        // ImageButton btnBack = findViewById(R.id.btn_back);
 
         companyId = getIntent().getStringExtra("companyId");
         if (companyId == null) companyId = "";
 
         if (FirebaseAuth.getInstance().getCurrentUser() != null) {
             myUid = FirebaseAuth.getInstance().getCurrentUser().getUid();
-            myName = FirebaseAuth.getInstance().getCurrentUser().getEmail();
+            myName = FirebaseAuth.getInstance().getCurrentUser().getEmail(); // אפשר לשנות ל-fullName אם תרצי
         }
 
         spinnerTeam = findViewById(R.id.spinner_team);
@@ -80,14 +85,13 @@ public class ShiftReplacementActivity extends AppCompatActivity {
         rvOpen = findViewById(R.id.rv_open);
         btnNew = findViewById(R.id.btn_new_request);
 
-        // Collapsible section views (from the new XML below)
         headerMy = findViewById(R.id.header_my_requests);
         btnToggleMy = findViewById(R.id.btn_toggle_my);
         mySectionContainer = findViewById(R.id.container_my_requests);
 
         View.OnClickListener toggle = v -> toggleMySection();
-        headerMy.setOnClickListener(toggle);
-        btnToggleMy.setOnClickListener(toggle);
+        if (headerMy != null) headerMy.setOnClickListener(toggle);
+        if (btnToggleMy != null) btnToggleMy.setOnClickListener(toggle);
 
         myAdapter = new MyRequestsAdapter(new MyRequestsAdapter.Listener() {
             @Override public void onCancel(ShiftSwapRequest r) {
@@ -124,13 +128,46 @@ public class ShiftReplacementActivity extends AppCompatActivity {
             showCreateRequestDialog();
         });
 
+        uiReady = true;
+
+        // ✅ אל תעשה bindTeams אם אין companyId תקין
+        ensureCompanyAndBind();
+    }
+
+    // ✅ נקרא כש-BaseDrawerActivity סיים לטעון cachedCompanyId
+    @Override
+    protected void onCompanyStateLoaded() {
+        super.onCompanyStateLoaded();
+        ensureCompanyAndBind();
+    }
+
+    private void ensureCompanyAndBind() {
+        if (!uiReady) return;
+        if (teamsBound) return;
+
+        if (companyId.trim().isEmpty()) {
+            companyId = (cachedCompanyId == null) ? "" : cachedCompanyId;
+        }
+
+        if (companyId.trim().isEmpty()) {
+            // עדיין לא נטען — נחכה ל-onCompanyStateLoaded
+            return;
+        }
+
         bindTeams();
+        teamsBound = true;
     }
 
     private void toggleMySection() {
         myExpanded = !myExpanded;
-        mySectionContainer.setVisibility(myExpanded ? View.VISIBLE : View.GONE);
-        btnToggleMy.setImageResource(myExpanded ? android.R.drawable.arrow_up_float : android.R.drawable.arrow_down_float);
+        if (mySectionContainer != null) {
+            mySectionContainer.setVisibility(myExpanded ? View.VISIBLE : View.GONE);
+        }
+        if (btnToggleMy != null) {
+            btnToggleMy.setImageResource(myExpanded
+                    ? android.R.drawable.arrow_up_float
+                    : android.R.drawable.arrow_down_float);
+        }
     }
 
     private void bindTeams() {
@@ -268,7 +305,6 @@ public class ShiftReplacementActivity extends AppCompatActivity {
                 String type = (String) spType.getSelectedItem();
                 if (TextUtils.isEmpty(type)) type = ShiftSwapRequest.GIVE_UP;
 
-                // UI-level duplicate check (fast)
                 if (hasDuplicateMyRequest(type, chosen.dateKey, chosen.templateId)) {
                     Toast.makeText(this, "You already submitted this request for this shift", Toast.LENGTH_SHORT).show();
                     return;
@@ -296,7 +332,6 @@ public class ShiftReplacementActivity extends AppCompatActivity {
     private void showMakeOfferDialog(ShiftSwapRequest r) {
         if (r == null || selectedTeamId == null) return;
 
-        // GIVE_UP: only if FREE that day + auto-send to manager approval
         if (ShiftSwapRequest.GIVE_UP.equals(r.getType())) {
 
             swapRepo.hasMyShiftOnDate(companyId, selectedTeamId, r.getDateKey(), myUid, (ok, msg) -> {
@@ -325,8 +360,6 @@ public class ShiftReplacementActivity extends AppCompatActivity {
                                 Toast.makeText(this, msg2, Toast.LENGTH_SHORT).show();
                                 if (!ok2) return;
 
-                                // Important: we need the offerId. makeOffer() sets o.id before write.
-                                // It will be non-null here because we set it before doc.set in repo.
                                 swapRepo.submitForApproval(companyId, selectedTeamId, r.getId(), o.getId(), (ok3, msg3) -> {
                                     if (!TextUtils.isEmpty(msg3)) {
                                         Toast.makeText(this, msg3, Toast.LENGTH_SHORT).show();
@@ -340,7 +373,6 @@ public class ShiftReplacementActivity extends AppCompatActivity {
             return;
         }
 
-        // SWAP: picker of MY upcoming shifts
         View view = LayoutInflater.from(this).inflate(R.layout.dialog_make_offer_swap, null);
 
         RecyclerView rv = view.findViewById(R.id.rv_upcoming_shifts);
@@ -419,24 +451,17 @@ public class ShiftReplacementActivity extends AppCompatActivity {
         dlg.show();
     }
 
-    private String safe(String s) {
-        return (s == null ? "" : s);
-    }
+    private String safe(String s) { return (s == null ? "" : s); }
 
-    /** Minimal RecyclerView picker inside the dialog. */
     private static class UpcomingShiftPickerAdapter extends RecyclerView.Adapter<UpcomingShiftPickerAdapter.VH> {
 
-        interface OnPick {
-            void onPicked(ShiftSwapRepository.UpcomingShift shift);
-        }
+        interface OnPick { void onPicked(ShiftSwapRepository.UpcomingShift shift); }
 
         private final List<ShiftSwapRepository.UpcomingShift> items = new ArrayList<>();
         private final OnPick onPick;
         private int selectedPos = -1;
 
-        UpcomingShiftPickerAdapter(OnPick onPick) {
-            this.onPick = onPick;
-        }
+        UpcomingShiftPickerAdapter(OnPick onPick) { this.onPick = onPick; }
 
         void setItems(List<ShiftSwapRepository.UpcomingShift> list) {
             items.clear();

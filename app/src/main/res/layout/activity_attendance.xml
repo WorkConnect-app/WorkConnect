@@ -16,6 +16,8 @@
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
+            android:background="@color/primaryBlue"
+            app:titleTextColor="@android:color/white"
             app:title="Attendance"/>
 
         <FrameLayout
@@ -100,12 +102,49 @@
                         android:text="End Shift"/>
                 </LinearLayout>
 
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Today's shifts"
+                    android:textStyle="bold"
+                    android:paddingTop="12dp" />
+
                 <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/recyclerAttendance"
+                    android:id="@+id/recyclerToday"
                     android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    android:layout_weight="1"
-                    android:paddingTop="12dp"/>
+                    android:layout_height="180dp"
+                    android:paddingTop="8dp" />
+
+                <TextView
+                    android:id="@+id/tvSelectedHeader"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Shifts from -"
+                    android:textStyle="bold"
+                    android:paddingTop="14dp" />
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/tilDay"
+                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Day of month"
+                    app:endIconMode="dropdown_menu">
+
+                    <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                        android:id="@+id/actDay"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:focusable="false"
+                        android:cursorVisible="false"
+                        android:inputType="none" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/recyclerSelectedDay"
+                    android:layout_width="match_parent"
+                    android:layout_height="180dp"
+                    android:paddingTop="8dp" />
 
             </LinearLayout>
 
@@ -120,6 +159,8 @@
         android:layout_height="match_parent"
         android:layout_gravity="start"
         app:headerLayout="@layout/drawer_header"
-        app:menu="@menu/drawer_menu"/>
+        app:menu="@menu/drawer_menu"
+        app:itemIconTint="@color/primaryBlue"
+        app:itemTextColor="@color/black" />
 
 </androidx.drawerlayout.widget.DrawerLayout>

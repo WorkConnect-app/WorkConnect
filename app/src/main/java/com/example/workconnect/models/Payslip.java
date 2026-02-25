@@ -1,95 +1,57 @@
 package com.example.workconnect.models;
 
 import java.util.Date;
+import java.util.Locale;
 
 public class Payslip {
+    private String periodKey;      // docId: yyyy-MM
+    private String employeeUid;
+    private String companyId;
 
-    private String id;             // Unique payslip ID in the database
-    private String employeeId;     // UID of the employee
+    private int year;
+    private int month;
 
-    private String periodLabel;    // Example: "03/2025" or "March 2025"
-    private String fileName;       // Actual file name (optional)
-    private String storagePath;    // File path in Firebase Storage
-    private String downloadUrl;    // URL for downloading/viewing the PDF
+    private String fileName;
+    private long fileSizeBytes;
 
-    private Date uploadDate;       // Timestamp of when the payslip was uploaded
+    private String pdfBase64;      // Base64 PDF
 
-    public Payslip() {
-        // Required for Firebase deserialization
-    }
+    private String uploadedByUid;
+    private Date uploadedAt;
 
-    public Payslip(String id,
-                   String employeeId,
-                   String periodLabel,
-                   String fileName,
-                   String storagePath,
-                   String downloadUrl,
-                   Date uploadDate) {
+    public Payslip() {}
 
-        this.id = id;
-        this.employeeId = employeeId;
-        this.periodLabel = periodLabel;
-        this.fileName = fileName;
-        this.storagePath = storagePath;
-        this.downloadUrl = downloadUrl;
-        this.uploadDate = uploadDate;
-    }
+    public String getPeriodKey() { return periodKey; }
+    public void setPeriodKey(String periodKey) { this.periodKey = periodKey; }
 
-    // ===== Getters & Setters =====
+    public String getEmployeeUid() { return employeeUid; }
+    public void setEmployeeUid(String employeeUid) { this.employeeUid = employeeUid; }
 
-    public String getId() {
-        return id;
-    }
+    public String getCompanyId() { return companyId; }
+    public void setCompanyId(String companyId) { this.companyId = companyId; }
 
-    public void setId(String id) {
-        this.id = id;
-    }
+    public int getYear() { return year; }
+    public void setYear(int year) { this.year = year; }
 
-    public String getEmployeeId() {
-        return employeeId;
-    }
+    public int getMonth() { return month; }
+    public void setMonth(int month) { this.month = month; }
 
-    public void setEmployeeId(String employeeId) {
-        this.employeeId = employeeId;
-    }
+    public String getFileName() { return fileName; }
+    public void setFileName(String fileName) { this.fileName = fileName; }
 
-    public String getPeriodLabel() {
-        return periodLabel;
-    }
+    public long getFileSizeBytes() { return fileSizeBytes; }
+    public void setFileSizeBytes(long fileSizeBytes) { this.fileSizeBytes = fileSizeBytes; }
 
-    public void setPeriodLabel(String periodLabel) {
-        this.periodLabel = periodLabel;
-    }
+    public String getPdfBase64() { return pdfBase64; }
+    public void setPdfBase64(String pdfBase64) { this.pdfBase64 = pdfBase64; }
 
-    public String getFileName() {
-        return fileName;
-    }
+    public String getUploadedByUid() { return uploadedByUid; }
+    public void setUploadedByUid(String uploadedByUid) { this.uploadedByUid = uploadedByUid; }
 
-    public void setFileName(String fileName) {
-        this.fileName = fileName;
-    }
+    public Date getUploadedAt() { return uploadedAt; }
+    public void setUploadedAt(Date uploadedAt) { this.uploadedAt = uploadedAt; }
 
-    public String getStoragePath() {
-        return storagePath;
-    }
-
-    public void setStoragePath(String storagePath) {
-        this.storagePath = storagePath;
-    }
-
-    public String getDownloadUrl() {
-        return downloadUrl;
-    }
-
-    public void setDownloadUrl(String downloadUrl) {
-        this.downloadUrl = downloadUrl;
-    }
-
-    public Date getUploadDate() {
-        return uploadDate;
-    }
-
-    public void setUploadDate(Date uploadDate) {
-        this.uploadDate = uploadDate;
+    public String getPrettyLabel() {
+        return String.format(Locale.US, "%04d-%02d", year, month);
     }
 }

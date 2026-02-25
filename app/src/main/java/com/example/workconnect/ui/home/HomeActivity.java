@@ -16,16 +16,33 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import com.example.workconnect.adapters.PayslipsAdapter;
+import com.example.workconnect.repository.payslips.PayslipRepository;
+import com.google.firebase.firestore.ListenerRegistration;
+import android.view.View;
+
+
 public class HomeActivity extends BaseDrawerActivity {
 
     private TextView tvFullName, tvCompanyName, tvStartDate, tvMonthlyQuota, tvVacationBalance;
+    private TextView tvMonthHours, tvDailyStart;
 
-    private TextView tvMonthHours;
     private final AttendanceRepository attendanceRepo = new AttendanceRepository();
+
     private static final DateTimeFormatter MONTH_KEY_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM");
     private final ZoneId companyZone = ZoneId.of("Asia/Jerusalem");
 
     private HomeViewModel homeVm;
+
+    private RecyclerView rvSalarySlips;
+    private TextView tvSalarySlipsEmpty;
+
+    private PayslipsAdapter payslipsAdapter;
+    private PayslipRepository payslipRepo;
+    private ListenerRegistration payslipListener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -37,11 +54,24 @@ public class HomeActivity extends BaseDrawerActivity {
         tvStartDate = findViewById(R.id.tv_start_date);
         tvMonthlyQuota = findViewById(R.id.tv_monthly_quota);
         tvVacationBalance = findViewById(R.id.tv_vacation_balance);
+
         tvMonthHours = findViewById(R.id.tv_month_hours);
+
+        rvSalarySlips = findViewById(R.id.rv_salary_slips);
+        tvSalarySlipsEmpty = findViewById(R.id.tv_salary_slips_empty);
+
+        payslipRepo = new PayslipRepository();
+        payslipsAdapter = new PayslipsAdapter(this);
+
+        rvSalarySlips.setLayoutManager(new LinearLayoutManager(this));
+        rvSalarySlips.setAdapter(payslipsAdapter);
+
+        // Start listening now (uid exists already)
+        startPayslipListenerIfPossible();
 
         setupHomeViewModel();
 
-        // Try once (may still be 0 if company not ready yet)
+        // Monthly hours comes from attendance docs
         refreshCurrentMonthHours();
     }
 
@@ -50,10 +80,11 @@ public class HomeActivity extends BaseDrawerActivity {
         super.onResume();
 
         if (homeVm != null) {
-            homeVm.refreshProfileOnce();
+            homeVm.refreshProfileOnce(); // will update todayStartTime via activeAttendance
         }
 
         refreshCurrentMonthHours();
+        startPayslipListenerIfPossible();
     }
 
     // ✅ Called when cachedCompanyId becomes ready
@@ -87,33 +118,57 @@ public class HomeActivity extends BaseDrawerActivity {
         });
     }
 
+    private void startPayslipListenerIfPossible() {
+        String uid = FirebaseAuth.getInstance().getUid();
+        if (uid == null) return;
+
+        if (payslipListener != null) {
+            payslipListener.remove();
+            payslipListener = null;
+        }
+
+        payslipListener = payslipRepo.listenPayslips(uid, new PayslipRepository.PayslipListCallback() {
+            @Override
+            public void onUpdate(java.util.List<com.example.workconnect.models.Payslip> payslips) {
+                payslipsAdapter.submit(payslips);
+
+                boolean empty = (payslips == null || payslips.isEmpty());
+                tvSalarySlipsEmpty.setText(empty ? "No salary slips uploaded yet." : "");
+                tvSalarySlipsEmpty.setVisibility(empty ? View.VISIBLE : View.GONE);
+                rvSalarySlips.setVisibility(empty ? View.GONE : View.VISIBLE);
+            }
+
+            @Override
+            public void onError(Exception e) {
+                // IMPORTANT: show a different message than the empty state
+                String msg = (e == null) ? "Unknown error" : (e.getClass().getSimpleName() + ": " + e.getMessage());
+                tvSalarySlipsEmpty.setText("Failed to load salary slips.\n" + msg);
+                tvSalarySlipsEmpty.setVisibility(View.VISIBLE);
+                rvSalarySlips.setVisibility(View.GONE);
+
+                Toast.makeText(HomeActivity.this, "Payslips error: " + msg, Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+
     private void setupHomeViewModel() {
         homeVm = new ViewModelProvider(this).get(HomeViewModel.class);
 
-        homeVm.getFullName().observe(this, name -> {
-            String n = normalizeOrDash(name);
+        // Header (MVVM-consistent: observe headerState only)
+        homeVm.getHeaderState().observe(this, s -> {
+            String n = normalizeOrDash(s.fullName);
+            String c = normalizeOrDash(s.companyName);
+            String sid = normalizeOrDash(s.companyShortId);
+
             tvFullName.setText("Name: " + n);
-
-            String c = homeVm.getCompanyName().getValue();
-            updateDrawerHeader(n, normalizeOrDash(c));
+            tvCompanyName.setText("Company: " + c + " , " + sid);
+            updateDrawerHeader(n, c);
         });
 
-        homeVm.getCompanyName().observe(this, company -> {
-            String c = normalizeOrDash(company);
 
-            String shortId = "-";
-            if (cachedCompanyId != null && !cachedCompanyId.trim().isEmpty()) {
-                String id = cachedCompanyId.trim();
-                shortId = id.length() >= 6 ? id.substring(0, 6).toUpperCase() : id.toUpperCase();
-            }
-
-            tvCompanyName.setText("Company: " + c + " , " + shortId);
-
-            String n = homeVm.getFullName().getValue();
-            updateDrawerHeader(normalizeOrDash(n), c);
-        });
-
-        homeVm.getStartDate().observe(this, d -> tvStartDate.setText("Start date: " + normalizeOrDash(d)));
+        homeVm.getStartDate().observe(this, d ->
+                tvStartDate.setText("Start date: " + normalizeOrDash(d))
+        );
 
         homeVm.getMonthlyQuota().observe(this, q -> {
             String text = (q == null || q.trim().isEmpty()) ? "-" : q.trim();
@@ -138,5 +193,14 @@ public class HomeActivity extends BaseDrawerActivity {
         if (s == null) return "-";
         String t = s.trim();
         return t.isEmpty() ? "-" : t;
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (payslipListener != null) {
+            payslipListener.remove();
+            payslipListener = null;
+        }
     }
 }

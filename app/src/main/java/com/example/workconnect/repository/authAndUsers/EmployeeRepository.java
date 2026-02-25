@@ -2,6 +2,8 @@ package com.example.workconnect.repository.authAndUsers;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.lifecycle.LiveData;
+import androidx.lifecycle.MutableLiveData;
 
 import com.example.workconnect.models.User;
 import com.example.workconnect.models.enums.RegisterStatus;
@@ -14,8 +16,6 @@ import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.WriteBatch;
-import androidx.lifecycle.LiveData;
-import androidx.lifecycle.MutableLiveData;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -23,46 +23,25 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 
-/**
- * Repository for employee-related operations.
- *
- * Responsibilities:
- * - Employee registration (sign-up): Auth user + Firestore user profile
- * - Listening for pending employees in a company
- * - Approving / rejecting employees (status changes + profile fields)
- * - Hierarchy (direct manager + manager chain)
- * - Vacation accrual initialization after approval
- */
 public class EmployeeRepository {
 
     private final FirebaseFirestore db = FirebaseFirestore.getInstance();
     private final FirebaseAuth mAuth = FirebaseAuth.getInstance();
 
-    /** Callback for registering a new employee (sign-up). */
     public interface RegisterEmployeeCallback {
         void onSuccess();
         void onError(String message);
     }
 
-    /** Callback for listening to pending employees list changes. */
     public interface PendingEmployeesCallback {
         void onSuccess(List<User> employees);
         void onError(String message);
     }
 
-    /** Generic callback for simple operations (approve/reject/status update). */
     public interface SimpleCallback {
         void onComplete(boolean success, String message);
     }
 
-    /**
-     * Registers a new employee:
-     * 1) Finds the company by its join code.
-     * 2) Creates a FirebaseAuth account (email/password).
-     * 3) Creates a Firestore user document with status = PENDING.
-     *
-     * - After successful sign-up, we sign out because employees must be approved first.
-     */
     public void registerEmployee(
             @NonNull String firstName,
             @NonNull String lastName,
@@ -74,7 +53,6 @@ public class EmployeeRepository {
         final String fullName = (firstName + " " + lastName).trim();
         final String normalizedCode = companyCode.trim();
 
-        // 1) Find company by code.
         db.collection("companies")
                 .whereEqualTo("code", normalizedCode)
                 .limit(1)
@@ -88,7 +66,6 @@ public class EmployeeRepository {
                     DocumentSnapshot companyDoc = qs.getDocuments().get(0);
                     final String companyId = companyDoc.getId();
 
-                    // 2) Create Firebase Auth user.
                     mAuth.createUserWithEmailAndPassword(email, password)
                             .addOnSuccessListener(authResult -> {
 
@@ -99,7 +76,6 @@ public class EmployeeRepository {
 
                                 final String uid = mAuth.getCurrentUser().getUid();
 
-                                // 3) Create Firestore user document (users/{uid}).
                                 HashMap<String, Object> userData = new HashMap<>();
                                 userData.put("uid", uid);
                                 userData.put("firstName", firstName);
@@ -108,45 +84,34 @@ public class EmployeeRepository {
                                 userData.put("email", email);
                                 userData.put("companyId", companyId);
 
-                                // Initial status & role
                                 userData.put("status", RegisterStatus.PENDING.name());
                                 userData.put("role", Roles.EMPLOYEE.name());
 
-                                // Hierarchy defaults (set later by manager).
                                 userData.put("directManagerId", null);
                                 userData.put("managerChain", new ArrayList<String>());
 
-                                // Vacation defaults.
                                 userData.put("vacationDaysPerMonth", 0.0);
                                 userData.put("vacationBalance", 0.0);
                                 userData.put("lastAccrualDate", null);
 
-                                // Optional org fields (NO "team" anymore).
                                 userData.put("department", "");
                                 userData.put("jobTitle", "");
 
-                                // NEW fields
                                 userData.put("teamIds", new ArrayList<String>());
                                 userData.put("employmentType", null);
 
-                                // joinDate is set on approval.
                                 userData.put("joinDate", null);
 
                                 db.collection("users")
                                         .document(uid)
                                         .set(userData)
                                         .addOnSuccessListener(unused -> {
-                                            android.util.Log.d("Notif", "✅ user saved. calling notifyManagersEmployeePending. companyId=" + companyId);
-
-                                            notifyManagersEmployeePending(companyId, uid, fullName);
-
-                                            android.util.Log.d("Notif", "✅ notifyManagersEmployeePending called (async)");
-
-                                            mAuth.signOut();
-                                            callback.onSuccess();
+                                            notifyManagersEmployeePending(companyId, uid, fullName, () -> {
+                                                mAuth.signOut();
+                                                callback.onSuccess();
+                                            });
                                         })
                                         .addOnFailureListener(e -> {
-                                            // Firestore failed AFTER Auth succeeded => delete Auth user to avoid orphan account.
                                             if (mAuth.getCurrentUser() != null) {
                                                 mAuth.getCurrentUser().delete()
                                                         .addOnCompleteListener(t -> {
@@ -173,9 +138,6 @@ public class EmployeeRepository {
                 });
     }
 
-    /**
-     * Real-time listener for employees with status = PENDING in a given company.
-     */
     public ListenerRegistration listenForPendingEmployees(
             @NonNull String companyId,
             @NonNull PendingEmployeesCallback callback
@@ -188,6 +150,7 @@ public class EmployeeRepository {
                         callback.onError(error.getMessage() == null ? "Listener error" : error.getMessage());
                         return;
                     }
+
                     if (value == null) {
                         callback.onSuccess(new ArrayList<>());
                         return;
@@ -205,9 +168,6 @@ public class EmployeeRepository {
                 });
     }
 
-    /**
-     * Updates only the employee's status field.
-     */
     public void updateEmployeeStatus(
             @NonNull String uid,
             @NonNull RegisterStatus status,
@@ -225,15 +185,35 @@ public class EmployeeRepository {
                 });
     }
 
-    /**
-     * Manager enters a direct manager EMAIL in the UI, but we store directManagerId as UID in Firestore.
-     *
-     * If directManagerEmail is empty => top-level manager (directManagerId = null).
-     *
-     * NOTE:
-     * - selectedTeamId is optional (can be null/empty)
-     * - employmentType is optional (can be null/empty)
-     */
+    private void notifyManagersEmployeePending(
+            @NonNull String companyId,
+            @NonNull String employeeUid,
+            @NonNull String employeeName,
+            @NonNull Runnable onDone
+    ) {
+        db.collection("users")
+                .whereEqualTo("companyId", companyId)
+                .whereEqualTo("role", Roles.MANAGER.name())
+                .get()
+                .addOnSuccessListener(qs -> {
+                    if (qs != null && !qs.isEmpty()) {
+                        WriteBatch batch = db.batch();
+                        for (DocumentSnapshot m : qs.getDocuments()) {
+                            String managerId = m.getId();
+                            NotificationService.addEmployeePendingApprovalForManager(
+                                    batch, managerId, employeeUid, employeeName, companyId
+                            );
+                        }
+                        batch.commit()
+                                .addOnSuccessListener(v -> onDone.run())
+                                .addOnFailureListener(e -> onDone.run());
+                    } else {
+                        onDone.run();
+                    }
+                })
+                .addOnFailureListener(e -> onDone.run());
+    }
+
     public void approveEmployeeWithDetailsByManagerEmail(
             @NonNull String employeeUid,
             @NonNull Roles role,
@@ -247,7 +227,6 @@ public class EmployeeRepository {
     ) {
         String email = directManagerEmail == null ? "" : directManagerEmail.trim().toLowerCase();
 
-        // Empty email => no direct manager.
         if (email.isEmpty()) {
             approveEmployeeWithDetails(
                     employeeUid, role, null,
@@ -258,7 +237,6 @@ public class EmployeeRepository {
             return;
         }
 
-        // Find manager user by email.
         db.collection("users")
                 .whereEqualTo("email", email)
                 .whereEqualTo("role", Roles.MANAGER.name())
@@ -285,15 +263,6 @@ public class EmployeeRepository {
                 });
     }
 
-    /**
-     * Approves an employee:
-     * - Sets status to APPROVED
-     * - Stores role, hierarchy fields, vacation policy and org metadata
-     * - Initializes accrual tracking fields
-     * - Optionally adds employee to a team (user.teamIds + team.memberIds)
-     *
-     * directManagerId is UID or null for top-level.
-     */
     public void approveEmployeeWithDetails(
             @NonNull String employeeUid,
             @NonNull Roles role,
@@ -307,7 +276,6 @@ public class EmployeeRepository {
     ) {
         DocumentReference employeeRef = db.collection("users").document(employeeUid);
 
-        // Need companyId for team path updates.
         employeeRef.get().addOnCompleteListener(empTask -> {
             if (!empTask.isSuccessful()
                     || empTask.getResult() == null
@@ -322,14 +290,12 @@ public class EmployeeRepository {
                 return;
             }
 
-            // If there is a direct manager, fetch them to build managerChain.
             if (directManagerId != null) {
                 DocumentReference managerRef = db.collection("users").document(directManagerId);
                 managerRef.get().addOnCompleteListener(task -> {
                     if (!task.isSuccessful()
                             || task.getResult() == null
                             || !task.getResult().exists()) {
-
                         callback.onComplete(false, "Failed to load direct manager data");
                         return;
                     }
@@ -352,7 +318,6 @@ public class EmployeeRepository {
                     );
                 });
             } else {
-                // Top-level manager (no direct manager).
                 updateEmployeeDocument(
                         companyId,
                         employeeRef,
@@ -370,10 +335,10 @@ public class EmployeeRepository {
         });
     }
 
-    /**
-     * Builds manager chain: [directManagerId, managerOfManagerId, ...]
-     */
-    private List<String> buildManagerChain(@NonNull String directManagerId, @NonNull DocumentSnapshot managerDoc) {
+    private List<String> buildManagerChain(
+            @NonNull String directManagerId,
+            @NonNull DocumentSnapshot managerDoc
+    ) {
         List<String> chain = new ArrayList<>();
         chain.add(directManagerId);
 
@@ -387,10 +352,6 @@ public class EmployeeRepository {
         return chain;
     }
 
-    /**
-     * Central method to apply approval updates to employee document.
-     * Uses a batch when we also need to touch team membership.
-     */
     private void updateEmployeeDocument(
             @NonNull String companyId,
             @NonNull DocumentReference employeeRef,
@@ -406,30 +367,25 @@ public class EmployeeRepository {
     ) {
         HashMap<String, Object> updates = new HashMap<>();
 
-        // Approval state
         updates.put("status", RegisterStatus.APPROVED.name());
         updates.put("role", role.name());
 
-        // Hierarchy
         updates.put("directManagerId", directManagerId);
         updates.put("managerChain", managerChain);
 
-        // Org metadata (NO "team")
         updates.put("department", department == null ? "" : department);
         updates.put("jobTitle", jobTitle == null ? "" : jobTitle);
 
-        // NEW
-        updates.put("employmentType", (employmentType == null || employmentType.trim().isEmpty()) ? null : employmentType);
+        updates.put("employmentType",
+                (employmentType == null || employmentType.trim().isEmpty()) ? null : employmentType
+        );
 
-        // Vacation policy
         updates.put("vacationDaysPerMonth", vacationDaysPerMonth);
 
-        // Join date set at approval time
         updates.put("joinDate", new Date());
 
-        // Accrual tracking initialization
         updates.put("vacationBalance", 0.0);
-        updates.put("lastAccrualDate", LocalDate.now().toString()); // yyyy-MM-dd
+        updates.put("lastAccrualDate", LocalDate.now().toString());
 
         boolean hasTeam = selectedTeamId != null && !selectedTeamId.trim().isEmpty();
 
@@ -445,14 +401,11 @@ public class EmployeeRepository {
             return;
         }
 
-        // Batch: user.teamIds += teamId, team.memberIds += userId, and user fields update
         WriteBatch batch = db.batch();
 
-        // Update user fields
         batch.update(employeeRef, updates);
         batch.update(employeeRef, "teamIds", FieldValue.arrayUnion(selectedTeamId.trim()));
 
-        // Update team membership
         DocumentReference teamRef = db.collection("companies")
                 .document(companyId)
                 .collection("teams")
@@ -469,12 +422,6 @@ public class EmployeeRepository {
         });
     }
 
-    /**
-     * Completes manager profile fields after registration.
-     * Sets profileCompleted = true and initializes accrual fields.
-     *
-     * NOTE: no "team" field anymore.
-     */
     public void completeManagerProfile(
             @NonNull String managerUid,
             @NonNull Double vacationDaysPerMonth,
@@ -485,11 +432,9 @@ public class EmployeeRepository {
         HashMap<String, Object> updates = new HashMap<>();
 
         updates.put("vacationDaysPerMonth", vacationDaysPerMonth);
-
         updates.put("department", department == null ? "" : department);
         updates.put("jobTitle", jobTitle == null ? "" : jobTitle);
 
-        // Initialize accrual tracking
         updates.put("joinDate", new Date());
         updates.put("vacationBalance", 0.0);
         updates.put("lastAccrualDate", LocalDate.now().toString());
@@ -535,10 +480,6 @@ public class EmployeeRepository {
         return live;
     }
 
-    /**
-     * Backwards-compatible overload (in case older screens still call it with "team").
-     * We DO NOT write team anywhere. This just forwards.
-     */
     public void completeManagerProfile(
             @NonNull String managerUid,
             @NonNull Double vacationDaysPerMonth,
@@ -548,38 +489,5 @@ public class EmployeeRepository {
             @NonNull SimpleCallback callback
     ) {
         completeManagerProfile(managerUid, vacationDaysPerMonth, department, jobTitle, callback);
-    }
-
-    private void notifyManagersEmployeePending(@NonNull String companyId,
-                                               @NonNull String employeeUid,
-                                               @NonNull String employeeName) {
-
-        db.collection("users")
-                .whereEqualTo("companyId", companyId)
-                .whereEqualTo("role", Roles.MANAGER.name())
-                .get()
-                .addOnSuccessListener(qs -> {
-                    if (qs == null || qs.isEmpty()) return;
-
-                    WriteBatch batch = db.batch();
-
-                    for (DocumentSnapshot m : qs.getDocuments()) {
-                        String managerId = m.getId();
-                        NotificationService.addEmployeePendingApprovalForManager(
-                                batch,
-                                managerId,
-                                employeeUid,
-                                employeeName,
-                                companyId
-                        );
-                    }
-
-                    batch.commit().addOnFailureListener(e ->
-                            android.util.Log.e("Notif", "❌ notifyManagersEmployeePending failed", e)
-                    );
-                })
-                .addOnFailureListener(e ->
-                        android.util.Log.e("Notif", "❌ failed to find managers", e)
-                );
     }
 }
