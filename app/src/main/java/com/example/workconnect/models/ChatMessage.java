@@ -14,9 +14,7 @@ public class ChatMessage {
     
     public enum MessageType {
         TEXT,
-        SYSTEM,
-        IMAGE,
-        FILE
+        SYSTEM
     }
     
     public enum SystemMessageType {
@@ -55,16 +53,10 @@ public class ChatMessage {
     private String replyToSenderName;   // Sender name of the replied message (cached for display)
     
     // Message type and system message info
-    private MessageType messageType;   // TEXT, SYSTEM, IMAGE, FILE
+    private MessageType messageType;   // TEXT, SYSTEM
     private SystemMessageType systemType; // For system messages: USER_JOINED, USER_LEFT, etc.
     private String systemUserId;        // User ID for system messages (who joined/left/was added/was removed)
     private String systemActorId;       // User ID for system messages (who performed the action - added/removed someone)
-    
-    // File/image support
-    private String fileUrl;             // URL of uploaded file/image
-    private String fileName;            // Original file name
-    private String fileType;            // MIME type (image/jpeg, application/pdf, etc.)
-    private Long fileSize;              // File size in bytes
 
     public ChatMessage() {
         // Required for Firebase deserialization
@@ -295,49 +287,6 @@ public class ChatMessage {
     // Helper to check if message is system message
     public boolean isSystemMessage() {
         return messageType == MessageType.SYSTEM;
-    }
-
-    public String getFileUrl() {
-        return fileUrl;
-    }
-
-    public void setFileUrl(String fileUrl) {
-        this.fileUrl = fileUrl;
-    }
-
-    public String getFileName() {
-        return fileName;
-    }
-
-    public void setFileName(String fileName) {
-        this.fileName = fileName;
-    }
-
-    public String getFileType() {
-        return fileType;
-    }
-
-    public void setFileType(String fileType) {
-        this.fileType = fileType;
-    }
-
-    public Long getFileSize() {
-        return fileSize;
-    }
-
-    public void setFileSize(Long fileSize) {
-        this.fileSize = fileSize;
-    }
-    
-    // Helper to check if message has file/image
-    public boolean hasFile() {
-        return fileUrl != null && !fileUrl.isEmpty();
-    }
-    
-    // Helper to check if message is image
-    public boolean isImage() {
-        return messageType == MessageType.IMAGE || 
-               (fileType != null && fileType.startsWith("image/"));
     }
 
     // ===== Equals & HashCode for DiffUtil =====

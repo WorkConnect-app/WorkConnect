@@ -66,16 +66,6 @@ public class MessageRepository {
             messageData.put("replyToSenderName", message.getReplyToSenderName());
         }
 
-        // Add file data if present
-        if (message.hasFile()) {
-            messageData.put("fileUrl", message.getFileUrl());
-            messageData.put("fileName", message.getFileName());
-            messageData.put("fileType", message.getFileType());
-            if (message.getFileSize() != null) {
-                messageData.put("fileSize", message.getFileSize());
-            }
-        }
-
         // 1) Add message
         db.collection("conversations")
                 .document(conversationId)
@@ -194,16 +184,6 @@ public class MessageRepository {
         messageData.put("readAt", null);
         messageData.put("readBy", new ArrayList<String>()); // Initialize empty list for read receipts
         messageData.put("messageType", message.getMessageType() != null ? message.getMessageType().name() : "TEXT");
-
-        // Add file data if present
-        if (message.hasFile()) {
-            messageData.put("fileUrl", message.getFileUrl());
-            messageData.put("fileName", message.getFileName());
-            messageData.put("fileType", message.getFileType());
-            if (message.getFileSize() != null) {
-                messageData.put("fileSize", message.getFileSize());
-            }
-        }
 
         db.collection("conversations")
                 .document(conversationId)

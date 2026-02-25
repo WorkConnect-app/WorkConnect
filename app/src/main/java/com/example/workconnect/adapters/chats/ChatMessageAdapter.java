@@ -7,8 +7,6 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-import com.bumptech.glide.Glide;
-
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.AsyncListDiffer;
 import androidx.recyclerview.widget.DiffUtil;
@@ -199,39 +197,6 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
             return; // Don't process further for system messages
         }
 
-        // Handle file/image messages
-        if (msg.hasFile()) {
-            if (holder.imagePreview != null) {
-                if (msg.isImage()) {
-                    // Show image
-                    holder.imagePreview.setVisibility(View.VISIBLE);
-                    Glide.with(holder.itemView.getContext())
-                            .load(msg.getFileUrl())
-                            .into(holder.imagePreview);
-                } else {
-                    holder.imagePreview.setVisibility(View.GONE);
-                }
-            }
-            
-            if (holder.fileInfo != null && holder.textFileName != null) {
-                if (msg.isImage()) {
-                    holder.fileInfo.setVisibility(View.GONE);
-                } else {
-                    // Show file info
-                    holder.fileInfo.setVisibility(View.VISIBLE);
-                    String fileName = msg.getFileName() != null ? msg.getFileName() : "File";
-                    holder.textFileName.setText("📎 " + fileName);
-                }
-            }
-        } else {
-            if (holder.imagePreview != null) {
-                holder.imagePreview.setVisibility(View.GONE);
-            }
-            if (holder.fileInfo != null) {
-                holder.fileInfo.setVisibility(View.GONE);
-            }
-        }
-        
         holder.textMessage.setText(msg.getText());
 
         // Time - use DateHelper for consistent formatting (HH:mm)
@@ -526,11 +491,6 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
         // For date separator
         TextView textDateSeparator;
         
-        // For file/image messages
-        ImageView imagePreview;
-        LinearLayout fileInfo;
-        TextView textFileName;
-        
         // For reactions
         LinearLayout reactionsContainer;
 
@@ -555,11 +515,6 @@ public class ChatMessageAdapter extends RecyclerView.Adapter<ChatMessageAdapter.
                 // will be null for "other" layout, that's fine
                 iconError = itemView.findViewById(R.id.iconError);
                 textReadStatus = itemView.findViewById(R.id.textReadStatus);
-                
-                // File/image views (may be null if not in layout)
-                imagePreview = itemView.findViewById(R.id.imagePreview);
-                fileInfo = itemView.findViewById(R.id.fileInfo);
-                textFileName = itemView.findViewById(R.id.textFileName);
                 
                 // Reactions container (may be null if not in layout)
                 reactionsContainer = itemView.findViewById(R.id.reactionsContainer);
