@@ -1,3 +1,4 @@
+
 package com.example.workconnect.ui.auth;
 
 import android.content.Intent;
@@ -18,9 +19,6 @@ import com.example.workconnect.viewModels.auth.CompleteManagerProfileViewModel;
 /**
  * Activity responsible for completing a manager's profile
  * after initial registration.
- *
- * The manager must define organizational and vacation settings
- * before entering the main application.
  */
 public class CompleteManagerProfileActivity extends AppCompatActivity {
 

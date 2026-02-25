@@ -91,8 +91,7 @@ public class VacationRequestsActivity extends BaseDrawerActivity {
 
         /**
          * Observe vacation balance.
-         * This value comes directly from Firestore and updates in real-time.
-         */
+\         */
         vm.getBalance().observe(this, bal -> {
             // Defensive default value
             currentBalance = (bal == null) ? 0.0 : bal;
@@ -106,7 +105,6 @@ public class VacationRequestsActivity extends BaseDrawerActivity {
 
         /**
          * Observe error messages from ViewModel.
-         * Errors are shown as Toast messages.
          */
         vm.getError().observe(this, msg -> {
             if (msg != null && !msg.isEmpty()) {

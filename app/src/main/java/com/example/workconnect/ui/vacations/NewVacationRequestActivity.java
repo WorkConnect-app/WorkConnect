@@ -65,7 +65,7 @@ public class NewVacationRequestActivity extends AppCompatActivity {
                 return;
             }
 
-            // Mandatory date validation in UI (fast feedback)
+            // Mandatory date validation in UI
             if (endDate.before(startDate)) {
                 Toast.makeText(this, "End date cannot be before start date.", Toast.LENGTH_SHORT).show();
                 return;

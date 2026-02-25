@@ -40,7 +40,7 @@ public class NotificationsAdapter extends RecyclerView.Adapter<NotificationsAdap
     public void submit(List<AppNotification> list) {
         items.clear();
         if (list != null) items.addAll(list);
-        notifyDataSetChanged(); // simple refresh (no DiffUtil for now)
+        notifyDataSetChanged(); // simple refresh
     }
 
     @NonNull

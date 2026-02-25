@@ -10,20 +10,17 @@ import com.google.firebase.firestore.Transaction;
 import com.google.firebase.firestore.WriteBatch;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
  * Centralized service responsible for creating notification documents
  * under users/{uid}/notifications.
- *
- * All methods are static and are designed to be used inside
- * Firestore transactions or batch writes.
  */
 public class NotificationService {
 
     /**
      * Creates a new notification document reference
-     * under users/{uid}/notifications with an auto-generated ID.
      */
     private static DocumentReference newNotifRef(@NonNull String uid) {
         return FirebaseFirestore.getInstance()
@@ -31,10 +28,11 @@ public class NotificationService {
                 .collection("notifications").document();
     }
 
-    /**
-     * Adds a "Vacation Approved" notification to an employee.
-     * Must be called inside an existing Firestore transaction.
-     */
+    // ===============================
+    // Vacations
+    // ===============================
+
+    /** Adds a "Vacation Approved" notification to an employee. */
     public static void addVacationApproved(@NonNull Transaction tx,
                                            @NonNull String employeeId,
                                            @NonNull String requestId,
@@ -55,10 +53,7 @@ public class NotificationService {
         tx.set(newNotifRef(employeeId), n);
     }
 
-    /**
-     * Adds a "Vacation Rejected" notification to an employee.
-     * Must be called inside an existing Firestore transaction.
-     */
+    /** Adds a "Vacation Rejected" notification to an employee. */
     public static void addVacationRejected(@NonNull Transaction tx,
                                            @NonNull String employeeId,
                                            @NonNull String requestId) {
@@ -77,10 +72,7 @@ public class NotificationService {
         tx.set(newNotifRef(employeeId), n);
     }
 
-    /**
-     * Adds a notification for a manager when a new vacation request is created.
-     * Must be used inside a Firestore WriteBatch.
-     */
+    /** Adds a notification for a manager when a new vacation request is created. */
     public static void addVacationNewRequestForManager(@NonNull WriteBatch batch,
                                                        @NonNull String managerId,
                                                        @NonNull String requestId,
@@ -101,11 +93,7 @@ public class NotificationService {
         batch.set(newNotifRef(managerId), n);
     }
 
-    /**
-     * Adds a notification for managers when a new employee registers
-     * and is pending approval.
-     * Must be used inside a Firestore WriteBatch.
-     */
+    /** Adds a notification for managers when a new employee registers and is pending approval. */
     public static void addEmployeePendingApprovalForManager(@NonNull WriteBatch batch,
                                                             @NonNull String managerId,
                                                             @NonNull String employeeId,
@@ -126,15 +114,10 @@ public class NotificationService {
         batch.set(newNotifRef(managerId), n);
     }
 
-<<<<<<< HEAD
-    /**
-     * Additional notification types (e.g., shift assigned, swap approved)
-     * can be implemented here in the future.
-     */
-
     // ===============================
-// Shifts (assignment)
-// ===============================
+    // Shifts (assignment)
+    // ===============================
+
     public static void addShiftAssigned(@NonNull WriteBatch batch,
                                         @NonNull String employeeUid,
                                         @NonNull String companyId,
@@ -203,8 +186,9 @@ public class NotificationService {
     }
 
     // ===============================
-// Shift replacement
-// ===============================
+    // Shift replacement
+    // ===============================
+
     public static void addSwapOfferReceived(@NonNull WriteBatch batch,
                                             @NonNull String requesterUid,
                                             @NonNull String companyId,
@@ -290,8 +274,9 @@ public class NotificationService {
     }
 
     // ===============================
-// Attendance (auto-end)
-// ===============================
+    // Attendance (auto-end)
+    // ===============================
+
     public static void addAttendanceAutoEnded(@NonNull Transaction tx,
                                               @NonNull String userUid,
                                               @NonNull String companyId,
@@ -312,8 +297,9 @@ public class NotificationService {
     }
 
     // ===============================
-// Payslips
-// ===============================
+    // Payslips
+    // ===============================
+
     public static void addPayslipUploaded(@NonNull Transaction tx,
                                           @NonNull String employeeUid,
                                           @NonNull String companyId,
@@ -351,9 +337,10 @@ public class NotificationService {
 
         batch.set(newNotifRef(employeeUid), n);
     }
-}
-=======
+
+    // ===============================
     // Chat notifications
+    // ===============================
 
     /** Direct message: title = sender name, body = message preview. */
     public static void addChatNewMessage(@NonNull WriteBatch batch,
@@ -394,7 +381,9 @@ public class NotificationService {
         batch.set(newNotifRef(recipientId), n);
     }
 
+    // ===============================
     // Call notifications
+    // ===============================
 
     /** Group call started: sent to members who haven't yet joined. */
     public static void addGroupCallStarted(@NonNull WriteBatch batch,
@@ -439,7 +428,9 @@ public class NotificationService {
         batch.set(newNotifRef(recipientId), n);
     }
 
+    // ===============================
     // Group membership notifications
+    // ===============================
 
     /** Added to group: sent to each new member. */
     public static void addAddedToGroup(@NonNull WriteBatch batch,
@@ -478,4 +469,3 @@ public class NotificationService {
         batch.set(newNotifRef(recipientId), n);
     }
 }
->>>>>>> 917301bc82270e595c683d0bdd32c9342da26322

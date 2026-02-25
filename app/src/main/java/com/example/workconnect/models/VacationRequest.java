@@ -6,11 +6,6 @@ import java.util.Date;
 
 /**
  * Model class representing a vacation request document in Firestore.
- *
- * Notes about IDs:
- * - Firestore already has a document ID (the document path).
- * - This model also stores the same value in the "id" field for convenience,
- *   so the UI can easily reference request.getId() without extra mapping.
  */
 public class VacationRequest {
 

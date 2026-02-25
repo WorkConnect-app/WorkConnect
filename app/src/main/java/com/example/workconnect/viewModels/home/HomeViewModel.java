@@ -22,7 +22,7 @@ import java.util.Map;
 
 public class HomeViewModel extends ViewModel {
 
-    // -------- UI State for MVVM-consistent header --------
+    // -------- UI State --------
     public static class HeaderState {
         public final String fullName;
         public final String companyName;
@@ -81,8 +81,6 @@ public class HomeViewModel extends ViewModel {
     public LiveData<Boolean> getLoading() { return loading; }
     public LiveData<String> getError() { return error; }
 
-    // Attendance (daily start time) from user.activeAttendance.startedAt
-    public LiveData<String> getTodayStartTime() { return todayStartTime; }
 
     /**
      * Starts listening to the current user's profile document in Firestore.
@@ -291,7 +289,7 @@ public class HomeViewModel extends ViewModel {
     }
 
     /**
-     * One-time refresh (optional). Uses the same handleUserDoc logic.
+     * One-time refresh. Uses the same handleUserDoc logic.
      */
     public void refreshProfileOnce() {
         String uid = vacationRepository.getCurrentUserId();

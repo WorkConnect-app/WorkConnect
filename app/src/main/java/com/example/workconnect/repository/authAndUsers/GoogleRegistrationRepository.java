@@ -1,5 +1,7 @@
 package com.example.workconnect.repository.authAndUsers;
 
+import android.util.Log;
+
 import androidx.annotation.NonNull;
 
 import com.example.workconnect.services.NotificationService;
@@ -8,14 +10,23 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.QuerySnapshot;
 import com.google.firebase.firestore.WriteBatch;
 
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Completes Google-based registration flows:
+ * - Employee: join existing company by code
+ * - Manager: create company + manager profile
+ */
 public class GoogleRegistrationRepository {
 
+    // Auth used only to access currently signed-in Google user
     private final FirebaseAuth auth = FirebaseAuth.getInstance();
+
+    // Firestore entry point for companies/users collections
     private final FirebaseFirestore db = FirebaseFirestore.getInstance();
 
     /** Result callback for Google registration completion flows. */
@@ -32,12 +43,13 @@ public class GoogleRegistrationRepository {
     }
 
     // =========================================================
-    // Employee flow (Google sign-in -> join existing company)
+    // Employee flow (Google sign-in - join existing company)
     // =========================================================
     public void completeAsEmployee(@NonNull String fullName,
                                    @NonNull String companyCode,
                                    @NonNull CompleteCallback callback) {
 
+        // Must be authenticated with Google before completing profile
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) {
             callback.onError("Not authenticated with Google");
@@ -47,7 +59,7 @@ public class GoogleRegistrationRepository {
         String uid = user.getUid();
         String email = user.getEmail() == null ? "" : user.getEmail();
 
-        // Find the company by join code.
+        // Validate company code
         db.collection("companies")
                 .whereEqualTo("code", companyCode.trim().toUpperCase())
                 .limit(1)
@@ -58,36 +70,70 @@ public class GoogleRegistrationRepository {
                         return;
                     }
 
+                    // Normalize name and split to first/last for profile fields
+                    String cleanedFullName = fullName.trim().replaceAll("\\s+", " ");
+                    String[] parts = cleanedFullName.split(" ", 2);
+                    String firstName = parts[0];
+                    String lastName = parts.length > 1 ? parts[1] : "";
+
                     String companyId = qs.getDocuments().get(0).getId();
 
-                    // Create user profile with PENDING status (manager approval required).
-                    Map<String, Object> userData = new HashMap<>();
-                    userData.put("uid", uid);
-                    userData.put("fullName", fullName.trim());
-                    userData.put("email", email);
-                    userData.put("role", "EMPLOYEE");
-                    userData.put("companyId", companyId);
-                    userData.put("status", "PENDING");
-                    userData.put("createdAt", Timestamp.now());
+                    // Load managers in company to create notifications
+                    db.collection("users")
+                            .whereEqualTo("companyId", companyId)
+                            .whereEqualTo("role", "MANAGER")
+                            .get()
+                            .addOnSuccessListener(managers -> {
 
-                    db.collection("users").document(uid)
-                            .set(userData)
-                            .addOnSuccessListener(v -> {
-                                notifyManagersEmployeePending(companyId, uid, fullName.trim());
-                                callback.onEmployeePending();
+                                // Batch: create employee user doc + notifications in one commit
+                                WriteBatch batch = db.batch();
+
+                                // Create employee profile (starts as PENDING)
+                                Map<String, Object> userData = new HashMap<>();
+                                userData.put("uid", uid);
+                                userData.put("firstName", firstName);
+                                userData.put("lastName", lastName);
+                                userData.put("fullName", cleanedFullName);
+                                userData.put("email", email);
+                                userData.put("role", "EMPLOYEE");
+                                userData.put("companyId", companyId);
+                                userData.put("status", "PENDING");
+                                userData.put("createdAt", Timestamp.now());
+
+                                batch.set(db.collection("users").document(uid), userData);
+
+                                // Add notifications for each manager (if exists)
+                                if (managers != null && !managers.isEmpty()) {
+                                    for (DocumentSnapshot m : managers.getDocuments()) {
+                                        String managerId = m.getId();
+                                        NotificationService.addEmployeePendingApprovalForManager(
+                                                batch,
+                                                managerId,
+                                                uid,
+                                                fullName.trim(),
+                                                companyId
+                                        );
+                                    }
+                                }
+
+                                // Single commit
+                                batch.commit()
+                                        .addOnSuccessListener(v -> callback.onEmployeePending())
+                                        .addOnFailureListener(e -> callback.onError(msg(e, "Failed to complete registration")));
                             })
-                            .addOnFailureListener(e -> callback.onError(msg(e, "Failed to save user profile")));
+                            .addOnFailureListener(e -> callback.onError(msg(e, "Failed to load managers")));
                 })
                 .addOnFailureListener(e -> callback.onError(msg(e, "Failed to validate company code")));
     }
 
     // =========================================================
-    // Manager flow (Google sign-in -> create new company)
+    // Manager flow (Google sign-in - create new company)
     // =========================================================
     public void completeAsManagerCreateCompany(@NonNull String fullName,
                                                @NonNull String companyName,
                                                @NonNull CompleteCallback callback) {
 
+        // Must be authenticated with Google before creating company
         FirebaseUser user = auth.getCurrentUser();
         if (user == null) {
             callback.onError("Not authenticated with Google");
@@ -97,10 +143,11 @@ public class GoogleRegistrationRepository {
         String uid = user.getUid();
         String email = user.getEmail() == null ? "" : user.getEmail();
 
-        // Create company document and derive a short join code from its id.
+        // Generate companyId and derive short join code
         String companyId = db.collection("companies").document().getId();
         String companyCode = companyId.substring(0, 6).toUpperCase();
 
+        // Company document payload
         Map<String, Object> companyData = new HashMap<>();
         companyData.put("id", companyId);
         companyData.put("name", companyName.trim());
@@ -108,11 +155,12 @@ public class GoogleRegistrationRepository {
         companyData.put("code", companyCode);
         companyData.put("createdAt", Timestamp.now());
 
+        // Create company doc, then create manager user doc
         db.collection("companies").document(companyId)
                 .set(companyData)
                 .addOnSuccessListener(v -> {
 
-                    // Create manager profile with APPROVED status.
+                    // Manager profile (already approved, profileCompleted later)
                     Map<String, Object> managerData = new HashMap<>();
                     managerData.put("uid", uid);
                     managerData.put("fullName", fullName.trim());
@@ -121,6 +169,7 @@ public class GoogleRegistrationRepository {
                     managerData.put("companyId", companyId);
                     managerData.put("status", "APPROVED");
                     managerData.put("createdAt", Timestamp.now());
+                    managerData.put("profileCompleted", false);
 
                     db.collection("users").document(uid)
                             .set(managerData)
@@ -131,70 +180,9 @@ public class GoogleRegistrationRepository {
                 .addOnFailureListener(e -> callback.onError(msg(e, "Failed to create company")));
     }
 
-    /**
-     * Compatibility wrapper used by a ViewModel that expects (firstName, lastName, companyCode).
-     * Internally delegates to completeAsEmployee().
-     */
-    public void completeEmployeeProfile(@NonNull String firstName,
-                                        @NonNull String lastName,
-                                        @NonNull String companyCode,
-                                        @NonNull CompleteProfileCallback callback) {
-
-        String fullName = (firstName + " " + lastName).trim();
-
-        completeAsEmployee(fullName, companyCode, new CompleteCallback() {
-            @Override
-            public void onEmployeePending() {
-                callback.onSuccessEmployeePending();
-            }
-
-            @Override
-            public void onManagerApproved(String companyId, String companyCode) {
-                // Not used in employee flow.
-            }
-
-            @Override
-            public void onError(String message) {
-                callback.onError(message);
-            }
-        });
-    }
-
     /** Returns exception message if exists, otherwise a fallback. */
     private String msg(Exception e, String fallback) {
         return (e == null || e.getMessage() == null) ? fallback : e.getMessage();
     }
 
-    /**
-     * Notifies all managers in the company that a new employee is pending approval.
-     * Uses a batch write to create notification documents efficiently.
-     */
-    private void notifyManagersEmployeePending(@NonNull String companyId,
-                                               @NonNull String employeeUid,
-                                               @NonNull String employeeName) {
-
-        db.collection("users")
-                .whereEqualTo("companyId", companyId)
-                .whereEqualTo("role", "MANAGER")
-                .get()
-                .addOnSuccessListener(qs -> {
-                    if (qs == null || qs.isEmpty()) return;
-
-                    WriteBatch batch = db.batch();
-
-                    for (DocumentSnapshot m : qs.getDocuments()) {
-                        String managerId = m.getId();
-                        NotificationService.addEmployeePendingApprovalForManager(
-                                batch,
-                                managerId,
-                                employeeUid,
-                                employeeName,
-                                companyId
-                        );
-                    }
-
-                    // Fire-and-forget batch commit (caller does not depend on this).
-                    batch.commit();
-                });
-    }
 }
