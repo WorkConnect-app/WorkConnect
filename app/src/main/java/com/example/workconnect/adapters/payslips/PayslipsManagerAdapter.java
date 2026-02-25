@@ -1,9 +1,12 @@
 package com.example.workconnect.adapters.payslips;
 
-import android.app.DownloadManager;
+import android.content.ContentResolver;
+import android.content.ContentValues;
 import android.content.Context;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Environment;
+import android.provider.MediaStore;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -16,6 +19,11 @@ import com.example.workconnect.R;
 import com.example.workconnect.models.Payslip;
 import com.google.android.material.button.MaterialButton;
 
+import android.util.Base64;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -55,7 +63,7 @@ public class PayslipsManagerAdapter extends RecyclerView.Adapter<PayslipsManager
         String label = p.getPrettyLabel() != null ? p.getPrettyLabel() : (p.getPeriodKey() != null ? p.getPeriodKey() : "-");
         h.txtPeriod.setText(label);
 
-        boolean canDownload = p.getDownloadUrl() != null && !p.getDownloadUrl().trim().isEmpty();
+        boolean canDownload = p.getPdfBase64() != null && !p.getPdfBase64().trim().isEmpty();
         h.btnDownload.setEnabled(canDownload);
 
         h.btnDownload.setOnClickListener(v -> onDownload.onClick(p));
@@ -79,26 +87,53 @@ public class PayslipsManagerAdapter extends RecyclerView.Adapter<PayslipsManager
         }
     }
 
-    // Reusable download helper
-    public static void downloadPdf(Context context, Payslip p) {
-        if (p == null || p.getDownloadUrl() == null || p.getDownloadUrl().trim().isEmpty()) return;
+    public static boolean downloadPdf(Context context, Payslip p) {
+        if (p == null || p.getPdfBase64() == null || p.getPdfBase64().trim().isEmpty()) return false;
 
         String label = p.getPrettyLabel() != null ? p.getPrettyLabel() : (p.getPeriodKey() != null ? p.getPeriodKey() : "payslip");
         String fileName = p.getFileName();
         if (fileName == null || fileName.trim().isEmpty()) fileName = label + ".pdf";
+        if (!fileName.toLowerCase().endsWith(".pdf")) fileName = fileName + ".pdf";
 
-        DownloadManager dm = (DownloadManager) context.getSystemService(Context.DOWNLOAD_SERVICE);
-        if (dm == null) return;
+        try {
+            byte[] bytes = Base64.decode(p.getPdfBase64(), Base64.DEFAULT);
+            return writePdfToDownloads(context, fileName, bytes);
+        } catch (Exception e) {
+            return false;
+        }
+    }
 
-        DownloadManager.Request req = new DownloadManager.Request(Uri.parse(p.getDownloadUrl()));
-        req.setTitle("Salary slip " + label);
-        req.setDescription("Downloading PDF");
-        req.setMimeType("application/pdf");
-        req.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-        req.setAllowedOverMetered(true);
-        req.setAllowedOverRoaming(true);
-        req.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName);
+    private static boolean writePdfToDownloads(Context context, String fileName, byte[] bytes) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ContentResolver resolver = context.getContentResolver();
 
-        dm.enqueue(req);
+                ContentValues values = new ContentValues();
+                values.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
+                values.put(MediaStore.MediaColumns.MIME_TYPE, "application/pdf");
+                values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
+
+                Uri uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+                if (uri == null) return false;
+
+                try (OutputStream os = resolver.openOutputStream(uri)) {
+                    if (os == null) return false;
+                    os.write(bytes);
+                    os.flush();
+                }
+                return true;
+            } else {
+                File dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                if (!dir.exists()) dir.mkdirs();
+                File out = new File(dir, fileName);
+                try (FileOutputStream fos = new FileOutputStream(out)) {
+                    fos.write(bytes);
+                    fos.flush();
+                }
+                return true;
+            }
+        } catch (Exception e) {
+            return false;
+        }
     }
 }

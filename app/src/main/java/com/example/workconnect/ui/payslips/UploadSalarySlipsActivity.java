@@ -29,6 +29,10 @@ import com.google.android.material.textfield.TextInputLayout;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.*;
 
+import android.util.Base64;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+
 import java.util.*;
 
 public class UploadSalarySlipsActivity extends BaseDrawerActivity {
@@ -86,7 +90,8 @@ public class UploadSalarySlipsActivity extends BaseDrawerActivity {
         adapter = new PayslipsManagerAdapter(this,
                 payslip -> {
                     // download
-                    PayslipsManagerAdapter.downloadPdf(this, payslip);
+                    boolean ok = PayslipsManagerAdapter.downloadPdf(this, payslip);
+                    Toast.makeText(this, ok ? "Downloaded" : "Download failed", Toast.LENGTH_SHORT).show();
                 },
                 payslip -> {
                     // delete
@@ -307,14 +312,31 @@ public class UploadSalarySlipsActivity extends BaseDrawerActivity {
                 // update chosen text if we have it
                 tvChosen.setText(pickedPdfName == null ? "PDF selected" : pickedPdfName);
 
-                payslipRepo.uploadPayslip(
+                final int MAX_PDF_BYTES = 700 * 1024; // ~700KB raw pdf (safe under Firestore 1MB after base64)
+
+                byte[] pdfBytes;
+                try {
+                    pdfBytes = readBytesWithLimit(pickedPdfUri, MAX_PDF_BYTES);
+                    if (pdfBytes == null) {
+                        Toast.makeText(this, "PDF is too large (max ~700KB on free plan).", Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                } catch (Exception ex) {
+                    Toast.makeText(this, "Failed to read PDF: " + ex.getMessage(), Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                String base64 = Base64.encodeToString(pdfBytes, Base64.NO_WRAP);
+
+                payslipRepo.uploadPayslipBase64(
                         selectedEmployeeUid,
                         cachedCompanyId,
                         year,
                         month,
-                        pickedPdfUri,
-                        uploaderUid,
+                        base64,
+                        pdfBytes.length,
                         pickedPdfName,
+                        uploaderUid,
                         new PayslipRepository.PayslipActionCallback() {
                             @Override
                             public void onComplete(PayslipRepository.Result result) {
@@ -376,6 +398,23 @@ public class UploadSalarySlipsActivity extends BaseDrawerActivity {
         EmployeeOption(String uid, String label) {
             this.uid = uid;
             this.label = label;
+        }
+    }
+    private byte[] readBytesWithLimit(Uri uri, int maxBytes) throws Exception {
+        try (InputStream is = getContentResolver().openInputStream(uri)) {
+            if (is == null) return null;
+
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            byte[] buf = new byte[16 * 1024];
+            int read;
+            int total = 0;
+
+            while ((read = is.read(buf)) != -1) {
+                total += read;
+                if (total > maxBytes) return null; // too big
+                bos.write(buf, 0, read);
+            }
+            return bos.toByteArray();
         }
     }
 }

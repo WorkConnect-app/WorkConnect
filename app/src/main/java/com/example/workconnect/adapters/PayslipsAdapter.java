@@ -1,13 +1,17 @@
 package com.example.workconnect.adapters;
 
-import android.app.DownloadManager;
+import android.content.ContentResolver;
+import android.content.ContentValues;
 import android.content.Context;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Environment;
+import android.provider.MediaStore;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
@@ -16,6 +20,11 @@ import com.example.workconnect.R;
 import com.example.workconnect.models.Payslip;
 import com.google.android.material.button.MaterialButton;
 
+import android.util.Base64;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -48,31 +57,24 @@ public class PayslipsAdapter extends RecyclerView.Adapter<PayslipsAdapter.VH> {
         String label = (p.getPrettyLabel() != null) ? p.getPrettyLabel() : (p.getPeriodKey() != null ? p.getPeriodKey() : "-");
         h.txtPeriod.setText(label);
 
-        h.btnDownload.setEnabled(p.getDownloadUrl() != null && !p.getDownloadUrl().trim().isEmpty());
+        boolean canDownload = p.getPdfBase64() != null && !p.getPdfBase64().trim().isEmpty();
+        h.btnDownload.setEnabled(canDownload);
 
         h.btnDownload.setOnClickListener(v -> {
-            if (p.getDownloadUrl() == null || p.getDownloadUrl().trim().isEmpty()) return;
+            if (!canDownload) return;
 
             String fileName = p.getFileName();
-            if (fileName == null || fileName.trim().isEmpty()) {
-                fileName = label + ".pdf";
+            if (fileName == null || fileName.trim().isEmpty()) fileName = label + ".pdf";
+            if (!fileName.toLowerCase().endsWith(".pdf")) fileName = fileName + ".pdf";
+
+            try {
+                byte[] pdfBytes = Base64.decode(p.getPdfBase64(), Base64.DEFAULT);
+                boolean ok = writePdfToDownloads(context, fileName, pdfBytes);
+                if (ok) Toast.makeText(context, "Downloaded: " + fileName, Toast.LENGTH_SHORT).show();
+                else Toast.makeText(context, "Download failed", Toast.LENGTH_SHORT).show();
+            } catch (Exception e) {
+                Toast.makeText(context, "Download failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
             }
-
-            DownloadManager dm = (DownloadManager) context.getSystemService(Context.DOWNLOAD_SERVICE);
-            if (dm == null) return;
-
-            DownloadManager.Request req = new DownloadManager.Request(Uri.parse(p.getDownloadUrl()));
-            req.setTitle("Salary slip " + label);
-            req.setDescription("Downloading PDF");
-            req.setMimeType("application/pdf");
-            req.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-            req.setAllowedOverMetered(true);
-            req.setAllowedOverRoaming(true);
-
-            // No special permission needed on modern Android for Downloads
-            req.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName);
-
-            dm.enqueue(req);
         });
     }
 
@@ -89,6 +91,41 @@ public class PayslipsAdapter extends RecyclerView.Adapter<PayslipsAdapter.VH> {
             super(itemView);
             txtPeriod = itemView.findViewById(R.id.txt_period);
             btnDownload = itemView.findViewById(R.id.btn_download);
+        }
+    }
+
+    private static boolean writePdfToDownloads(Context context, String fileName, byte[] bytes) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ContentResolver resolver = context.getContentResolver();
+
+                ContentValues values = new ContentValues();
+                values.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
+                values.put(MediaStore.MediaColumns.MIME_TYPE, "application/pdf");
+                values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
+
+                Uri uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+                if (uri == null) return false;
+
+                try (OutputStream os = resolver.openOutputStream(uri)) {
+                    if (os == null) return false;
+                    os.write(bytes);
+                    os.flush();
+                }
+                return true;
+            } else {
+                // Pre-Android 10 fallback (may require WRITE_EXTERNAL_STORAGE on old devices)
+                File dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                if (!dir.exists()) dir.mkdirs();
+                File out = new File(dir, fileName);
+                try (FileOutputStream fos = new FileOutputStream(out)) {
+                    fos.write(bytes);
+                    fos.flush();
+                }
+                return true;
+            }
+        } catch (Exception e) {
+            return false;
         }
     }
 }

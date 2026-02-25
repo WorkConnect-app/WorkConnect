@@ -1,45 +1,25 @@
 package com.example.workconnect.models;
 
 import java.util.Date;
+import java.util.Locale;
 
 public class Payslip {
-    private String periodKey;      // docId: "yyyy-MM" (unique)
+    private String periodKey;      // docId: yyyy-MM
     private String employeeUid;
     private String companyId;
 
-    private int year;              // 2026
-    private int month;             // 1-12
+    private int year;
+    private int month;
 
-    private String fileName;       // "2026-02.pdf" or original name
-    private String storagePath;    // "payslips/{companyId}/{uid}/{periodKey}.pdf"
-    private String downloadUrl;    // firebase storage download url
+    private String fileName;
+    private long fileSizeBytes;
 
-    private String uploadedByUid;  // manager uid
-    private Date uploadedAt;       // upload timestamp
+    private String pdfBase64;      // Base64 PDF
 
-    public Payslip() { }
+    private String uploadedByUid;
+    private Date uploadedAt;
 
-    public Payslip(String periodKey,
-                   String employeeUid,
-                   String companyId,
-                   int year,
-                   int month,
-                   String fileName,
-                   String storagePath,
-                   String downloadUrl,
-                   String uploadedByUid,
-                   Date uploadedAt) {
-        this.periodKey = periodKey;
-        this.employeeUid = employeeUid;
-        this.companyId = companyId;
-        this.year = year;
-        this.month = month;
-        this.fileName = fileName;
-        this.storagePath = storagePath;
-        this.downloadUrl = downloadUrl;
-        this.uploadedByUid = uploadedByUid;
-        this.uploadedAt = uploadedAt;
-    }
+    public Payslip() {}
 
     public String getPeriodKey() { return periodKey; }
     public void setPeriodKey(String periodKey) { this.periodKey = periodKey; }
@@ -59,11 +39,11 @@ public class Payslip {
     public String getFileName() { return fileName; }
     public void setFileName(String fileName) { this.fileName = fileName; }
 
-    public String getStoragePath() { return storagePath; }
-    public void setStoragePath(String storagePath) { this.storagePath = storagePath; }
+    public long getFileSizeBytes() { return fileSizeBytes; }
+    public void setFileSizeBytes(long fileSizeBytes) { this.fileSizeBytes = fileSizeBytes; }
 
-    public String getDownloadUrl() { return downloadUrl; }
-    public void setDownloadUrl(String downloadUrl) { this.downloadUrl = downloadUrl; }
+    public String getPdfBase64() { return pdfBase64; }
+    public void setPdfBase64(String pdfBase64) { this.pdfBase64 = pdfBase64; }
 
     public String getUploadedByUid() { return uploadedByUid; }
     public void setUploadedByUid(String uploadedByUid) { this.uploadedByUid = uploadedByUid; }
@@ -71,8 +51,7 @@ public class Payslip {
     public Date getUploadedAt() { return uploadedAt; }
     public void setUploadedAt(Date uploadedAt) { this.uploadedAt = uploadedAt; }
 
-    // Nice helper for UI
     public String getPrettyLabel() {
-        return String.format("%04d-%02d", year, month);
+        return String.format(Locale.US, "%04d-%02d", year, month);
     }
 }
