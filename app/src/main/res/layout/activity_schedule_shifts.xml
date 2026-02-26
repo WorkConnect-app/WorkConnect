@@ -1,125 +1,147 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.drawerlayout.widget.DrawerLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/drawerLayout"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:paddingStart="16dp"
-    android:paddingEnd="16dp"
-    android:paddingBottom="16dp"
-    android:paddingTop="16dp">
+    android:layout_height="match_parent">
 
-    <!-- Back (lowered + safe from cutouts) -->
-    <ImageButton
-        android:id="@+id/btn_back"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="Back"
-        android:padding="12dp"
-        android:src="@android:drawable/ic_media_previous"
-        android:layout_marginTop="8dp"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
+    <androidx.coordinatorlayout.widget.CoordinatorLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
 
-    <!-- Team spinner: below back, full width -->
-    <Spinner
-        android:id="@+id/spinner_team_select"
-        android:layout_width="0dp"
-        android:layout_height="48dp"
-        android:minHeight="48dp"
-        android:layout_marginTop="10dp"
-        android:layout_marginStart="4dp"
-        android:layout_marginEnd="4dp"
-        android:spinnerMode="dropdown"
-        app:layout_constraintTop_toBottomOf="@id/btn_back"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        <com.google.android.material.appbar.AppBarLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
 
-    <!-- Prev -->
-    <ImageButton
-        android:id="@+id/btn_prev_month"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="Previous month"
-        android:padding="12dp"
-        android:src="@android:drawable/ic_media_rew"
-        android:layout_marginTop="10dp"
-        app:layout_constraintTop_toBottomOf="@id/spinner_team_select"
-        app:layout_constraintStart_toStartOf="parent" />
+            <com.google.android.material.appbar.MaterialToolbar
+                android:id="@+id/toolbar"
+                android:layout_width="match_parent"
+                android:layout_height="?attr/actionBarSize"
+                android:background="@color/primaryBlue"
+                app:title="Schedule shifts"
+                app:titleTextColor="@android:color/white"
+                app:navigationIconTint="@android:color/white" />
+        </com.google.android.material.appbar.AppBarLayout>
 
-    <!-- Next -->
-    <ImageButton
-        android:id="@+id/btn_next_month"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="Next month"
-        android:padding="12dp"
-        android:src="@android:drawable/ic_media_ff"
-        android:layout_marginTop="10dp"
-        app:layout_constraintTop_toBottomOf="@id/spinner_team_select"
-        app:layout_constraintEnd_toEndOf="parent" />
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_marginTop="?attr/actionBarSize"
+            android:paddingStart="16dp"
+            android:paddingTop="16dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="16dp">
 
-    <!-- Month title centered between prev/next -->
-    <TextView
-        android:id="@+id/tv_month"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:text="Month"
-        android:textSize="18sp"
-        android:textStyle="bold"
-        android:gravity="center"
-        android:layout_marginTop="10dp"
-        app:layout_constraintTop_toBottomOf="@id/spinner_team_select"
-        app:layout_constraintStart_toEndOf="@id/btn_prev_month"
-        app:layout_constraintEnd_toStartOf="@id/btn_next_month" />
+            <Spinner
+                android:id="@+id/spinner_team_select"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:minHeight="48dp"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
+                android:spinnerMode="dropdown"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- Weekday header -->
-    <GridLayout
-        android:id="@+id/layout_weekday_header"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:columnCount="7"
-        android:layout_marginTop="8dp"
-        app:layout_constraintTop_toBottomOf="@id/tv_month"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
+            <ImageButton
+                android:id="@+id/btn_prev_month"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginTop="10dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Previous month"
+                android:padding="12dp"
+                android:src="@android:drawable/ic_media_rew"
+                app:layout_constraintTop_toBottomOf="@id/spinner_team_select"
+                app:layout_constraintStart_toStartOf="parent" />
 
-        <TextView style="@style/WeekdayHeader" android:text="Sun"/>
-        <TextView style="@style/WeekdayHeader" android:text="Mon"/>
-        <TextView style="@style/WeekdayHeader" android:text="Tue"/>
-        <TextView style="@style/WeekdayHeader" android:text="Wed"/>
-        <TextView style="@style/WeekdayHeader" android:text="Thu"/>
-        <TextView style="@style/WeekdayHeader" android:text="Fri"/>
-        <TextView style="@style/WeekdayHeader" android:text="Sat"/>
+            <ImageButton
+                android:id="@+id/btn_next_month"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginTop="10dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Next month"
+                android:padding="12dp"
+                android:src="@android:drawable/ic_media_ff"
+                app:layout_constraintTop_toBottomOf="@id/spinner_team_select"
+                app:layout_constraintEnd_toEndOf="parent" />
 
-    </GridLayout>
+            <TextView
+                android:id="@+id/tv_month"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:gravity="center"
+                android:text="Month"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                app:layout_constraintTop_toBottomOf="@id/spinner_team_select"
+                app:layout_constraintStart_toEndOf="@id/btn_prev_month"
+                app:layout_constraintEnd_toStartOf="@id/btn_next_month" />
 
-    <!-- Bottom button: Edit templates -->
-    <Button
-        android:id="@+id/btn_edit_templates"
-        android:layout_width="0dp"
-        android:layout_height="52dp"
-        android:minHeight="52dp"
-        android:text="Manage shift templates"
-        android:textAllCaps="false"
-        android:layout_marginTop="10dp"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent" />
+            <GridLayout
+                android:id="@+id/layout_weekday_header"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:columnCount="7"
+                app:layout_constraintTop_toBottomOf="@id/tv_month"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent">
 
-    <!-- Calendar grid fills space above the bottom button -->
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/rv_calendar"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:layout_marginTop="6dp"
-        android:layout_marginBottom="10dp"
-        app:layout_constraintTop_toBottomOf="@id/layout_weekday_header"
-        app:layout_constraintBottom_toTopOf="@id/btn_edit_templates"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+                <TextView style="@style/WeekdayHeader" android:text="Sun"/>
+                <TextView style="@style/WeekdayHeader" android:text="Mon"/>
+                <TextView style="@style/WeekdayHeader" android:text="Tue"/>
+                <TextView style="@style/WeekdayHeader" android:text="Wed"/>
+                <TextView style="@style/WeekdayHeader" android:text="Thu"/>
+                <TextView style="@style/WeekdayHeader" android:text="Fri"/>
+                <TextView style="@style/WeekdayHeader" android:text="Sat"/>
+            </GridLayout>
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+            <Button
+                android:id="@+id/btn_edit_templates"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_marginTop="10dp"
+                android:minHeight="52dp"
+                android:text="Manage shift templates"
+                android:textAllCaps="false"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rv_calendar"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_marginTop="6dp"
+                android:layout_marginBottom="10dp"
+                app:layout_constraintTop_toBottomOf="@id/layout_weekday_header"
+                app:layout_constraintBottom_toTopOf="@id/btn_edit_templates"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent" />
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+    </androidx.coordinatorlayout.widget.CoordinatorLayout>
+
+    <com.google.android.material.navigation.NavigationView
+        android:id="@+id/navView"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_gravity="start"
+        android:fitsSystemWindows="true"
+        app:menu="@menu/drawer_menu"
+        app:headerLayout="@layout/drawer_header"
+        app:itemIconSize="24dp"
+        app:itemHorizontalPadding="16dp"
+        app:itemVerticalPadding="10dp"
+        app:itemShapeAppearanceOverlay="@style/DrawerItemShape"
+        app:itemTextAppearance="@style/DrawerItemText"
+        app:itemRippleColor="@color/primaryBlue"
+        app:itemIconTint="@color/primaryBlue"
+        app:itemTextColor="@android:color/black" />
+
+</androidx.drawerlayout.widget.DrawerLayout>

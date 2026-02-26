@@ -10,7 +10,6 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -27,6 +26,7 @@ import com.example.workconnect.repository.authAndUsers.EmployeeRepository;
 import com.example.workconnect.repository.shifts.ShiftAssignmentRepository;
 import com.example.workconnect.repository.shifts.ShiftRepository;
 import com.example.workconnect.repository.authAndUsers.TeamRepository;
+import com.example.workconnect.ui.home.BaseDrawerActivity;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 
 import java.text.DateFormatSymbols;
@@ -35,13 +35,12 @@ import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
 
-public class ScheduleShiftsActivity extends AppCompatActivity {
+public class ScheduleShiftsActivity extends BaseDrawerActivity {
 
     private String companyId = "";
 
     private Spinner spinnerTeam;
     private Button btnEditTemplates;
-    private ImageButton btnBack;
 
     private ImageButton btnPrevMonth;
     private ImageButton btnNextMonth;
@@ -75,20 +74,22 @@ public class ScheduleShiftsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_schedule_shifts);
 
+        // Use BaseDrawerActivity toolbar (blue top bar + notifications)
+        if (toolbar != null) {
+            toolbar.setTitle("Schedule shifts");
+        }
+
         companyId = getIntent().getStringExtra("companyId");
         if (companyId == null) companyId = "";
 
         spinnerTeam = findViewById(R.id.spinner_team_select);
         btnEditTemplates = findViewById(R.id.btn_edit_templates);
-        btnBack = findViewById(R.id.btn_back);
 
         btnPrevMonth = findViewById(R.id.btn_prev_month);
         btnNextMonth = findViewById(R.id.btn_next_month);
         tvMonth = findViewById(R.id.tv_month);
 
         rvCalendar = findViewById(R.id.rv_calendar);
-
-        btnBack.setOnClickListener(v -> finish());
 
         btnEditTemplates.setOnClickListener(v -> {
             if (selectedTeamId == null) {
@@ -165,8 +166,6 @@ public class ScheduleShiftsActivity extends AppCompatActivity {
 
                     Team chosen = cachedTeams.get(position - 1);
 
-                    // IMPORTANT:
-                    // If your Team model has getId(), replace this with chosen.getId()
                     selectedTeamId = chosen.getId();
                     selectedTeamName = chosen.getName();
 
@@ -230,13 +229,11 @@ public class ScheduleShiftsActivity extends AppCompatActivity {
         return out;
     }
 
-
     private void openDayBottomSheet(String dateKey) {
         BottomSheetDialog sheet = new BottomSheetDialog(this);
         android.view.View v = getLayoutInflater().inflate(R.layout.bottomsheet_day_shifts, null);
         sheet.setContentView(v);
 
-        // HIDE availability-only bulk actions for manager screen
         android.view.View bulk = v.findViewById(R.id.layout_availability_bulk_actions);
         if (bulk != null) bulk.setVisibility(android.view.View.GONE);
 
@@ -244,14 +241,11 @@ public class ScheduleShiftsActivity extends AppCompatActivity {
         RecyclerView rv = v.findViewById(R.id.rv_day_shifts);
         tvTitle.setText(dateKey);
 
-        // IMPORTANT: declare ref BEFORE listener uses it
         final DayShiftsAdapter[] dayAdapterRef = new DayShiftsAdapter[1];
 
         DayShiftsAdapter.Listener listener = new DayShiftsAdapter.Listener() {
             @Override
-            public void onShiftClicked(String shiftId) {
-                // not used in manager screen
-            }
+            public void onShiftClicked(String shiftId) { }
 
             @Override
             public void onAssignClicked(ShiftTemplate template) {
@@ -275,71 +269,6 @@ public class ScheduleShiftsActivity extends AppCompatActivity {
         sheet.show();
     }
 
-
-//    private void listenAssignmentsForDay(String dateKey, DayShiftsAdapter dayAdapter) {
-//        if (selectedTeamId == null) return;
-//
-//        assignmentRepo.listenAssignmentsForDate(companyId, selectedTeamId, dateKey).observe(this, assigns -> {
-//            currentAssignmentsForDay = (assigns == null) ? new ArrayList<>() : assigns;
-//
-//            // uid -> employmentType
-//            HashMap<String, String> uidToEmp = new HashMap<>();
-//            // uid -> name
-//            HashMap<String, String> uidToName = new HashMap<>();
-//
-//            for (User u : cachedEmployees) {
-//                if (u.getUid() == null) continue;
-//
-//                uidToEmp.put(u.getUid(), u.getEmploymentType());
-//
-//                String name = (u.getFullName() != null && !u.getFullName().trim().isEmpty())
-//                        ? u.getFullName().trim()
-//                        : (u.getEmail() != null ? u.getEmail() : "Unknown");
-//                uidToName.put(u.getUid(), name);
-//            }
-//
-//            // templateId -> list of assigned uids (SHIFT_BASED only)
-//            HashMap<String, List<String>> templateToUids = new HashMap<>();
-//            for (ShiftAssignment a : currentAssignmentsForDay) {
-//                if (a.getTemplateId() == null || a.getUserId() == null) continue;
-//
-//                String empType = uidToEmp.get(a.getUserId());
-//                if ("FULL_TIME".equals(empType)) continue;
-//
-//                if (!templateToUids.containsKey(a.getTemplateId())) {
-//                    templateToUids.put(a.getTemplateId(), new ArrayList<>());
-//                }
-//                templateToUids.get(a.getTemplateId()).add(a.getUserId());
-//            }
-//
-//            List<DayShiftsAdapter.Row> rows = new ArrayList<>();
-//            for (ShiftTemplate t : currentTemplates) {
-//                if (t == null || t.getId() == null) continue;
-//
-//                List<String> assigned = templateToUids.get(t.getId());
-//                if (assigned == null) assigned = new ArrayList<>();
-//
-//                DayShiftsAdapter.Row r = new DayShiftsAdapter.Row(
-//                        t.getId(),
-//                        (t.getTitle() == null ? "Shift" : t.getTitle()),
-//                        null
-//                );
-//
-//                // manager-mode fields
-//                r.template = t;
-//                r.startHour = t.getStartHour();
-//                r.endHour = t.getEndHour();
-//                r.assignedUserIds = assigned;
-//                r.uidToName = uidToName;
-//
-//                rows.add(r);
-//            }
-//
-//            dayAdapter.setRows(rows);
-//        });
-//    }
-
-    // REFACTORED: listenAssignmentsForDay
     private void listenAssignmentsForDay(String dateKey, DayShiftsAdapter dayAdapter) {
         if (selectedTeamId == null) return;
 
@@ -347,16 +276,13 @@ public class ScheduleShiftsActivity extends AppCompatActivity {
             List<ShiftAssignment> assignments = (assigns == null) ? new ArrayList<>() : assigns;
             currentAssignmentsForDay = assignments;
 
-            // Logic extracted to a helper method for cleaner structure
             List<DayShiftsAdapter.Row> rows = buildRowsForDate(assignments);
 
             dayAdapter.setRows(rows);
         });
     }
 
-    // NEW HELPER METHOD (Improves Readability & Modularity)
     private List<DayShiftsAdapter.Row> buildRowsForDate(List<ShiftAssignment> assignments) {
-        // 1. Pre-process Employee Data (Maps)
         HashMap<String, String> uidToEmp = new HashMap<>();
         HashMap<String, String> uidToName = new HashMap<>();
 
@@ -368,12 +294,9 @@ public class ScheduleShiftsActivity extends AppCompatActivity {
             uidToName.put(u.getUid(), name);
         }
 
-        // 2. Map Assignments to Templates
         HashMap<String, List<String>> templateToUids = new HashMap<>();
         for (ShiftAssignment a : assignments) {
             if (a.getTemplateId() == null || a.getUserId() == null) continue;
-
-            // Use Constant instead of "FULL_TIME"
             if ("FULL_TIME".equals(uidToEmp.get(a.getUserId()))) continue;
 
             if (!templateToUids.containsKey(a.getTemplateId())) {
@@ -382,7 +305,6 @@ public class ScheduleShiftsActivity extends AppCompatActivity {
             templateToUids.get(a.getTemplateId()).add(a.getUserId());
         }
 
-        // 3. Build View Rows
         List<DayShiftsAdapter.Row> rows = new ArrayList<>();
         for (ShiftTemplate t : currentTemplates) {
             if (t == null || t.getId() == null) continue;
@@ -436,9 +358,8 @@ public class ScheduleShiftsActivity extends AppCompatActivity {
                 String uid = u.getUid();
                 if (uid == null || uid.trim().isEmpty()) continue;
 
-                String status = uidToStatus.get(uid); // CAN / PREFER_NOT / CANT / null
+                String status = uidToStatus.get(uid);
 
-                // HARD RULE: do not show CANT rows
                 if ("CANT".equals(status)) continue;
 
                 String name = uidToName.get(uid);
@@ -454,7 +375,6 @@ public class ScheduleShiftsActivity extends AppCompatActivity {
                 uids.add(uid);
             }
 
-            // currently assigned to THIS template
             List<String> currentlyAssigned = new ArrayList<>();
             for (ShiftAssignment a : currentAssignmentsForDay) {
                 if (shiftId.equals(a.getTemplateId()) && a.getUserId() != null) {
@@ -491,7 +411,6 @@ public class ScheduleShiftsActivity extends AppCompatActivity {
                         if (checked[i]) selected.add(uids.get(i));
                     }
 
-                    // uid -> assignedTemplateId (first match)
                     HashMap<String, String> uidToAssignedTemplate = new HashMap<>();
                     for (ShiftAssignment a : currentAssignmentsForDay) {
                         if (a.getUserId() == null || a.getTemplateId() == null) continue;

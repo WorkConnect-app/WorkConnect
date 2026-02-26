@@ -3,12 +3,10 @@ package com.example.workconnect.ui.shifts;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.ArrayAdapter;
-import android.widget.ImageButton;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -16,13 +14,14 @@ import com.example.workconnect.R;
 import com.example.workconnect.adapters.shifts.SwapApprovalsAdapter;
 import com.example.workconnect.models.ShiftSwapRequest;
 import com.example.workconnect.models.Team;
-import com.example.workconnect.repository.shifts.ShiftSwapRepository;
 import com.example.workconnect.repository.authAndUsers.TeamRepository;
+import com.example.workconnect.repository.shifts.ShiftSwapRepository;
+import com.example.workconnect.ui.home.BaseDrawerActivity;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class SwapApprovalsActivity extends AppCompatActivity {
+public class SwapApprovalsActivity extends BaseDrawerActivity {
 
     private Spinner spinnerTeam;
     private RecyclerView rv;
@@ -42,8 +41,12 @@ public class SwapApprovalsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_swap_approvals);
 
-        ImageButton btnBack = findViewById(R.id.btn_back);
-        btnBack.setOnClickListener(v -> finish());
+        // ✅ Use BaseDrawerActivity toolbar (blue top bar + notifications)
+        if (toolbar != null) {
+            toolbar.setTitle("Swap approvals");
+        }
+
+        // ✅ Removed back button logic (drawer/hamburger is handled by BaseDrawerActivity)
 
         companyId = getIntent().getStringExtra("companyId");
         if (companyId == null) companyId = "";

@@ -68,10 +68,6 @@
                     android:icon="@android:drawable/ic_menu_upload"/>
 
                 <item
-                    android:title="Company settings ▼"
-                    android:enabled="false" />
-
-                <item
                     android:id="@+id/nav_company_groups"
                     android:title="Groups"
                     android:icon="@android:drawable/ic_menu_sort_by_size"/>
