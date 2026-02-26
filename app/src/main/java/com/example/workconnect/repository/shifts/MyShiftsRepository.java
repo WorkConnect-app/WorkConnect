@@ -50,7 +50,7 @@ public class MyShiftsRepository {
                 db.collection("companies").document(companyId)
                         .collection("teams").document(teamId)
                         .collection("assignments").document(dateKey)
-                        .collection("items") // IMPORTANT: must match your assignmentRepo structure
+                        .collection("items")
                         .addSnapshotListener((snap, e) -> {
                             String key = teamId + "|" + dateKey;
 

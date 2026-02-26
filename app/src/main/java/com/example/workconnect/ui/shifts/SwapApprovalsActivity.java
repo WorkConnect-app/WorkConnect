@@ -41,12 +41,10 @@ public class SwapApprovalsActivity extends BaseDrawerActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_swap_approvals);
 
-        // ✅ Use BaseDrawerActivity toolbar (blue top bar + notifications)
         if (toolbar != null) {
             toolbar.setTitle("Swap approvals");
         }
 
-        // ✅ Removed back button logic (drawer/hamburger is handled by BaseDrawerActivity)
 
         companyId = getIntent().getStringExtra("companyId");
         if (companyId == null) companyId = "";

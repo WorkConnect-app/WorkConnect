@@ -43,7 +43,7 @@ public class PayslipRepository {
                         for (DocumentSnapshot d : snap.getDocuments()) {
                             Payslip p = new Payslip();
 
-                            // always set the doc id as key (your ordering is by doc id anyway)
+                            // always set the doc id as key
                             p.setPeriodKey(d.getId());
 
                             p.setEmployeeUid(d.getString("employeeUid"));

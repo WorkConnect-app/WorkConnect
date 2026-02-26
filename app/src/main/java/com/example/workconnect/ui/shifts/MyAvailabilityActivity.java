@@ -332,7 +332,7 @@ public class MyAvailabilityActivity extends AppCompatActivity {
                 ));
             }
 
-            // pad to full weeks (optional)
+            // pad to full weeks
             while (cells.size() % 7 != 0) {
                 cells.add(new CalendarAdapter.DayCell(true, null, 0, ""));
             }

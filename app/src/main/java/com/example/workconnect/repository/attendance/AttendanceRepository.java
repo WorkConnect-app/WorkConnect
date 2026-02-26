@@ -35,8 +35,8 @@ public class AttendanceRepository {
     }
 
     // ===============================
-// MONTHLY HOURS API  (ROBUST)
-// ===============================
+    // MONTHLY HOURS API
+    // ===============================
     public interface MonthlyHoursCallback {
         void onSuccess(double hours);
         void onError(Exception e);
@@ -93,7 +93,7 @@ public class AttendanceRepository {
                             long startMs = s.toDate().getTime();
                             long endMs = (e == null) ? System.currentTimeMillis() : e.toDate().getTime();
 
-                            // Clamp any period to max 13 hours (prevents 24h+ inflation)
+                            // Clamp any period to max 13 hours (prevents 24h+ inflation if worker forgets to end shift)
                             long capEndMs = startMs + MAX_SHIFT_MS;
                             if (endMs > capEndMs) endMs = capEndMs;
 
@@ -284,8 +284,8 @@ public class AttendanceRepository {
     }
 
     // ===============================
-// END SHIFT AT (forced timestamp)
-// ===============================
+    // END SHIFT AT (forced timestamp)
+    // ===============================
     public void endShiftAt(
             String userId,
             Timestamp forcedEndAt,
@@ -360,7 +360,7 @@ public class AttendanceRepository {
                         last.putAll(endLocation);
                     }
 
-                    // TTL refresh (optional but nice)
+                    // TTL refresh
                     Calendar cal = Calendar.getInstance();
                     cal.setTime(safeEnd.toDate());
                     cal.add(Calendar.DAY_OF_YEAR, 370);

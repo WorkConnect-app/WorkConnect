@@ -41,15 +41,15 @@ public class AttendanceActivity extends BaseDrawerActivity {
 
     private AttendanceViewModel vm;
 
-    // NEW: two adapters (today + selected)
+    // two adapters (today + selected)
     private AttendancePeriodsAdapter todayAdapter;
     private AttendancePeriodsAdapter selectedAdapter;
 
-    // NEW: two recycler views
+    // two recycler views
     private RecyclerView rvToday;
     private RecyclerView rvSelected;
 
-    // NEW: day dropdown + header
+    // day dropdown + header
     private MaterialAutoCompleteTextView actDay;
     private TextView tvSelectedHeader;
     private ArrayAdapter<String> dayAdapter;
@@ -65,7 +65,7 @@ public class AttendanceActivity extends BaseDrawerActivity {
     private Button btnPrevMonth, btnNextMonth;
     private TextView txtMonthTitle, txtMonthlyHours;
 
-    // ✅ Ensure we don't init VM with empty companyId
+    // Ensure we don't init VM with empty companyId
     private boolean vmInitialized = false;
 
     @Override
@@ -105,7 +105,7 @@ public class AttendanceActivity extends BaseDrawerActivity {
         txtMonthTitle = findViewById(R.id.txtMonthTitle);
         txtMonthlyHours = findViewById(R.id.txtMonthlyHours);
 
-        // NEW views (must exist in activity_attendance.xml)
+        // views
         rvToday = findViewById(R.id.recyclerToday);
         rvSelected = findViewById(R.id.recyclerSelectedDay);
         actDay = findViewById(R.id.actDay);
@@ -125,7 +125,6 @@ public class AttendanceActivity extends BaseDrawerActivity {
         vm.getTodayPeriods().observe(this, todayAdapter::submit);
         vm.getSelectedDayPeriods().observe(this, selectedAdapter::submit);
 
-        // Keep old logic intact
         vm.isShiftActive().observe(this, active -> {
             start.setEnabled(active == null || !active);
             end.setEnabled(active != null && active);
@@ -147,7 +146,7 @@ public class AttendanceActivity extends BaseDrawerActivity {
             if (mk == null) return;
             txtMonthTitle.setText(mk);
 
-            // NEW: day dropdown depends on month
+            // day dropdown depends on month
             rebuildDayDropdown(mk);
         });
 
@@ -172,7 +171,7 @@ public class AttendanceActivity extends BaseDrawerActivity {
         start.setOnClickListener(v -> tryStartShiftWithGpsCheck());
         end.setOnClickListener(v -> vm.endShift(null));
 
-        // ✅ init only when companyId is actually ready
+        // init only when companyId is actually ready
         ensureVmInit();
 
         if (companyId == null || companyId.trim().isEmpty()) {
@@ -186,7 +185,7 @@ public class AttendanceActivity extends BaseDrawerActivity {
         ensureVmInit();
     }
 
-    // ✅ Called by BaseDrawerActivity when cachedCompanyId is loaded
+    // Called by BaseDrawerActivity when cachedCompanyId is loaded
     @Override
     protected void onCompanyStateLoaded() {
         super.onCompanyStateLoaded();
@@ -207,7 +206,7 @@ public class AttendanceActivity extends BaseDrawerActivity {
         vm.init(companyId);
         vmInitialized = true;
 
-        // NEW: ensure dropdown is built immediately after init (even if observer hasn't fired yet)
+        // ensure dropdown is built immediately after init (even if observer hasn't fired yet)
         String mk = vm.getMonthKey().getValue();
         if (mk != null) rebuildDayDropdown(mk);
     }
@@ -245,9 +244,8 @@ public class AttendanceActivity extends BaseDrawerActivity {
         tvSelectedHeader.setText("Shifts from " + dateKey);
         vm.selectDay(dateKey);
 
-        // IMPORTANT: use the clicked item, not actDay.getText()
         actDay.setOnItemClickListener((parent, view, position, id) -> {
-            String dd = parent.getItemAtPosition(position).toString(); // <-- correct
+            String dd = parent.getItemAtPosition(position).toString();
             String dk = monthKey + "-" + dd;
 
             tvSelectedHeader.setText("Shifts from " + dk);
@@ -285,7 +283,7 @@ public class AttendanceActivity extends BaseDrawerActivity {
             return;
         }
 
-        // ✅ Ensure VM is initialized before using it
+        // Ensure VM is initialized before using it
         ensureVmInit();
         if (!vmInitialized) {
             Toast.makeText(this, "Company not loaded yet. Try again.", Toast.LENGTH_SHORT).show();

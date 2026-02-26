@@ -47,7 +47,6 @@ public class AttendanceViewModel extends ViewModel {
     private final MutableLiveData<AttendanceRepository.Result> actionResultLiveData =
             new MutableLiveData<>();
 
-    // NEW (monthly)
     private final MutableLiveData<String> monthKeyLiveData = new MutableLiveData<>();
     private final MutableLiveData<Double> monthlyHoursLiveData = new MutableLiveData<>(0.0);
 
@@ -76,7 +75,6 @@ public class AttendanceViewModel extends ViewModel {
         return actionResultLiveData;
     }
 
-    // NEW
     public LiveData<String> getMonthKey() { return monthKeyLiveData; }
     public LiveData<Double> getMonthlyHours() { return monthlyHoursLiveData; }
 
@@ -95,10 +93,10 @@ public class AttendanceViewModel extends ViewModel {
 
         listenToUserActiveAttendance();
 
-        // NEW: today listener
+        // today listener
         attachTodayListener();
 
-        // NEW: default selected day = today
+        // default selected day = today
         String todayKey = ZonedDateTime.now(companyZone).format(DAY_KEY_FORMAT);
         selectDay(todayKey);
     }

@@ -87,7 +87,7 @@ public class ShiftAssignmentRepository {
 
                     com.google.firebase.firestore.WriteBatch batch = db.batch();
 
-                    // 2) ✅ Ensure parent date doc exists (THIS is the critical fix)
+                    // 2) Ensure parent date doc exists
                     HashMap<String, Object> header = new HashMap<>();
                     header.put("dateKey", dateKey);
                     header.put("updatedAt", System.currentTimeMillis());

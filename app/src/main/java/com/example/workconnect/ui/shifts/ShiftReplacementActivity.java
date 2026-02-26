@@ -60,7 +60,7 @@ public class ShiftReplacementActivity extends BaseDrawerActivity {
     // Track my requests (for quick duplicate checks in UI)
     private final List<ShiftSwapRequest> myRequestsCache = new ArrayList<>();
 
-    // ✅ prevent double init
+    // prevent double init
     private boolean uiReady = false;
     private boolean teamsBound = false;
 
@@ -68,9 +68,6 @@ public class ShiftReplacementActivity extends BaseDrawerActivity {
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_shift_replacement);
-
-        // ❌ אין יותר btn_back — יש Drawer/Hamburger
-        // ImageButton btnBack = findViewById(R.id.btn_back);
 
         companyId = getIntent().getStringExtra("companyId");
         if (companyId == null) companyId = "";
@@ -130,11 +127,11 @@ public class ShiftReplacementActivity extends BaseDrawerActivity {
 
         uiReady = true;
 
-        // ✅ אל תעשה bindTeams אם אין companyId תקין
+
         ensureCompanyAndBind();
     }
 
-    // ✅ נקרא כש-BaseDrawerActivity סיים לטעון cachedCompanyId
+
     @Override
     protected void onCompanyStateLoaded() {
         super.onCompanyStateLoaded();
@@ -150,7 +147,7 @@ public class ShiftReplacementActivity extends BaseDrawerActivity {
         }
 
         if (companyId.trim().isEmpty()) {
-            // עדיין לא נטען — נחכה ל-onCompanyStateLoaded
+
             return;
         }
 

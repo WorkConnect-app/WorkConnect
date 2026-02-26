@@ -143,7 +143,7 @@ public class UploadSalarySlipsActivity extends BaseDrawerActivity {
     private void tryLoadEmployees() {
         if (cachedCompanyId == null || cachedCompanyId.trim().isEmpty()) return;
 
-        // optional guard: only managers
+        // only managers
         if (!cachedIsManager) {
             Toast.makeText(this, "Managers only", Toast.LENGTH_SHORT).show();
             finish();

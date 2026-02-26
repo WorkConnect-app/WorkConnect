@@ -23,7 +23,7 @@ public class CalendarAdapter extends RecyclerView.Adapter<CalendarAdapter.VH> {
         public boolean inMonth;         // for monthly grids (dim prev/next month cells)
         public Integer badgeCount;      // optional (manager)
 
-        // Availability style constructor (matches your MyAvailabilityActivity usage)
+        // Availability style constructor
         public DayCell(boolean isPlaceholder, String dateKey, int dayNumber, String summary) {
             this.isPlaceholder = isPlaceholder;
             this.dateKey = dateKey;

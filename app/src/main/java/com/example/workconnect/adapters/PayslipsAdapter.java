@@ -114,7 +114,7 @@ public class PayslipsAdapter extends RecyclerView.Adapter<PayslipsAdapter.VH> {
                 }
                 return true;
             } else {
-                // Pre-Android 10 fallback (may require WRITE_EXTERNAL_STORAGE on old devices)
+                // Pre-Android 10 fallback
                 File dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
                 if (!dir.exists()) dir.mkdirs();
                 File out = new File(dir, fileName);
