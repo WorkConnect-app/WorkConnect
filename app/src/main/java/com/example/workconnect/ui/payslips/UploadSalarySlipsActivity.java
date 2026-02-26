@@ -103,6 +103,7 @@ public class UploadSalarySlipsActivity extends BaseDrawerActivity {
 
         employeeAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, new ArrayList<>());
         actEmployee.setAdapter(employeeAdapter);
+        actEmployee.setOnClickListener(v -> actEmployee.showDropDown());
 
         actEmployee.setOnItemClickListener((parent, view, position, id) -> {
             EmployeeOption opt = employeeAdapter.getItem(position);
